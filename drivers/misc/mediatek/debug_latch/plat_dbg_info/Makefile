@@ -14,6 +14,3 @@
 # Do not change the following order
 obj-y += plat_dbg_info.o
 obj-y += plat_sram_flag.o
-
-# timesync to get boot time
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/timer/timesync

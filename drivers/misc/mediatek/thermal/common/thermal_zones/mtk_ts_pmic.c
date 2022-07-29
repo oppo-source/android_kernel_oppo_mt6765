@@ -22,6 +22,7 @@
 #include <tspmic_settings.h>
 #include <linux/uidgid.h>
 #include <linux/slab.h>
+#include <soc/oplus/system/oppo_project.h>
 #include <linux/mfd/mt6397/core.h>/* PMIC MFD core header */
 #include <linux/regmap.h>
 
@@ -260,8 +261,10 @@ struct thermal_cooling_device *cdev, unsigned long state)
 		/* To trigger data abort to reset the system
 		 * for thermal protection.
 		 */
-		BUG();
-
+		if (get_eng_version() != HIGH_TEMP_AGING)
+			BUG();
+		else
+			mtktspmic_info("%s should reset but bypass\n", __func__);
 	}
 	return 0;
 }
@@ -691,13 +694,8 @@ static int mtk_ts_pmic_probe(struct platform_device *pdev)
 	 *	mtktspmic_info("[mtktspmic_init]: Warrning !!!"
 	 *				"Need to checking this !!!!!\n");
 	 */
-#if (defined(CONFIG_MACH_MT6739)  \
-	|| defined(CONFIG_MACH_MT6877) \
-	|| defined(CONFIG_MACH_MT6893))
-	mtktspmic_cali_prepare();
-#else
 	mtktspmic_cali_prepare(chip->regmap);
-#endif
+
 	mtktspmic_cali_prepare2();
 #if defined(THERMAL_USE_IIO_CHANNEL)
 	mtktspmic_get_from_dts(pdev);
@@ -758,7 +756,7 @@ static struct platform_driver mtk_ts_pmic_driver = {
 
 static int __init mtktspmic_init(void)
 {
-	mtktspmic_info("[%s:%d]\n", __func__, __LINE__);
+	mtktspmic_info("[%s]\n", __func__);
 	return platform_driver_register(&mtk_ts_pmic_driver);
 }
 

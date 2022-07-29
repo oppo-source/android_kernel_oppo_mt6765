@@ -18,10 +18,6 @@
 #include "fps_composer.h"
 #include "xgf.h"
 
-#ifdef CONFIG_DRM_MEDIATEK
-#include "mtk_drm_arr.h"
-#endif
-
 #define CREATE_TRACE_POINTS
 #include <trace/events/fpsgo.h>
 
@@ -490,17 +486,6 @@ void fpsgo_notify_vsync(void)
 	queue_work(g_psNotifyWorkQueue, &vpPush->sWork);
 }
 
-void fpsgo_get_fps(int *pid, int *fps)
-{
-	//int pid = -1, fps = -1;
-
-	fpsgo_ctrl2fstb_get_fps(pid, fps);
-
-	FPSGO_LOGE("[FPSGO_CTRL] get_fps %d %d\n", *pid, *fps);
-
-	//return fps;
-}
-
 
 void fpsgo_notify_cpufreq(int cid, unsigned long freq)
 {
@@ -691,7 +676,6 @@ static int __init fpsgo_init(void)
 	cpufreq_notifier_fp = fpsgo_notify_cpufreq;
 
 	fpsgo_notify_vsync_fp = fpsgo_notify_vsync;
-	fpsgo_get_fps_fp = fpsgo_get_fps;
 
 	fpsgo_notify_qudeq_fp = fpsgo_notify_qudeq;
 	fpsgo_notify_connect_fp = fpsgo_notify_connect;

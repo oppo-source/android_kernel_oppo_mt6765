@@ -155,7 +155,12 @@ struct request {
 	int cpu;
 	unsigned int cmd_flags;		/* op and common flags */
 	req_flags_t rq_flags;
-
+#if defined(OPLUS_FEATURE_IOMONITOR) && defined(CONFIG_IOMONITOR)
+	ktime_t req_tg;
+	ktime_t req_ti;
+	ktime_t req_td;
+	ktime_t req_tc;
+#endif /*OPLUS_FEATURE_IOMONITOR*/
 	int internal_tag;
 
 	/* the following two fields are internal, NEVER access directly */
@@ -167,7 +172,9 @@ struct request {
 	struct bio *biotail;
 
 	struct list_head queuelist;
-
+#if defined(OPLUS_FEATURE_FG_IO_OPT) && defined(CONFIG_OPLUS_FG_IO_OPT)
+	struct list_head fg_list;
+#endif /*OPLUS_FEATURE_FG_IO_OPT*/
 	/*
 	 * The hash is used inside the scheduler, and killed once the
 	 * request reaches the dispatch list. The ipi_list is only used
@@ -343,6 +350,9 @@ struct blk_queue_tag {
 	unsigned long *tag_map;		/* bit map of free/busy tags */
 	int max_depth;			/* what we will send to device */
 	int real_max_depth;		/* what the array can hold */
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_OPLUS_FEATURE_UXIO_FIRST)
+	int bg_max_depth;		/* max depth for bg thread */
+#endif
 	atomic_t refcnt;		/* map can be shared */
 	int alloc_policy;		/* tag allocation policy */
 	int next_tag;			/* next tag */
@@ -436,6 +446,13 @@ struct request_queue {
 	 * Together with queue_head for cacheline sharing
 	 */
 	struct list_head	queue_head;
+#if defined(OPLUS_FEATURE_FG_IO_OPT) && defined(CONFIG_OPLUS_FG_IO_OPT)
+	struct list_head	fg_head;
+	int fg_count;
+	int both_count;
+	int fg_count_max;
+	int both_count_max;
+#endif /*OPLUS_FEATURE_FG_IO_OPT*/
 	struct request		*last_merge;
 	struct elevator_queue	*elevator;
 	int			nr_rqs[2];	/* # allocated [a]sync rqs */
@@ -567,7 +584,11 @@ struct request_queue {
 	struct blk_queue_tag	*queue_tags;
 
 	unsigned int		nr_sorted;
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_OPLUS_FEATURE_UXIO_FIRST)
+	unsigned int		in_flight[5];
+#else
 	unsigned int		in_flight[2];
+#endif
 
 	/*
 	 * Number of active block driver functions for which blk_drain_queue()
@@ -676,9 +697,6 @@ struct request_queue {
 
 #define BLK_MAX_WRITE_HINTS	5
 	u64			write_hints[BLK_MAX_WRITE_HINTS];
-#ifdef CONFIG_SCSI_UFS_TW
-	bool			turbo_write_dev;
-#endif
 };
 
 #define QUEUE_FLAG_QUEUED	0	/* uses generic tag queueing */
@@ -724,6 +742,23 @@ void blk_queue_flag_clear(unsigned int flag, struct request_queue *q);
 bool blk_queue_flag_test_and_set(unsigned int flag, struct request_queue *q);
 bool blk_queue_flag_test_and_clear(unsigned int flag, struct request_queue *q);
 
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_OPLUS_FEATURE_UXIO_FIRST)
+extern void ohm_ioqueue_add_inflight(struct request_queue *q,
+                                            struct request *rq);
+extern void ohm_ioqueue_dec_inflight(struct request_queue *q,
+                                            struct request *rq);
+#else
+static inline void ohm_ioqueue_add_inflight(struct request_queue *q,
+					     struct request *rq)
+{
+
+}
+static inline void ohm_ioqueue_dec_inflight(struct request_queue *q,
+					     struct request *rq)
+{
+}
+#endif
+
 #define blk_queue_tagged(q)	test_bit(QUEUE_FLAG_QUEUED, &(q)->queue_flags)
 #define blk_queue_stopped(q)	test_bit(QUEUE_FLAG_STOPPED, &(q)->queue_flags)
 #define blk_queue_dying(q)	test_bit(QUEUE_FLAG_DYING, &(q)->queue_flags)
@@ -749,7 +784,6 @@ bool blk_queue_flag_test_and_clear(unsigned int flag, struct request_queue *q);
 #define blk_queue_quiesced(q)	test_bit(QUEUE_FLAG_QUIESCED, &(q)->queue_flags)
 #define blk_queue_pm_only(q)	atomic_read(&(q)->pm_only)
 #define blk_queue_fua(q)	test_bit(QUEUE_FLAG_FUA, &(q)->queue_flags)
-#define blk_queue_registered(q)	test_bit(QUEUE_FLAG_REGISTERED, &(q)->queue_flags)
 
 extern void blk_set_pm_only(struct request_queue *q);
 extern void blk_clear_pm_only(struct request_queue *q);

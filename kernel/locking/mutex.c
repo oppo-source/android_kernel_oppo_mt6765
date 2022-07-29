@@ -35,6 +35,10 @@
 # include "mutex.h"
 #endif
 
+#ifdef CONFIG_OPLUS_FEATURE_HUNG_TASK_ENHANCE
+#include <soc/oplus/system/oplus_signal.h>
+#endif
+
 void
 __mutex_init(struct mutex *lock, const char *name, struct lock_class_key *key)
 {
@@ -44,7 +48,9 @@ __mutex_init(struct mutex *lock, const char *name, struct lock_class_key *key)
 #ifdef CONFIG_MUTEX_SPIN_ON_OWNER
 	osq_lock_init(&lock->osq);
 #endif
-
+#ifdef OPLUS_FEATURE_UIFIRST
+	lock->ux_dep_task = NULL;
+#endif /* OPLUS_FEATURE_UIFIRST */
 	debug_mutex_init(lock, name, key);
 }
 EXPORT_SYMBOL(__mutex_init);
@@ -183,7 +189,16 @@ __mutex_add_waiter(struct mutex *lock, struct mutex_waiter *waiter,
 {
 	debug_mutex_add_waiter(lock, waiter, current);
 
+#ifndef OPLUS_FEATURE_UIFIRST
 	list_add_tail(&waiter->list, list);
+#else /* OPLUS_FEATURE_UIFIRST */
+	if (sysctl_uifirst_enabled) {
+		mutex_list_add(current, &waiter->list, list, lock);
+	} else {
+		list_add_tail(&waiter->list, list);
+	}
+#endif /* OPLUS_FEATURE_UIFIRST */
+
 	if (__mutex_waiter_is_first(lock, waiter))
 		__mutex_set_flag(lock, MUTEX_FLAG_WAITERS);
 }
@@ -609,7 +624,7 @@ static inline int mutex_can_spin_on_owner(struct mutex *lock)
  */
 static __always_inline bool
 mutex_optimistic_spin(struct mutex *lock, struct ww_acquire_ctx *ww_ctx,
-		      struct mutex_waiter *waiter)
+		      const bool use_ww_ctx, struct mutex_waiter *waiter)
 {
 	if (!waiter) {
 		/*
@@ -685,7 +700,7 @@ fail:
 #else
 static __always_inline bool
 mutex_optimistic_spin(struct mutex *lock, struct ww_acquire_ctx *ww_ctx,
-		      struct mutex_waiter *waiter)
+		      const bool use_ww_ctx, struct mutex_waiter *waiter)
 {
 	return false;
 }
@@ -905,13 +920,10 @@ __mutex_lock_common(struct mutex *lock, long state, unsigned int subclass,
 	struct ww_mutex *ww;
 	int ret;
 
-	if (!use_ww_ctx)
-		ww_ctx = NULL;
-
 	might_sleep();
 
 	ww = container_of(lock, struct ww_mutex, base);
-	if (ww_ctx) {
+	if (use_ww_ctx && ww_ctx) {
 		if (unlikely(ww_ctx == READ_ONCE(ww->ctx)))
 			return -EALREADY;
 
@@ -928,10 +940,10 @@ __mutex_lock_common(struct mutex *lock, long state, unsigned int subclass,
 	mutex_acquire_nest(&lock->dep_map, subclass, 0, nest_lock, ip);
 
 	if (__mutex_trylock(lock) ||
-	    mutex_optimistic_spin(lock, ww_ctx, NULL)) {
+	    mutex_optimistic_spin(lock, ww_ctx, use_ww_ctx, NULL)) {
 		/* got the lock, yay! */
 		lock_acquired(&lock->dep_map, ip);
-		if (ww_ctx)
+		if (use_ww_ctx && ww_ctx)
 			ww_mutex_set_context_fastpath(ww, ww_ctx);
 		preempt_enable();
 		return 0;
@@ -942,7 +954,7 @@ __mutex_lock_common(struct mutex *lock, long state, unsigned int subclass,
 	 * After waiting to acquire the wait_lock, try again.
 	 */
 	if (__mutex_trylock(lock)) {
-		if (ww_ctx)
+		if (use_ww_ctx && ww_ctx)
 			__ww_mutex_check_waiters(lock, ww_ctx);
 
 		goto skip_wait;
@@ -990,25 +1002,48 @@ __mutex_lock_common(struct mutex *lock, long state, unsigned int subclass,
 		 * wait_lock. This ensures the lock cancellation is ordered
 		 * against mutex_unlock() and wake-ups do not go missing.
 		 */
+#ifdef CONFIG_OPLUS_FEATURE_HUNG_TASK_ENHANCE
+		if (unlikely(signal_pending_state(state, current))
+			|| hung_long_and_fatal_signal_pending(current)) {
+#else
 		if (unlikely(signal_pending_state(state, current))) {
+#endif
 			ret = -EINTR;
 			goto err;
 		}
 
-		if (ww_ctx) {
+		if (use_ww_ctx && ww_ctx) {
 			ret = __ww_mutex_check_kill(lock, &waiter, ww_ctx);
 			if (ret)
 				goto err;
 		}
-
+#ifdef OPLUS_FEATURE_UIFIRST
+		if (sysctl_uifirst_enabled) {
+			mutex_set_inherit_ux(lock, current);
+		}
+#endif /* OPLUS_FEATURE_UIFIRST */
 		spin_unlock(&lock->wait_lock);
+#ifdef OPLUS_FEATURE_HEALTHINFO
+#ifdef CONFIG_OPPO_JANK_INFO
+		if (state & TASK_UNINTERRUPTIBLE) {
+			current->in_mutex = 1;
+		}
+#endif
+#endif /* OPLUS_FEATURE_HEALTHINFO */
 		schedule_preempt_disabled();
+#ifdef OPLUS_FEATURE_HEALTHINFO
+#ifdef CONFIG_OPPO_JANK_INFO
+		if (state & TASK_UNINTERRUPTIBLE) {
+			current->in_mutex = 0;
+		}
+#endif
+#endif /* OPLUS_FEATURE_HEALTHINFO */
 
 		/*
 		 * ww_mutex needs to always recheck its position since its waiter
 		 * list is not FIFO ordered.
 		 */
-		if (ww_ctx || !first) {
+		if ((use_ww_ctx && ww_ctx) || !first) {
 			first = __mutex_waiter_is_first(lock, &waiter);
 			if (first)
 				__mutex_set_flag(lock, MUTEX_FLAG_HANDOFF);
@@ -1021,7 +1056,7 @@ __mutex_lock_common(struct mutex *lock, long state, unsigned int subclass,
 		 * or we must see its unlock and acquire.
 		 */
 		if (__mutex_trylock(lock) ||
-		    (first && mutex_optimistic_spin(lock, ww_ctx, &waiter)))
+		    (first && mutex_optimistic_spin(lock, ww_ctx, use_ww_ctx, &waiter)))
 			break;
 
 		spin_lock(&lock->wait_lock);
@@ -1030,7 +1065,7 @@ __mutex_lock_common(struct mutex *lock, long state, unsigned int subclass,
 acquired:
 	__set_current_state(TASK_RUNNING);
 
-	if (ww_ctx) {
+	if (use_ww_ctx && ww_ctx) {
 		/*
 		 * Wound-Wait; we stole the lock (!first_waiter), check the
 		 * waiters as anyone might want to wound us.
@@ -1050,7 +1085,7 @@ skip_wait:
 	/* got the lock - cleanup and rejoice! */
 	lock_acquired(&lock->dep_map, ip);
 
-	if (ww_ctx)
+	if (use_ww_ctx && ww_ctx)
 		ww_mutex_lock_acquired(ww, ww_ctx);
 
 	spin_unlock(&lock->wait_lock);
@@ -1232,6 +1267,11 @@ static noinline void __sched __mutex_unlock_slowpath(struct mutex *lock, unsigne
 
 	spin_lock(&lock->wait_lock);
 	debug_mutex_unlock(lock);
+#ifdef OPLUS_FEATURE_UIFIRST
+	if (sysctl_uifirst_enabled) {
+		mutex_unset_inherit_ux(lock, current);
+	}
+#endif /* OPLUS_FEATURE_UIFIRST */
 	if (!list_empty(&lock->wait_list)) {
 		/* get the first entry from the wait-list: */
 		struct mutex_waiter *waiter =

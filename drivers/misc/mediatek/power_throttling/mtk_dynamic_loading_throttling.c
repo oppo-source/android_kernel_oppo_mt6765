@@ -22,7 +22,12 @@
 #include "mtk_low_battery_throttling.h"
 #include "mtk_dynamic_loading_throttling.h"
 
+#ifndef VENDOR_EDIT
 #define POWER_UVLO_VOLT_LEVEL		2600
+#else
+#define POWER_UVLO_VOLT_LEVEL           2750
+#endif /* VENDOR_EDIT */
+
 #define IMAX_MAX_VALUE			5500
 #define DLPT_NOTIFY_FAST_UISOC		30
 #define	DLPT_VOLT_MIN			3100

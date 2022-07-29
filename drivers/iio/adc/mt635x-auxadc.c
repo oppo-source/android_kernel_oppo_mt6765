@@ -95,7 +95,11 @@ struct auxadc_channels {
  */
 static struct auxadc_channels auxadc_chans[] = {
 	MT635x_AUXADC_CHANNEL(BATADC, 0, 15, true),
+#if defined CONFIG_CHARGER_SY6970 || defined CONFIG_CHARGER_SGM41512
+	MT635x_AUXADC_CHANNEL(ISENSE, 1, 15, true),
+#else
 	MT635x_AUXADC_CHANNEL(ISENSE, 0, 15, true),
+#endif
 	MT635x_AUXADC_CHANNEL(VCDT, 2, 12, true),
 	MT635x_AUXADC_CHANNEL(BAT_TEMP, 3, 12, true),
 	MT635x_AUXADC_CHANNEL(BATID, 3, 12, true),
@@ -371,29 +375,6 @@ static void auxadc_timeout_handler(struct mt635x_auxadc_device *adc_dev,
 	auxadc_debug_dump(adc_dev, timeout_times);
 	if (timeout_times == 11)
 		auxadc_reset(adc_dev);
-}
-#endif
-
-#if 0
-int get_auxadc_out(struct mt635x_auxadc_device *adc_dev,
-			  const struct auxadc_channels *auxadc_chan, int *val);
-
-int auxadc_priv_read_channel(struct device *dev, int channel)
-{
-	const struct auxadc_channels *auxadc_chan;
-	struct iio_dev *indio_dev;
-	struct mt635x_auxadc_device *adc_dev;
-	int val, ret;
-
-	auxadc_chan = &auxadc_chans[channel];
-	indio_dev = platform_get_drvdata(to_platform_device(dev));
-	adc_dev = iio_priv(indio_dev);
-
-	ret = get_auxadc_out(adc_dev, auxadc_chan, &val);
-	val = val * auxadc_chan->r_ratio[0] * VOLT_FULL;
-	val = (val / auxadc_chan->r_ratio[1]) >> auxadc_chan->res;
-
-	return val;
 }
 #endif
 
@@ -770,7 +751,7 @@ static int auxadc_get_uisoc(void)
 		 auxadc channel
  * @val:	 pointer to output value
  */
-int get_auxadc_out(struct mt635x_auxadc_device *adc_dev,
+static int get_auxadc_out(struct mt635x_auxadc_device *adc_dev,
 			  const struct auxadc_channels *auxadc_chan, int *val)
 {
 	int ret;
@@ -868,7 +849,7 @@ static int mt635x_auxadc_read_raw(struct iio_dev *indio_dev,
 	if (chan->channel == AUXADC_IMP)
 		ret = IIO_VAL_INT_MULTIPLE;
 	if (__ratelimit(&ratelimit)) {
-		dev_info(adc_dev->dev,
+		dev_dbg(adc_dev->dev,
 			"name:%s, channel=%d, adc_out=0x%x, adc_result=%d\n",
 			auxadc_chan->ch_name, auxadc_chan->ch_num,
 			auxadc_out, *val);
@@ -925,7 +906,7 @@ static void mt6357_vbif_conv(struct mt635x_auxadc_device *adc_dev,
 				   MT6357_BATON_TDET_EN, MT6357_BATON_TDET_EN);
 }
 
-int auxadc_priv_read_channel(struct mt635x_auxadc_device *adc_dev,
+static int auxadc_priv_read_channel(struct mt635x_auxadc_device *adc_dev,
 				    int channel)
 {
 	const struct auxadc_channels *auxadc_chan;

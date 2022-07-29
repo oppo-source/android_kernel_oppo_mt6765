@@ -38,6 +38,9 @@
 #include <linux/math64.h>
 #include <linux/timekeeping.h>
 #include <uapi/linux/sched/types.h>
+#ifdef OPLUS_FEATURE_SENSOR
+#include <linux/regulator/consumer.h>
+#endif /*OPLUS_FEATURE_SENSOR*/
 
 /* ALGIN TO SCP SENSOR_IPI_SIZE AT FILE CONTEXTHUB_FW.H, ALGIN
  * TO SCP_SENSOR_HUB_DATA UNION, ALGIN TO STRUCT DATA_UNIT_T
@@ -64,6 +67,12 @@
 #define SCP_sensorHub_DEV_NAME "SCP_sensorHub"
 
 #define CHRE_POWER_RESET_NOTIFY
+
+
+#ifdef OPLUS_FEATURE_SENSOR_ALGORITHM
+extern void oppo_init_sensor_state(struct SensorState *mSensorState);
+#endif /*OPLUS_FEATURE_SENSOR_ALGORITHM*/
+
 
 static int sensor_send_timestamp_to_hub(void);
 static int SCP_sensorHub_server_dispatch_data(uint32_t *currWp);
@@ -142,10 +151,6 @@ phys_addr_t __attribute__((weak))
 }
 
 void __attribute__((weak)) scp_register_feature(enum feature_id id)
-{
-}
-
-void __attribute__((weak)) scp_A_unregister_notify(struct notifier_block *nb)
 {
 }
 
@@ -608,6 +613,14 @@ SCP_sensorHub_set_timestamp_cmd(union SCP_SENSOR_HUB_DATA *rsp,
 {
 	SCP_sensorHub_xcmd_putdata(rsp, rx_len);
 }
+#ifdef OPLUS_FEATURE_SENSOR
+static void
+SCP_sensorHub_set_oppo_cmd(union SCP_SENSOR_HUB_DATA *rsp,
+					int rx_len)
+{
+	SCP_sensorHub_xcmd_putdata(rsp, rx_len);
+}
+#endif
 
 static void SCP_sensorHub_moving_average(union SCP_SENSOR_HUB_DATA *rsp)
 {
@@ -740,11 +753,21 @@ static void SCP_sensorHub_IPI_handler(int id,
 	/*pr_err("sensorType:%d, action=%d event:%d len:%d\n",
 	 * rsp->rsp.sensorType, rsp->rsp.action, rsp->notify_rsp.event, len);
 	 */
+	#ifndef OPLUS_FEATURE_SENSOR
 	cmd = SCP_sensorHub_find_cmd(rsp->rsp.action);
 	if (cmd != NULL)
 		cmd->handler(rsp, len);
 	else
 		pr_err("cannot find cmd!\n");
+	#else
+	cmd = SCP_sensorHub_find_cmd(rsp->rsp.action);
+	if (cmd != NULL)
+		cmd->handler(rsp, len);
+	else {
+		pr_err("cannot find cmd! try to find oppo cmd\n");
+		SCP_sensorHub_set_oppo_cmd(rsp,len);
+	}
+	#endif
 }
 
 static void SCP_sensorHub_init_sensor_state(void)
@@ -904,6 +927,10 @@ static void SCP_sensorHub_init_sensor_state(void)
 
 	mSensorState[SENSOR_TYPE_SAR].sensorType = SENSOR_TYPE_SAR;
 	mSensorState[SENSOR_TYPE_SAR].timestamp_filter = false;
+	#ifdef OPLUS_FEATURE_SENSOR_ALGORITHM
+	oppo_init_sensor_state(mSensorState);
+	#endif /*OPLUS_FEATURE_SENSOR_ALGORITHM*/
+
 }
 
 static void init_sensor_config_cmd(struct ConfigCmd *cmd,
@@ -1729,9 +1756,14 @@ int sensor_get_data_from_hub(uint8_t sensorType,
 		break;
 	case ID_SAR:
 		data->time_stamp = data_t->time_stamp;
-		data->sar_event.data[0] = data_t->sar_event.data[0];
-		data->sar_event.data[1] = data_t->sar_event.data[1];
-		data->sar_event.data[2] = data_t->sar_event.data[2];
+		data->data[0] = data_t->data[0];
+		data->data[1] = data_t->data[1];
+		data->data[2] = data_t->data[2];
+		data->data[3] = data_t->data[3];
+		data->data[4] = data_t->data[4];
+		data->data[5] = data_t->data[5];
+		data->data[6] = data_t->data[6];
+		data->data[7] = data_t->data[7];
 		break;
 	default:
 		err = -1;
@@ -2258,6 +2290,51 @@ static struct notifier_block sensorHub_ready_notifier = {
 	.notifier_call = sensorHub_ready_event,
 };
 
+#ifdef OPLUS_FEATURE_SENSOR
+static int sensor_set_ldo(struct device *dev){
+
+	struct regulator *sensor_ldo_vio;
+ 	int ret = 0;
+	int retval = 0;
+	sensor_ldo_vio = regulator_get(dev, "vio28");
+	if (IS_ERR(sensor_ldo_vio)) { /* handle return value */
+		ret = PTR_ERR(sensor_ldo_vio);
+		pr_err("get vio28 fail, error: %d\n", ret);
+		return ret;
+	}
+
+	/* set voltage with min & max*/
+	ret = regulator_set_voltage(sensor_ldo_vio, 3000000, 3000000);
+	if (ret < 0) {
+		pr_err("set voltage sensor_ldo_vio fail, ret = %d\n", ret);
+	}
+	retval |= ret;
+
+	ret = regulator_set_voltage(sensor_ldo_vio, 3000000, 3000000);
+	if (ret < 0) {
+		pr_err("set voltage sensor_ldo_vio fail, ret = %d\n", ret);
+	}
+	retval |= ret;
+
+	ret = regulator_get_voltage(sensor_ldo_vio);
+	if (ret < 0) {
+		pr_err("get voltage sensor_ldo_vio fail\n");
+	}
+	pr_err("now sensor_ldo_vio voltage = %d\n", ret);
+
+	/* enable regulator */
+	ret = regulator_enable(sensor_ldo_vio);
+	if (ret < 0) {
+		pr_err("enable regulat sensor_ldo_vio fail, ret = %d\n", ret);
+	}
+	retval |= ret;	/* enable regulator */
+
+	pr_err("ret = %d, retval =%d\n", ret,retval);
+
+	return retval;
+}
+#endif /*OPLUS_FEATURE_SENSOR*/
+
 static int sensorHub_probe(struct platform_device *pdev)
 {
 	struct SCP_sensorHub_data *obj;
@@ -2265,6 +2342,11 @@ static int sensorHub_probe(struct platform_device *pdev)
 	struct task_struct *task = NULL;
 	struct task_struct *task_power_reset = NULL;
 	struct sched_param param = { .sched_priority = MAX_RT_PRIO - 1 };
+
+#ifdef OPLUS_FEATURE_SENSOR
+	pr_err("%s\n", __func__);
+	sensor_set_ldo(&pdev->dev);
+#endif /*OPLUS_FEATURE_SENSOR*/
 
 	pr_debug("%s\n", __func__);
 	SCP_sensorHub_init_sensor_state();
@@ -2501,15 +2583,31 @@ static int nanohub_delete_attr(struct device_driver *driver)
 	return err;
 }
 
+#ifdef OPLUS_FEATURE_SENSOR
+static struct of_device_id sensorhub_of_match[] = {
+		{ .compatible = "sensorhub,sensor_ldo_vio", },
+		{}
+};
+MODULE_DEVICE_TABLE(of, sensorhub_of_match);
+#else
 static struct platform_device sensorHub_device = {
 	.name = "sensor_hub_pl",
 	.id = -1,
 };
+#endif /*OPLUS_FEATURE_SENSOR*/
 
 static struct platform_driver sensorHub_driver = {
+#ifdef OPLUS_FEATURE_SENSOR
+	.driver = {
+	   .name = "sensor_hub_pl",
+	   .owner= THIS_MODULE,
+	   .of_match_table = sensorhub_of_match,
+	},
+#else
 	.driver = {
 	   .name = "sensor_hub_pl",
 	},
+#endif /*OPLUS_FEATURE_SENSOR*/
 	.probe = sensorHub_probe,
 	.remove = sensorHub_remove,
 	.suspend = sensorHub_suspend,
@@ -2548,10 +2646,12 @@ static int __init SCP_sensorHub_init(void)
 {
 	SCP_sensorHub_ipi_master_init();
 	pr_debug("%s\n", __func__);
+#ifndef OPLUS_FEATURE_SENSOR
 	if (platform_device_register(&sensorHub_device)) {
 		pr_err("SCP_sensorHub platform device error\n");
 		return -1;
 	}
+#endif /*OPLUS_FEATURE_SENSOR*/
 	if (platform_driver_register(&sensorHub_driver)) {
 		pr_err("SCP_sensorHub platform driver error\n");
 		return -1;

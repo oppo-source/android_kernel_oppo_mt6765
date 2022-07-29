@@ -22,6 +22,9 @@
 #ifdef CONFIG_MTK_SCHED_CPU_PREFER
 #define LB_CPU_PREFER   (0x10  << LB_POLICY_SHIFT)
 #endif
+#if defined (CONFIG_SCHED_WALT) && defined (OPLUS_FEATURE_UIFIRST)
+#define LB_UX_BOOST      (0x88  << LB_POLICY_SHIFT)
+#endif
 
 #ifdef CONFIG_MTK_SCHED_EXTENSION
 
@@ -178,4 +181,3 @@ static inline unsigned long map_util_freq_with_margin(
 	return freq;
 }
 #endif
-extern unsigned long capacity_spare_without(int cpu, struct task_struct *p);

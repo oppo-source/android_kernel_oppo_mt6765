@@ -423,7 +423,9 @@ struct thermal_cooling_device *cdev, unsigned long state)
 		/* To trigger data abort to reset the system
 		 * for thermal protection.
 		 */
+#ifndef VENDOR_EDIT
 		BUG();
+#endif
 	}
 	return 0;
 }

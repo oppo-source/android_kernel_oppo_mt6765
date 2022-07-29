@@ -1,0 +1,23 @@
+&i2c5 {
+	sgm41512-charger@6b {
+        status = "okay";
+		compatible = "ti,sgm41512-charger";
+		reg = <0x6b>;
+		charger_name = "SGM41512";
+
+		interrupt-parent = <&pio>;
+		interrupts = <90 IRQ_TYPE_EDGE_FALLING 90 0>;
+	        chg-irq-gpio = <&pio 90 0x0>;
+		ti,charging-disabled;
+		ti,sgm41512,enable-term;
+		enable_high_temp_current_limit;
+		enable_headset_plugin_limit;
+
+		ti,sgm41512,charge-voltage = <4400>;
+		ti,sgm41512,charge-current = <3000>;
+		ti,sgm41512,input-current-limit = <3000>;
+		ti,sgm41512,input-voltage-limit = <4500>;
+		ti,sgm41512,vbatlow-volt = <3500>;
+		ti,sgm41512,term-current = <1000>;
+    };
+};

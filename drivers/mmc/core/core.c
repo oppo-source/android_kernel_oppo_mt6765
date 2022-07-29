@@ -225,6 +225,15 @@ static void __mmc_start_request(struct mmc_host *host, struct mmc_request *mrq)
 {
 	int err;
 
+#ifdef OPLUS_FEATURE_MMC_DRIVER
+	if (host->card_stuck_in_programing_status && (mrq->req) && (REQ_OP_WRITE == req_op(mrq->req))) {
+		pr_err("%s: card stuck in programing status\n", mmc_hostname(host));
+		mrq->cmd->error = -EIO;
+		mmc_request_done(host, mrq);
+		return;
+	}
+#endif
+
 	/* Assumes host controller has been runtime resumed by mmc_claim_host */
 	err = mmc_retune(host);
 	if (err) {
@@ -895,7 +904,11 @@ int mmc_run_queue_thread(void *data)
 	bool is_done = false;
 	int err;
 	u64 chk_time = 0;
+	struct sched_param scheduler_params = {0};
 
+	/* Set as RT priority*/
+	scheduler_params.sched_priority = 1;
+	sched_setscheduler(current, SCHED_FIFO, &scheduler_params);
 	pr_info("[CQ] start cmdq thread\n");
 	mt_bio_queue_alloc(current, NULL, false);
 
@@ -1215,7 +1228,7 @@ void mmc_wait_for_req_done(struct mmc_host *host, struct mmc_request *mrq)
 
 		mmc_retune_recheck(host);
 
-		pr_debug("%s: req failed (CMD%u): %d, retrying...\n",
+		pr_info("%s: req failed (CMD%u): %d, retrying...\n",
 			 mmc_hostname(host), cmd->opcode, cmd->error);
 		cmd->retries--;
 		cmd->error = 0;
@@ -1266,10 +1279,10 @@ int mmc_cqe_start_req(struct mmc_host *host, struct mmc_request *mrq)
 
 out_err:
 	if (mrq->cmd) {
-		pr_debug("%s: failed to start CQE direct CMD%u, error %d\n",
+		pr_warn("%s: failed to start CQE direct CMD%u, error %d\n",
 			 mmc_hostname(host), mrq->cmd->opcode, err);
 	} else {
-		pr_debug("%s: failed to start CQE transfer for tag %d, error %d\n",
+		pr_warn("%s: failed to start CQE transfer for tag %d, error %d\n",
 			 mmc_hostname(host), mrq->tag, err);
 	}
 	return err;
@@ -1651,6 +1664,43 @@ int __mmc_claim_host(struct mmc_host *host, struct mmc_ctx *ctx,
 EXPORT_SYMBOL(__mmc_claim_host);
 
 /**
+ *     mmc_try_claim_host - try exclusively to claim a host
+ *        and keep trying for given time, with a gap of 10ms
+ *     @host: mmc host to claim
+ *     @dealy_ms: delay in ms
+ *
+ *     Returns %1 if the host is claimed, %0 otherwise.
+ */
+int mmc_try_claim_host(struct mmc_host *host, unsigned int delay_ms)
+{
+	int claimed_host = 0;
+	unsigned long flags;
+	int retry_cnt = delay_ms/10;
+	bool pm = false;
+
+	do {
+		spin_lock_irqsave(&host->lock, flags);
+		if (!host->claimed || mmc_ctx_matches(host, NULL, current)) {
+			host->claimed = 1;
+			mmc_ctx_set_claimer(host, NULL, current);
+			host->claim_cnt += 1;
+			claimed_host = 1;
+			if (host->claim_cnt == 1)
+				pm = true;
+		}
+		spin_unlock_irqrestore(&host->lock, flags);
+		if (!claimed_host)
+			mmc_delay(10);
+	} while (!claimed_host && retry_cnt--);
+
+	if (pm)
+		pm_runtime_get_sync(mmc_dev(host));
+
+	return claimed_host;
+}
+EXPORT_SYMBOL(mmc_try_claim_host);
+
+/**
  *	mmc_release_host - release a host
  *	@host: mmc host to release
  *
@@ -1917,7 +1967,7 @@ int mmc_of_parse_voltage(struct device_node *np, u32 *mask)
 	voltage_ranges = of_get_property(np, "voltage-ranges", &num_ranges);
 	num_ranges = num_ranges / sizeof(*voltage_ranges) / 2;
 	if (!voltage_ranges) {
-		pr_debug("%pOF: voltage-ranges unspecified\n", np);
+		pr_warn("%pOF: voltage-ranges unspecified\n", np);
 		return 0;
 	}
 	if (!num_ranges) {
@@ -2153,6 +2203,9 @@ int mmc_regulator_set_vqmmc(struct mmc_host *mmc, struct mmc_ios *ios)
 		min_uV = max(volt - 300000, 2700000);
 		max_uV = min(max_uV + 200000, 3600000);
 
+		/* force set the vqmmc to 3v */
+		volt = min_uV = max_uV = 3000000;
+
 		/*
 		 * Due to a limitation in the current implementation of
 		 * regulator_set_voltage_triplet() which is taking the lowest
@@ -2323,7 +2376,7 @@ int mmc_set_uhs_voltage(struct mmc_host *host, u32 ocr)
 
 	err = mmc_wait_for_cmd(host, &cmd, 0);
 	if (err)
-		goto power_cycle;
+		return err;
 
 	if (!mmc_host_is_spi(host) && (cmd.resp[0] & R1_ERROR))
 		return -EIO;
@@ -2359,7 +2412,7 @@ int mmc_set_uhs_voltage(struct mmc_host *host, u32 ocr)
 
 power_cycle:
 	if (err) {
-		pr_debug("%s: Signal voltage switch failed, "
+		pr_warn("%s: Signal voltage switch failed, "
 			"power cycling card\n", mmc_hostname(host));
 		mmc_power_cycle(host, ocr);
 	}
@@ -3177,7 +3230,7 @@ unsigned int mmc_calc_max_discard(struct mmc_card *card)
 	} else if (max_discard < card->erase_size) {
 		max_discard = 0;
 	}
-	pr_debug("%s: calculated max. discard sectors %u for timeout %u ms\n",
+	pr_info("%s: calculated max. discard sectors %u for timeout %u ms\n",
 		mmc_hostname(host), max_discard, host->max_busy_timeout ?
 		host->max_busy_timeout : MMC_ERASE_TIMEOUT_MS);
 	return max_discard;
@@ -3280,7 +3333,7 @@ static int mmc_rescan_try_freq(struct mmc_host *host, unsigned freq)
 {
 	host->f_init = freq;
 
-	pr_debug("%s: %s: trying to init card at %u Hz\n",
+	pr_info("%s: %s: trying to init card at %u Hz\n",
 		mmc_hostname(host), __func__, host->f_init);
 
 	mmc_power_up(host, host->ocr_avail);
@@ -3340,12 +3393,12 @@ int _mmc_detect_card_removed(struct mmc_host *host)
 	 */
 	if (!ret && host->ops->get_cd && !host->ops->get_cd(host)) {
 		mmc_detect_change(host, msecs_to_jiffies(200));
-		pr_debug("%s: card removed too slowly\n", mmc_hostname(host));
+		pr_warn("%s: card removed too slowly\n", mmc_hostname(host));
 	}
 
 	if (ret) {
 		mmc_card_set_removed(host->card);
-		pr_debug("%s: card remove detected\n", mmc_hostname(host));
+		pr_warn("%s: card remove detected\n", mmc_hostname(host));
 	}
 
 	return ret;
@@ -3485,7 +3538,11 @@ void mmc_stop_host(struct mmc_host *host)
 	}
 
 	host->rescan_disable = 1;
+#ifndef VENDOR_EDIT
 	cancel_delayed_work_sync(&host->detect);
+#else
+	cancel_delayed_work(&host->detect);
+#endif
 
 	/* clear pm flags now and let card drivers set them as needed */
 	host->pm_flags = 0;

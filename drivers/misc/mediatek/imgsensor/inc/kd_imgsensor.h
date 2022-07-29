@@ -115,9 +115,7 @@
  ************************************************************************/
 /* SENSOR CHIP VERSION */
 /*IMX*/
-#define IMX766_SENSOR_ID                        0x0766
 #define IMX499_SENSOR_ID                        0x0499
-#define IMX481_SENSOR_ID                        0x0481
 #define IMX486_SENSOR_ID                        0x0486
 #define IMX586_SENSOR_ID                        0x0586
 #define IMX519_SENSOR_ID                        0x0519
@@ -132,7 +130,6 @@
 #define IMX338_SENSOR_ID                        0x0338
 #define IMX376_SENSOR_ID                        0x0376
 #define IMX318_SENSOR_ID                        0x0318
-#define IMX319_SENSOR_ID                        0x0319
 #define IMX377_SENSOR_ID                        0x0377
 #define IMX278_SENSOR_ID                        0x0278
 #define IMX258_SENSOR_ID                        0x0258
@@ -159,8 +156,6 @@
 #define OV13850_SENSOR_ID                       0xD850
 #define OV12A10_SENSOR_ID                       0x1241
 #define OV13870_SENSOR_ID                       0x013870
-#define OV13850_SENSOR_ID                       0xD850
-#define OV13855_SENSOR_ID                       0xD855
 #define OV16885_SENSOR_ID                       0x16885
 #define OV13855MAIN2_SENSOR_ID                  0xD856
 #define OV12830_SENSOR_ID                       0xC830
@@ -201,12 +196,10 @@
 #define OV2650_SENSOR_ID_2                      0x2652
 #define OV2650_SENSOR_ID_3                      0x2655
 #define OV20880MIPI_SENSOR_ID                   0x20880
-#define OV05A20_SENSOR_ID	                    0x5305
+#define OV13B10_SENSOR_ID                       0x560D42
 /*S5K*/
-#define S5KJD1_SENSOR_ID                        0x3841
 #define S5K2LQSX_SENSOR_ID                      0x2c1a
 #define S5K4H7_SENSOR_ID                        0x487B
-#define S5K4H7YXSUB_SENSOR_ID                   0x487A
 #define S5K3P8SP_SENSOR_ID                      0x3108
 #define S5K2T7SP_SENSOR_ID                      0x2147
 #define S5K3P8SX_SENSOR_ID                      0x3108
@@ -214,7 +207,6 @@
 #define S5K3L6_SENSOR_ID                        0x30C6
 #define S5K3L8_SENSOR_ID                        0x30C8
 #define S5K3M3_SENSOR_ID                        0x30D3
-#define S5K3M5SX_SENSOR_ID                      0x30D5
 #define S5K2X8_SENSOR_ID                        0x2188
 #define S5K2P7_SENSOR_ID                        0x2107
 #define S5K2P8_SENSOR_ID                        0x2108
@@ -246,7 +238,7 @@
 #define S5K5E8YX_SENSOR_ID                      0x5e80
 #define S5K5E8YXREAR2_SENSOR_ID                 0x5e81
 #define S5K5E9_SENSOR_ID                        0x559b
-#define S5KHM2SP_SENSOR_ID                      0x1AD2
+#define S5KGD1SP_SENSOR_ID                      0x0841
 /*HI*/
 #define HI841_SENSOR_ID                         0x0841
 #define HI707_SENSOR_ID                         0x00b8
@@ -341,27 +333,18 @@
 /*Others*/
 #define SHARP3D_SENSOR_ID                       0x003d
 #define T8EV5_SENSOR_ID                         0x1011
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#define S5K3P9SP_SENSOR_ID                      0x310A
 
-#define S5KGD1SP_SENSOR_ID                      0x0841
-#define HI846_SENSOR_ID                         0x0846
-#define OV02A10_MONO_SENSOR_ID                  0x2509
-#define IMX686_SENSOR_ID                        0X0686
-#define IMX616_SENSOR_ID                        0x0616
-#define OV48C_SENSOR_ID                         0x564843
-#define IMX355_SENSOR_ID                        0x0355
-#define OV13B10_SENSOR_ID                       0x560d42
-#define OV02B10_SENSOR_ID                       0x002b
-
-
-#define OV48B_SENSOR_ID                         0x564842
-#define S5K3P9SP_SENSOR_ID                      0x3109
-#define GC8054_SENSOR_ID                        0x8054
-#define GC02M0_SENSOR_ID                        0x02d0
-#define GC02M0_SENSOR_ID1                       0x02d1
-#define GC02M0_SENSOR_ID2                       0x02d2
-#define GC02K0_SENSOR_ID                        0x2385
-#define OV16A10_SENSOR_ID                       0x561641
-#define GC02M1B_SENSOR_ID                       0x02e0
+#define SENSOR_DRVNAME_S5K3P9SP_MIPI_RAW        "s5k3p9sp_mipi_raw"
+#define SENSOR_DRVNAME_HI846P2Q_MIPI_RAW         "hi846p2q_mipi_raw"
+#define SENSOR_DRVNAME_OV02A10P2Q_MIPI_MONO      "ov02a10p2q_mipi_mono"
+#define SENSOR_DRVNAME_OV02A10P2Q_MIPI_MONO1     "ov02a10p2q_mipi_mono1"
+#define SENSOR_DRVNAME_GC02M0P2Q_MIPI_MONO       "gc02m0p2q_mipi_mono"
+#define SENSOR_DRVNAME_GC02M0P2Q_MIPI_MONO1      "gc02m0p2q_mipi_mono1"
+#define SENSOR_DRVNAME_GC5035_MIPI_RAW          "gc5035_mipi_raw"
+#define SENSOR_DRVNAME_S5KGD1SP_MIPI_RAW        "s5kgd1sp_mipi_raw"
+#endif
 
 /* CAMERA DRIVER NAME */
 #define CAMERA_HW_DEVNAME                       "kd_camera_hw"
@@ -369,9 +352,10 @@
 /*IMX*/
 #define SENSOR_DRVNAME_IMX499_MIPI_RAW          "imx499_mipi_raw"
 #define SENSOR_DRVNAME_IMX499_MIPI_RAW_13M      "imx499_mipi_raw_13m"
-#define SENSOR_DRVNAME_IMX481_MIPI_RAW          "imx481_mipi_raw"
 #define SENSOR_DRVNAME_IMX486_MIPI_RAW          "imx486_mipi_raw"
 #define SENSOR_DRVNAME_IMX586_MIPI_RAW          "imx586_mipi_raw"
+#define SENSOR_DRVNAME_IMX586P2Q2_MIPI_RAW       "imx586p2q2_mipi_raw"
+#define SENSOR_DRVNAME_IMX586P2Q_MIPI_RAW       "imx586p2q_mipi_raw"
 #define SENSOR_DRVNAME_IMX519_MIPI_RAW          "imx519_mipi_raw"
 #define SENSOR_DRVNAME_IMX519DUAL_MIPI_RAW      "imx519dual_mipi_raw"
 #define SENSOR_DRVNAME_IMX576_MIPI_RAW          "imx576_mipi_raw"
@@ -385,7 +369,6 @@
 #define SENSOR_DRVNAME_IMX338_MIPI_RAW          "imx338_mipi_raw"
 #define SENSOR_DRVNAME_IMX376_MIPI_RAW          "imx376_mipi_raw"
 #define SENSOR_DRVNAME_IMX318_MIPI_RAW          "imx318_mipi_raw"
-#define SENSOR_DRVNAME_IMX319_MIPI_RAW          "imx319_mipi_raw"
 #define SENSOR_DRVNAME_IMX377_MIPI_RAW          "imx377_mipi_raw"
 #define SENSOR_DRVNAME_IMX278_MIPI_RAW          "imx278_mipi_raw"
 #define SENSOR_DRVNAME_IMX258_MIPI_RAW          "imx258_mipi_raw"
@@ -403,13 +386,11 @@
 #define SENSOR_DRVNAME_IMX105_MIPI_RAW          "imx105_mipi_raw"
 #define SENSOR_DRVNAME_IMX091_MIPI_RAW          "imx091_mipi_raw"
 #define SENSOR_DRVNAME_IMX073_MIPI_RAW          "imx073_mipi_raw"
-#define SENSOR_DRVNAME_IMX766_MIPI_RAW          "imx766_mipi_raw"
 /*OV*/
 #define SENSOR_DRVNAME_OV23850_MIPI_RAW         "ov23850_mipi_raw"
 #define SENSOR_DRVNAME_OV16880_MIPI_RAW         "ov16880_mipi_raw"
 #define SENSOR_DRVNAME_OV16885_MIPI_RAW         "ov16885_mipi_raw"
 #define SENSOR_DRVNAME_OV16825_MIPI_RAW         "ov16825_mipi_raw"
-#define SENSOR_DRVNAME_OV13855_MIPI_RAW         "ov13855_mipi_raw"
 #define SENSOR_DRVNAME_OV13870_MIPI_RAW         "ov13870_mipi_raw"
 #define SENSOR_DRVNAME_OV13855_MIPI_RAW         "ov13855_mipi_raw"
 #define SENSOR_DRVNAME_OV13855MAIN2_MIPI_RAW    "ov13855main2_mipi_raw"
@@ -457,12 +438,9 @@
 #define SENSOR_DRVNAME_OV2650_RAW               "ov265x_raw"
 #define SENSOR_DRVNAME_OV20880_MIPI_RAW         "ov20880_mipi_raw"
 #define SENSOR_DRVNAME_OV13B10_MIPI_RAW         "ov13b10_mipi_raw"
-#define SENSOR_DRVNAME_OV05A20_MIPI_RAW         "ov05a20_mipi_raw"
 /*S5K*/
-#define SENSOR_DRVNAME_S5KJD1_MIPI_RAW        "s5kjd1_mipi_raw"
 #define SENSOR_DRVNAME_S5K2LQSX_MIPI_RAW        "s5k2lqsx_mipi_raw"
 #define SENSOR_DRVNAME_S5K4H7_MIPI_RAW          "s5k4h7_mipi_raw"
-#define SENSOR_DRVNAME_S5K4H7YXSUB_MIPI_RAW     "s5k4h7yxsub_mipi_raw"
 #define SENSOR_DRVNAME_S5K3P8SP_MIPI_RAW        "s5k3p8sp_mipi_raw"
 #define SENSOR_DRVNAME_S5K2T7SP_MIPI_RAW        "s5k2t7sp_mipi_raw"
 #define SENSOR_DRVNAME_S5K2T7SP_MIPI_RAW_5M     "s5k2t7sp_mipi_raw_5m"
@@ -471,7 +449,6 @@
 #define SENSOR_DRVNAME_S5K3L6_MIPI_RAW          "s5k3l6_mipi_raw"
 #define SENSOR_DRVNAME_S5K3L8_MIPI_RAW          "s5k3l8_mipi_raw"
 #define SENSOR_DRVNAME_S5K3M3_MIPI_RAW          "s5k3m3_mipi_raw"
-#define SENSOR_DRVNAME_S5K3M5SX_MIPI_RAW        "s5k3m5sx_mipi_raw"
 #define SENSOR_DRVNAME_S5K2X8_MIPI_RAW          "s5k2x8_mipi_raw"
 #define SENSOR_DRVNAME_S5K2P7_MIPI_RAW          "s5k2p7_mipi_raw"
 #define SENSOR_DRVNAME_S5K2P8_MIPI_RAW          "s5k2p8_mipi_raw"
@@ -493,7 +470,6 @@
 #define SENSOR_DRVNAME_S5K5E8YX_MIPI_RAW        "s5k5e8yx_mipi_raw"
 #define SENSOR_DRVNAME_S5K5E8YXREAR2_MIPI_RAW   "s5k5e8yxrear2_mipi_raw"
 #define SENSOR_DRVNAME_S5K5E9_MIPI_RAW          "s5k5e9_mipi_raw"
-#define SENSOR_DRVNAME_S5KHM2SP_MIPI_RAW        "s5khm2sp_mipi_raw"
 /*HI*/
 #define SENSOR_DRVNAME_HI841_MIPI_RAW           "hi841_mipi_raw"
 #define SENSOR_DRVNAME_HI707_YUV                "hi707_yuv"
@@ -519,8 +495,7 @@
 #define SENSOR_DRVNAME_MT9V113_YUV              "mt9v113_yuv"
 #define SENSOR_DRVNAME_MT9T113_MIPI_YUV         "mt9t113_mipi_yuv"
 /*GC*/
-#define SENSOR_DRVNAME_GC02M0_MIPI_RAW          "gc02m0_mipi_raw"
-#define SENSOR_DRVNAME_GC5035MIPI_RAW          "gc5035_mipi_raw"
+#define SENSOR_DRVNAME_GC5035MIPI_RAW           "gc5035_mipi_raw"
 #define SENSOR_DRVNAME_GC2375_MIPI_RAW          "gc2375_mipi_raw"
 #define SENSOR_DRVNAME_GC2375H_MIPI_RAW         "gc2375h_mipi_raw"
 #define SENSOR_DRVNAME_GC2375SUB_MIPI_RAW       "gc2375sub_mipi_raw"
@@ -568,25 +543,265 @@
 #define SENSOR_DRVNAME_IMX135_MIPI_RAW_8MP      "imx135_mipi_raw_8mp"
 #define SENSOR_DRVNAME_OV13870_MIPI_RAW_5MP     "ov13870_mipi_raw_5mp"
 #define SENSOR_DRVNAME_OV8856_MIPI_RAW_5MP      "ov8856_mipi_raw_5mp"
-#define SENSOR_DRVNAME_S5KGD1SP_MIPI_RAW        "s5kgd1sp_mipi_raw"
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#define S5KGW1_SENSOR_ID                        0x0971
+#define S5KGH1_SENSOR_ID                        0x0881
+#define S5K3M5_SENSOR_ID                        0x30D5
+//#define S5K3M5SX_SENSOR_ID                      0x30D6
+#define GC8054_SENSOR_ID                        0x8054
+#define GC8054F_SENSOR_ID                       0x8055
+#define HI846_SENSOR_ID                         0x0846
+#define GC2375H_SENSOR_ID                       0x2375
+#define OV02A10_SENSOR_ID                       0x2509
+#define GC02M0_SENSOR_ID                        0x02D0
+#define GC02M0F_SENSOR_ID                       0x02D1
+#define SENSOR_DRVNAME_S5KGW1_MIPI_RAW          "s5kgw1_mipi_raw"
+#define SENSOR_DRVNAME_S5KGH1_MIPI_RAW          "s5kgh1_mipi_raw"
+#define SENSOR_DRVNAME_S5K3M5_MIPI_RAW          "s5k3m5_mipi_raw"
+#define SENSOR_DRVNAME_S5K3M5SX_MIPI_RAW        "s5k3m5sx_mipi_raw"
+#define SENSOR_DRVNAME_GC8054_MIPI_RAW          "gc8054_mipi_raw"
+#define SENSOR_DRVNAME_GC8054F_MIPI_RAW         "gc8054f_mipi_raw"
 #define SENSOR_DRVNAME_HI846_MIPI_RAW           "hi846_mipi_raw"
-#define SENSOR_DRVNAME_GC02M0_MIPI_RAW          "gc02m0_mipi_raw"
+#define SENSOR_DRVNAME_GC2375H_MIPI_RAW         "gc2375h_mipi_raw"
 #define SENSOR_DRVNAME_OV02A10_MIPI_MONO        "ov02a10_mipi_mono"
+#define SENSOR_DRVNAME_GC02M0_MIPI_MONO         "gc02m0_mipi_mono"
+#define SENSOR_DRVNAME_GC02M0F_MIPI_MONO        "gc02m0f_mipi_mono"
+#define GC02M0_SENSOR_ID0                       0x02d0
+#define GC02M0_SENSOR_ID1                       0x02d1
+#define GC02M0_SENSOR_ID2                       0x02d2
+#define SENSOR_DRVNAME_GC02M0B_MIPI_MONO0       "gc02m0b_mipi_mono0"
+#define SENSOR_DRVNAME_GC02M0B_MIPI_MONO1       "gc02m0b_mipi_mono1"
+#define SENSOR_DRVNAME_GC02M0B_MIPI_MONO2       "gc02m0b_mipi_mono2"
+#define GC02M1_SENSOR_ID0                       0x02e0
+#define GC02M1_SENSOR_ID1                       0x02e1
+#define GC02M1_SENSOR_ID2                       0x02e2
+#define SENSOR_DRVNAME_GC02M1B_MIPI_MONO0       "gc02m1b_mipi_mono0"
+#define SENSOR_DRVNAME_GC02M1B_MIPI_MONO1       "gc02m1b_mipi_mono1"
+#define SENSOR_DRVNAME_GC02M1B_MIPI_MONO2       "gc02m1b_mipi_mono2"
+#define GM1ST_SENSOR_ID                         0xF8D1
+#define SENSOR_DRVNAME_GM1ST_MIPI_RAW           "gm1st_mipi_raw"
+#define IMX471_SENSOR_ID                        0x20000
+#define SENSOR_DRVNAME_IMX471_MIPI_RAW          "imx471_mipi_raw"
+
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#define OV02A10_MONO_SENSOR_ID                  0x2509
+#define OV48B_SENSOR_ID                         0x564842
+#define GC02K0_SENSOR_ID                        0x2385
+#define OV16A10_SENSOR_ID                       0x561641
+#define SENSOR_DRVNAME_GC02M0_MIPI_RAW          "gc02m0_mipi_raw"
+#define IMX616_SENSOR_ID                     0x0616
+#define IMX686_SENSOR_ID                     0x0686
+#define SENSOR_DRVNAME_GC02M0B_MIPI_MONO     "gc02m0b_mipi_mono"
+#define GC02M1B_SENSOR_ID                     0x02e0
+#define GC02M1B_SENSOR_ID1                    0x02e1
+#define S5KGW3_SENSOR_ID                      0x0973
+#define OV32A_SENSOR_ID                       0x563241
+#define IMX481_SENSOR_ID                        0x0481
+#define IMX319_SENSOR_ID                        0x0319
+#define S5K3M5SX_SENSOR_ID                      0x30D5
+#define OV02B10_SENSOR_ID                       0x002B
+#define SENSOR_DRVNAME_IMX481_MIPI_RAW          "imx481_mipi_raw"
+#define SENSOR_DRVNAME_IMX319_MIPI_RAW          "imx319_mipi_raw"
+#define SENSOR_DRVNAME_GC02M0_MIPI_RAW          "gc02m0_mipi_raw"
 #define SENSOR_DRVNAME_IMX686_MIPI_RAW          "imx686_mipi_raw"
 #define SENSOR_DRVNAME_IMX616_MIPI_RAW          "imx616_mipi_raw"
 #define SENSOR_DRVNAME_OV48B_MIPI_RAW           "ov48b_mipi_raw"
-#define SENSOR_DRVNAME_S5K3P9SP_MIPI_RAW        "s5k3p9sp_mipi_raw"
 #define SENSOR_DRVNAME_GC8054_MIPI_RAW          "gc8054_mipi_raw"
-#define SENSOR_DRVNAME_GC02M0B_MIPI_MONO        "gc02m0b_mipi_mono"
 #define SENSOR_DRVNAME_GC02M0B_MIPI_MONO1       "gc02m0b_mipi_mono1"
-#define SENSOR_DRVNAME_GC02M0B_MIPI_MONO2       "gc02m0b_mipi_mono2"
 #define SENSOR_DRVNAME_GC02K0B_MIPI_MONO        "gc02k0b_mipi_mono"
 #define SENSOR_DRVNAME_OV16A10_MIPI_RAW         "ov16a10_mipi_raw"
 #define SENSOR_DRVNAME_GC02M1B_MIPI_MONO        "gc02m1b_mipi_mono"
-#define SENSOR_DRVNAME_OV48C_MIPI_RAW           "ov48c_mipi_raw"
-#define SENSOR_DRVNAME_IMX355_MIPI_RAW          "imx355_mipi_raw"
-#define SENSOR_DRVNAME_OV13B10_MIPI_RAW         "ov13b10_mipi_raw"
+#define SENSOR_DRVNAME_S5KGW3_MIPI_RAW          "s5kgw3_mipi_raw"
+#define SENSOR_DRVNAME_OV32A_MIPI_RAW           "ov32a_mipi_raw"
 #define SENSOR_DRVNAME_OV02B10_MIPI_RAW         "ov02b10_mipi_raw"
+
+#define SENSOR_DRVNAME_GC02K0_MIPI_RAW          "gc02k0_mipi_raw"
+#endif
+#endif
+
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#define PASCALD_TRULY_MAIN_OV13B10_SENSOR_ID               0x560D43
+#define PASCALD_QTECH_MAIN_OV13B10_SENSOR_ID               0x560D44
+#define PASCALD_HLT_FRONT_GC5035_SENSOR_ID                 0x5036
+#define PASCALD_SHENGTAI_FRONT_GC5035_SENSOR_ID            0x5037
+#define PASCALD_SHENGTAI2_FRONT_GC5035_SENSOR_ID           0x5038
+#define PASCALD_HLT_FRONT_S5K4H7_SENSOR_ID                 0x487B
+#define PASCALD_HLT_DEPTH_GC02K0B_SENSOR_ID                0x2385
+#define PASCALD_HLT_DEPTH_GC02M1B_MIPI_SENSOR_ID           0x02E1
+#define PASCALD_CXT_DEPTH_GC02M1B_SENSOR_ID                0x02E3
+#define PASCALD_LHYX_DEPTH_OV02B1B_SENSOR_ID               0x002D
+#define SENSOR_DRVNAME_PASCALD_TRULY_MAIN_OV13B10          "pascald_truly_main_ov13b10"
+#define SENSOR_DRVNAME_PASCALD_QTECH_MAIN_OV13B10          "pascald_qtech_main_ov13b10"
+#define SENSOR_DRVNAME_PASCALD_HLT_FRONT_GC5035            "pascald_hlt_front_gc5035"
+#define SENSOR_DRVNAME_PASCALD_SHENGTAI_FRONT_GC5035       "pascald_shengtai_front_gc5035"
+#define SENSOR_DRVNAME_PASCALD_SHENGTAI2_FRONT_GC5035      "pascald_shengtai2_front_gc5035"
+#define SENSOR_DRVNAME_PASCALD_HLT_FRONT_S5K4H7            "pascald_hlt_front_s5k4h7"
+#define SENSOR_DRVNAME_PASCALD_HLT_DEPTH_GC02K0B           "pascald_hlt_depth_gc02k0b"
+#define SENSOR_DRVNAME_PASCALD_HLT_DEPTH_GC02M1B           "pascald_hlt_depth_gc02m1b"
+#define SENSOR_DRVNAME_PASCALD_CXT_DEPTH_GC02M1B           "pascald_cxt_depth_gc02m1b"
+#define SENSOR_DRVNAME_PASCALD_LHYX_DEPTH_OV02B1B          "pascald_lhyx_depth_ov02b1b"
+#define PASCAL_HLT_MONO_GC02M1B_MIPI_SENSOR_ID             0x02E2
+#define PASCAL_SHENGTAI_MONO1_OV02B1B_SENSOR_ID            0x002b
+#define PASCAL_LHYX_MONO1_OV02B1B_SENSOR_ID                0x002c
+#define PASCAL_CXT_MONO1_GC02M1B_SENSOR_ID                 0x02E4
+#define PASCAL_CXT_MONO_OV02B1B_SENSOR_ID                  0x002E
+#define PASCAL_SHENGTAI_WIDE_OV8856_SENSOR_ID              0x885A
+#define PASCAL_SUNNY_WIDE_OV8856_SENSOR_ID                 0x885B
+#define SENSOR_DRVNAME_PASCAL_HLT_MONO_GC02M1B             "pascal_hlt_mono_gc02m1b"
+#define SENSOR_DRVNAME_PASCAL_SHENGTAI_MONO1_OV02B1B       "pascal_shengtai_mono1_ov02b1b"
+#define SENSOR_DRVNAME_PASCAL_LHYX_MONO1_OV02B1B           "pascal_lhyx_mono1_ov02b1b"
+#define SENSOR_DRVNAME_PASCAL_CXT_MONO1_GC02M1B            "pascal_cxt_mono1_gc02m1b"
+#define SENSOR_DRVNAME_PASCAL_CXT_MONO_OV02B1B             "pascal_cxt_mono_ov02b1b"
+#define SENSOR_DRVNAME_PASCAL_SHENGTAI_WIDE_OV8856         "pascal_shengtai_wide_ov8856"
+#define SENSOR_DRVNAME_PASCAL_SUNNY_WIDE_OV8856            "pascal_sunny_wide_ov8856"
+#define PASCALE_HLT_MACRO_OV02B10_SENSOR_ID                0x002F
+#define SENSOR_DRVNAME_PASCALE_HLT_MACRO_OV02B10           "pascale_hlt_macro_ov02b10"
+#define OV02B1B_MIPI_SENSOR_ID                             0x002B
+#define GC02M1B_MIPI_SENSOR_ID                             0x02E0
+#endif //OPLUS_FEATURE_CAMERA_COMMON
+
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#define SENSOR_DRVNAME_YOGURT_TRULY_MAIN_S5K3L6          "yogurt_truly_main_s5k3l6"
+#define YOGURT_TRULY_MAIN_S5K3L6_SENSOR_ID                0x30C6
+#define SENSOR_DRVNAME_YOGURT_QTECH_MAIN_OV13B10         "yogurt_qtech_main_ov13b10"
+#define YOGURT_QTECH_MAIN_OV13B10_SENSOR_ID              0x560D43
+#define SENSOR_DRVNAME_YOGURT_QTECH_FRONT_S5K4H7         "yogurt_qtech_front_s5k4h7"
+#define YOGURT_QTECH_FRONT_S5K4H7_SENSOR_ID               0x487B
+#define SENSOR_DRVNAME_YOGURT_CXT_DEPTH_GC02M1B          "yogurt_cxt_depth_gc02m1b"
+#define YOGURT_CXT_DEPTH_GC02M1B_MIPI_SENSOR_ID          0x02E2
+#define SENSOR_DRVNAME_YOGURT_LHYX_MICRO_GC02K0          "yogurt_lhyx_micro_gc02k0"
+#define YOGURT_LHYX_MICRO_GC02K0_SENSOR_ID               0x2386
+#define SENSOR_DRVNAME_YOGURT_HLT_FRONT_GC5035           "yogurt_hlt_front_gc5035"
+#define YOGURT_HLT_FRONT_GC5035_SENSOR_ID                0x5035
+#define SENSOR_DRVNAME_YOGURT_SHENGTAI_FRONT_GC5035      "yogurt_shengtai_front_gc5035"
+#define YOGURT_SHENGTAI_FRONT_GC5035_SENSOR_ID           0x5036
+#define SENSOR_DRVNAME_YOGURT_SUNNY_FRONT_GC5035         "yogurt_sunny_front_gc5035"
+#define YOGURT_SUNNY_FRONT_GC5035_SENSOR_ID              0x5037
+#define SENSOR_DRVNAME_YOGURT_LCE_FRONT_HI556            "yogurt_lce_front_hi556"
+#define YOGURT_LCE_FRONT_HI556_SENSOR_ID                 0x0556
+#define SENSOR_DRVNAME_YOGURT_SHENGTAI_FRONT_OV8856      "yogurt_shengtai_front_ov8856"
+#define YOGURT_SHENGTAI_FRONT_OV8856_SENSOR_ID           0x885A
+#define SENSOR_DRVNAME_YOGURT_HLT_DEPTH_GC02M1B          "yogurt_hlt_depth_gc02m1b"
+#define YOGURT_HLT_DEPTH_GC02M1B_MIPI_SENSOR_ID          0x02E0
+#define SENSOR_DRVNAME_YOGURT_LHYX_DEPTH_GC02M1B         "yogurt_lhyx_depth_gc02m1b"
+#define YOGURT_LHYX_DEPTH_GC02M1B_MIPI_SENSOR_ID         0x02E1
+#define SENSOR_DRVNAME_YOGURT_SHENGTAI_MICRO_GC02K0      "yogurt_shengtai_micro_gc02k0"
+#define YOGURT_SHENGTAI_MICRO_GC02K0_SENSOR_ID           0x2385
+#define SENSOR_DRVNAME_YOGURT_CXT_MICRO_GC02K0           "yogurt_cxt_micro_gc02k0"
+#define YOGURT_CXT_MICRO_GC02K0_SENSOR_ID                0x2387
+#define SENSOR_DRVNAME_YOGURT_CXT_MICRO_GC02M1           "yogurt_cxt_micro_gc02m1"
+#define YOGURT_CXT_MICRO_GC02M1_SENSOR_ID                0x02EA/*0x02E0 +6 +4*/
+#define SENSOR_DRVNAME_YOGURT_SUNNY_FRONT_S5K3P9SP       "yogurt_sunny_front_s5k3p9sp"
+#define YOGURT_SUNNY_FRONT_S5K3P9SP_SENSOR_ID             0x3109
+#define SENSOR_DRVNAME_YOGURT_SHENGTAI_MONO_OV02B1B      "yogurt_shengtai_mono_ov02b1b"
+#define YOGURT_SHENGTAI_MONO_OV02B1B_SENSOR_ID            0x002C
+#define SENSOR_DRVNAME_YOGURT_HLT_MICRO_GC02M1           "yogurt_hlt_micro_gc02m1"
+#define YOGURT_HLT_MICRO_GC02M1_SENSOR_ID                 0x02E8
+#define SENSOR_DRVNAME_YOGURT_HLT_MICRO_OV02B10          "yogurt_hlt_micro_ov02b10"
+#define YOGURT_HLT_MICRO_OV02B10_SENSOR_ID                0x002B
+/* Yogurt 2G Project */
+#define YOGURT_QTECH_MAIN_OV13B10_SENSOR_ID_2G           0x560D47 /*0x560D44 + 3 */
+#define YOGURT_TRULY_MAIN_S5K3L6_SENSOR_ID_2G            0x30C7
+#define YOGURT_SHENGTAI_FRONT_GC5035_SENSOR_ID_2G        0x5039
+#define YOGURT_LCE_FRONT_HI556_SENSOR_ID_2G              0x0558 /*0x0557 + 1 */
+#define YOGURT_QTECH_FRONT_S5K4H7_SENSOR_ID_2G           0x487C
+#define YOGURT_SHENGTAI_FRONT_OV8856_SENSOR_ID_2G        0x885C /*0x885B + 1*/
+#define YOGURT_HLT_DEPTH_GC02M1B_MIPI_SENSOR_ID_2G       0x02EB /*0x02E0 + 11*/
+#define YOGURT_LHYX_DEPTH_GC02M1B_MIPI_SENSOR_ID_2G      0x02EC /*0x02E0 + 12*/
+#define YOGURT_CXT_DEPTH_GC02M1B_MIPI_SENSOR_ID_2G       0x02ED /*0x02E0 + 13*/
+#define YOGURT_SHENGTAI_MICRO_GC02K0_SENSOR_ID_2G        0x2388
+#define YOGURT_LHYX_MICRO_GC02K0_SENSOR_ID_2G            0x2389
+#define YOGURT_CXT_MICRO_GC02K0_SENSOR_ID_2G             0x238A
+#define YOGURT_CXT_MICRO_GC02M1_SENSOR_ID_2G             0x02EE /*0x02E0 + 14*/
+/* Yogurt 2G Project END*/
+/* Yogurt 2G Project */
+#define SENSOR_DRVNAME_YOGURT_QTECH_MAIN_OV13B10_2G         "yogurt_qtech_main_ov13b10_2g"
+#define SENSOR_DRVNAME_YOGURT_TRULY_MAIN_S5K3L6_2G          "yogurt_truly_main_s5k3l6_2g"
+#define SENSOR_DRVNAME_YOGURT_HLT_FRONT_GC5035_2G           "yogurt_hlt_front_gc5035_2g"
+#define SENSOR_DRVNAME_YOGURT_SHENGTAI_FRONT_GC5035_2G      "yogurt_shengtai_front_gc5035_2g"
+#define SENSOR_DRVNAME_YOGURT_SUNNY_FRONT_GC5035_2G         "yogurt_sunny_front_gc5035_2g"
+#define SENSOR_DRVNAME_YOGURT_LCE_FRONT_HI556_2G            "yogurt_lce_front_hi556_2g"
+#define SENSOR_DRVNAME_YOGURT_QTECH_FRONT_S5K4H7_2G         "yogurt_qtech_front_s5k4h7_2g"
+#define SENSOR_DRVNAME_YOGURT_SHENGTAI_FRONT_OV8856_2G      "yogurt_shengtai_front_ov8856_2g"
+#define SENSOR_DRVNAME_YOGURT_HLT_DEPTH_GC02M1B_2G          "yogurt_hlt_depth_gc02m1b_2g"
+#define SENSOR_DRVNAME_YOGURT_LHYX_DEPTH_GC02M1B_2G         "yogurt_lhyx_depth_gc02m1b_2g"
+#define SENSOR_DRVNAME_YOGURT_CXT_DEPTH_GC02M1B_2G          "yogurt_cxt_depth_gc02m1b_2g"
+#define SENSOR_DRVNAME_YOGURT_SHENGTAI_MICRO_GC02K0_2G      "yogurt_shengtai_micro_gc02k0_2g"
+#define SENSOR_DRVNAME_YOGURT_LHYX_MICRO_GC02K0_2G          "yogurt_lhyx_micro_gc02k0_2g"
+#define SENSOR_DRVNAME_YOGURT_CXT_MICRO_GC02K0_2G           "yogurt_cxt_micro_gc02k0_2g"
+#define SENSOR_DRVNAME_YOGURT_CXT_MICRO_GC02M1_2G           "yogurt_cxt_micro_gc02m1_2g"
+/* Yogurt 2G Project END*/
+#define PARKERA_QTECH_MAIN_OV13B10_SENSOR_ID               0x560D45 /*0x560D42+3*/
+#define SENSOR_DRVNAME_PARKERA_QTECH_MAIN_OV13B10          "parkera_qtech_main_ov13b10"
+#define PARKERA_QTECH_FRONT_IMX355_SENSOR_ID               0x0357 /*0x0355 + 2*/
+#define SENSOR_DRVNAME_PARKERA_QTECH_FRONT_IMX355          "parkera_qtech_front_imx355"
+#define PARKERA_SHINETECH_MONO_GC02M1B_SENSOR_ID           0x02E7  /*0x02E0 + 7*/
+#define SENSOR_DRVNAME_PARKERA_SHINETECH_MONO_GC02M1B      "parkera_shinetech_mono_gc02m1b"
+#define PARKERA_SHINETECH_MONO_OV02B1B_SENSOR_ID           0x002A/*0x2B - 1*/
+#define SENSOR_DRVNAME_PARKERA_SHINETECH_MONO_OV02B1B      "parkera_shinetech_mono_ov02b1b"
+#define PARKERA_HOLITECH_MACRO_GC02M1_SENSOR_ID            0x02E6/*0x02E0 + 6*/
+#define SENSOR_DRVNAME_PARKERA_HOLITECH_MACRO_GC02M1       "parkera_holitech_macro_gc02m1"
+#define PARKERA_SHINETECH_MACRO_OV02B10_SENSOR_ID          0x0029/*0x2B - 2*/
+#define SENSOR_DRVNAME_PARKERA_SHINETECH_MACRO_OV02B10     "parkera_shinetech_macro_ov02b10"
+#define PARKERA_HOLITECH_FRONT_S5K4H7_SENSOR_ID            0x487E/*0x487B + 3*/
+#define SENSOR_DRVNAME_PARKERA_HOLITECH_FRONT_S5K4H7       "parkera_holitech_front_s5k4h7"
+#define PARKERA_SHINETECH_FRONT_OV08D10_SENSOR_ID          0x56084700
+#define SENSOR_DRVNAME_PARKERA_SHINETECH_FRONT_OV08D10     "parkera_shinetech_front_ov08d10"
+#define PARKERA_SHINETECH_MAIN_S5KJN103_SENSOR_ID          0x38E1
+#define SENSOR_DRVNAME_PARKERA_SHINETECH_MAIN_S5KJN103     "parkera_shinetech_main_s5kjn103"
+#define PARKERA_QTECH_MAIN_OV13B2A_SENSOR_ID               0x560D46 /*0x560D43+3*/
+#define SENSOR_DRVNAME_PARKERA_QTECH_MAIN_OV13B2A          "parkera_qtech_main_ov13b2a"
+#define PARKERA_SHINETECH_MONO_GC02M1B_50M_SENSOR_ID           0x02E9  /*0x02E0 + 9*/
+#define SENSOR_DRVNAME_PARKERA_SHINETECH_MONO_GC02M1B_50M      "parkera_shinetech_mono_gc02m1b_50m"
+#define PARKERA_SHINETECH_MONO_OV02B1B_50M_SENSOR_ID           0x0028  /*0x2B - 3*/
+#define SENSOR_DRVNAME_PARKERA_SHINETECH_MONO_OV02B1B_50M      "parkera_shinetech_mono_ov02b1b_50m"
+#define PARKERA_PROJECT                                    4
+/********************** ROI_D **********************/
+#define ROID_HI556_SENSOR_ID                    0x0556
+#define ROID_GC5035_SENSOR_ID                   0x5035
+#define ROID_HI556_TXD_SENSOR_ID                0x0557
+#define ROID_HI1336_SENSOR_ID                   0x1336
+#define ROID_OV13B10_SENSOR_ID                  0x560D42
+#define ROID_GC02M1_SENSOR_ID                   0x02E6 + 3
+#define ROID_OV02B10_SENSOR_ID                  0x002F + 5
+#define ROID_GC02M1_SW_SENSOR_ID                0x02E7 + 1
+#define ROID_GC02M1B_SENSOR_ID                  0x02E0 + 3
+#define ROID_OV02B1B_SENSOR_ID                  0x002C + 7
+#define ROID_GC02M1B_SW_SENSOR_ID               0x02E1 + 3
+#define SENSOR_DRVNAME_HI556_MIPI_RAW           "hi556_mipi_raw"
+#define SENSOR_DRVNAME_GC5035_MIPI_RAW          "gc5035_mipi_raw"
+#define SENSOR_DRVNAME_HI556_TXD_MIPI_RAW       "hi556_txd_mipi_raw"
+#define SENSOR_DRVNAME_HI1336_MIPI_RAW          "hi1336_mipi_raw"
+#define SENSOR_DRVNAME_OV13B10_MIPI_RAW         "ov13b10_mipi_raw"
+#define SENSOR_DRVNAME_GC02M1_MIPI_RAW          "gc02m1_mipi_raw"
+#define SENSOR_DRVNAME_OV02B10_MIPI_RAW         "ov02b10_mipi_raw"
+#define SENSOR_DRVNAME_GC02M1_SW_MIPI_RAW       "gc02m1_sw_mipi_raw"
+#define SENSOR_DRVNAME_GC02M1B_MIPI_RAW         "gc02m1b_mipi_raw"
+#define SENSOR_DRVNAME_OV02B1B_MIPI_RAW         "ov02b1b_mipi_raw"
+#define SENSOR_DRVNAME_GC02M1B_SW_MIPI_RAW      "gc02m1b_sw_mipi_raw"
+/*Parker-B*/
+#define PARKERB_SHINETECH_MAIN_S5KJN103_SENSOR_ID          0x38E2  /*0x38E1 + 1*/
+#define SENSOR_DRVNAME_PARKERB_SHINETECH_MAIN_S5KJN103     "parkerb_shinetech_main_s5kjn103"
+#define PARKERB_SUNNY_FRONT_S5K3P9SP_SENSOR_ID             0x310B
+#define SENSOR_DRVNAME_PARKERB_SUNNY_FRONT_S5K3P9SP        "parkerb_sunny_front_s5k3p9sp"
+#define PARKERB_SHINETECH_MONO_GC02M1B_SENSOR_ID           0x02EF  /*0x02E0 + 15*/
+#define SENSOR_DRVNAME_PARKERB_SHINETECH_MONO_GC02M1B      "parkerb_shinetech_mono_gc02m1b"
+#define PARKERB_SHINETECH_MONO_OV02B1B_SENSOR_ID           0x0031/*0x2B + 6*/
+#define SENSOR_DRVNAME_PARKERB_SHINETECH_MONO_OV02B1B      "parkerb_shinetech_mono_ov02b1b"
+#define PARKERB_HLT_MICRO_GC02M1_SENSOR_ID                 0x02F0  /*0x02E0 + 16*/
+#define SENSOR_DRVNAME_PARKERB_HLT_MICRO_GC02M1            "parkerb_hlt_micro_gc02m1"
+#define PARKERB_SHINETECH_MACRO_OV02B10_SENSOR_ID          0x0030  /*0x002B + 5 */
+#define SENSOR_DRVNAME_PARKERB_SHINETECH_MACRO_OV02B10     "parkerb_shinetech_macro_ov02b10"
+
+/*YogurtA*/
+#define SENSOR_DRVNAME_YOGURTA_QTECH_MAIN_OV13B10         "yogurta_qtech_main_ov13b10"
+#define YOGURTA_QTECH_MAIN_OV13B10_SENSOR_ID              0x560D42 + 6
+#define SENSOR_DRVNAME_YOGURTA_SHENGTAI_FRONT_GC5035      "yogurta_shengtai_front_gc5035"
+#define YOGURTA_SHENGTAI_FRONT_GC5035_SENSOR_ID           0x5035 + 6
+#define SENSOR_DRVNAME_YOGURTA_TXD_FRONT_HI556            "yogurta_txd_front_hi556"
+#define YOGURTA_TXD_FRONT_HI556_SENSOR_ID                 0x0556 + 6
+
+#endif //OPLUS_FEATURE_CAMERA_COMMON
 
 /******************************************************************************
  *

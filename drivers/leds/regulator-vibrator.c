@@ -49,6 +49,9 @@ struct reg_vibr {
 	struct reg_vibr_config vibr_conf;
 	struct notifier_block oc_handle;
 };
+#ifdef OPLUS_FEATURE_CHG_BASIC
+static bool vibr_not_disable = false;
+#endif /*VENDOR_EDIT*/
 
 static int mt_vibra_parse_dt(struct device *dev,
 		struct reg_vibr_config *vibr_conf)
@@ -165,6 +168,12 @@ static void update_vibrator(struct work_struct *work)
 	struct reg_vibr *vibr = container_of(work, struct reg_vibr, vibr_work);
 
 	pr_info("vibr_state = %d\n", vibr->vibr_state);
+	if (vibr->vibr_oc_state) {
+		vibr->vibr_oc_state = false;
+		vibr_disable(vibr);
+		return;
+	}
+
 
 	if (vibr->vibr_oc_state) {
 		vibr->vibr_oc_state = false;
@@ -210,6 +219,9 @@ static enum hrtimer_restart mtk_vibrator_timer_func(struct hrtimer *timer)
 		struct reg_vibr, vibr_timer);
 
 	vibr->vibr_state = 0;
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	vibr_not_disable = false;
+#endif
 	queue_work(vibr->vibr_queue, &vibr->vibr_work);
 	return HRTIMER_NORESTART;
 }
@@ -242,6 +254,18 @@ static ssize_t activate_store(struct device *dev,
 	duration = vibr->vibr_dur;
 	pr_info("set activate duration = %u, %u\n",
 		activate, duration);
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	if (vibr->vibr_dur < vibr->vibr_conf.min_limit)
+	{
+		if (activate) {
+			vibr_not_disable = true;
+		}
+		else if (vibr_not_disable) {
+			ret = size;
+			return ret;
+		}
+	}
+#endif
 	vibrator_enable(vibr, duration, activate);
 
 	ret = size;

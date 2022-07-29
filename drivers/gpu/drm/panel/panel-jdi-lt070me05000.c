@@ -1,7 +1,26 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2019 MediaTek Inc.
-*/
+ * Copyright (C) 2016 InforceComputing
+ * Author: Vinay Simha BN <simhavcs@gmail.com>
+ *
+ * Copyright (C) 2016 Linaro Ltd
+ * Author: Sumit Semwal <sumit.semwal@linaro.org>
+ *
+ * From internet archives, the panel for Nexus 7 2nd Gen, 2013 model is a
+ * JDI model LT070ME05000, and its data sheet is at:
+ * http://panelone.net/en/7-0-inch/JDI_LT070ME05000_7.0_inch-datasheet
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 #include <linux/backlight.h>
 #include <linux/gpio/consumer.h>
 #include <linux/module.h>
@@ -173,8 +192,7 @@ static int jdi_panel_disable(struct drm_panel *panel)
 	if (!jdi->enabled)
 		return 0;
 
-	jdi->backlight->props.power = FB_BLANK_POWERDOWN;
-	backlight_update_status(jdi->backlight);
+	backlight_disable(jdi->backlight);
 
 	jdi->enabled = false;
 
@@ -270,8 +288,7 @@ static int jdi_panel_enable(struct drm_panel *panel)
 	if (jdi->enabled)
 		return 0;
 
-	jdi->backlight->props.power = FB_BLANK_UNBLANK;
-	backlight_update_status(jdi->backlight);
+	backlight_enable(jdi->backlight);
 
 	jdi->enabled = true;
 
@@ -324,7 +341,7 @@ static int dsi_dcs_bl_get_brightness(struct backlight_device *bl)
 
 	dsi->mode_flags &= ~MIPI_DSI_MODE_LPM;
 
-	ret = mipi_dsi_dcs_get_display_brightness(dsi, &brightness);
+	ret = mipi_dsi_dcs_get_display_brightness(dsi, &brightness, 1);
 	if (ret < 0)
 		return ret;
 
@@ -340,7 +357,7 @@ static int dsi_dcs_bl_update_status(struct backlight_device *bl)
 
 	dsi->mode_flags &= ~MIPI_DSI_MODE_LPM;
 
-	ret = mipi_dsi_dcs_set_display_brightness(dsi, bl->props.brightness);
+	ret = mipi_dsi_dcs_set_display_brightness(dsi, bl->props.brightness, 1);
 	if (ret < 0)
 		return ret;
 
@@ -483,7 +500,6 @@ static int jdi_panel_remove(struct mipi_dsi_device *dsi)
 		dev_err(&dsi->dev, "failed to detach from DSI host: %d\n",
 			ret);
 
-	drm_panel_detach(&jdi->base);
 	jdi_panel_del(jdi);
 
 	return 0;

@@ -28,7 +28,25 @@
 #include "primary_display.h"
 #include "ddp_misc.h"
 #include "disp_recovery.h"
+//#ifdef OPLUS_ARCH_EXTENDS
+#include "oplus_display_private_api.h"
+#include "oplus_display_onscreenfingerprint.h"
+//#endif
 
+//#ifdef OPLUS_FEATURE_ONSCREENFINGERPRINT
+/*
+* add for fingerprint notify frigger
+*/
+extern bool oplus_display_fppress_support;
+extern void fpd_notify_check_trig(void);
+extern bool oplus_display_aod_ramless_support;
+int hbm_sof_flag = 0;
+#include "ddp_manager.h"
+extern bool fingerprint_layer;
+extern int ramless_dc_wait;
+extern int oppo_dc_enable;
+int dim_count = 0;
+//#endif
 /* IRQ log print kthread */
 static struct task_struct *disp_irq_log_task;
 static wait_queue_head_t disp_irq_log_wq;
@@ -205,8 +223,6 @@ irqreturn_t disp_irq_handler(int irq, void *dev_id)
 	unsigned int index = 0;
 	unsigned int reg_temp_val = 0;
 
-	DDPIRQ("%s in, irq = 0x%x\n", __func__, irq);
-
 	if (irq == ddp_get_module_irq(DISP_MODULE_DSI0)) {
 		if (ddp_get_module_irq(DISP_MODULE_DSI0) == irq) {
 			index = 0;
@@ -372,6 +388,30 @@ irqreturn_t disp_irq_handler(int irq, void *dev_id)
 			DDPIRQ("IRQ: RDMA%d reg update done!\n", index);
 
 		if (reg_val & (1 << 2)) {
+			#ifdef OPLUS_FEATURE_ONSCREENFINGERPRINT
+			/*
+			* add for fingerprint notify frigger
+			*/
+			if (oplus_display_fppress_support) {
+				if (oplus_display_aod_ramless_support) {
+					if(hbm_sof_flag){
+						fpd_notify();
+						hbm_sof_flag = 0;
+					}
+
+					if (ramless_dc_wait && oppo_dc_enable && fingerprint_layer) {
+						dim_count = dim_count + 1;
+						if (dim_count == 2) {
+							hbm_notify();
+						}
+					} else {
+						dim_count = 0;
+					}
+				} else {
+					fpd_notify_check_trig();
+				}
+			}
+			#endif
 			mmprofile_log_ex(
 				ddp_mmp_get_events()->SCREEN_UPDATE[index],
 				MMPROFILE_FLAG_END, reg_val,
@@ -397,6 +437,17 @@ irqreturn_t disp_irq_handler(int irq, void *dev_id)
 			rdma_start_time[index] = sched_clock();
 			DDPIRQ("IRQ: RDMA%d frame start!\n", index);
 			rdma_start_irq_cnt[index]++;
+
+			//#ifdef VENDOR_EDIT
+			/*
+			* add for fingerprint notify frigger
+			*/
+			if (oplus_display_fppress_support) {
+				if (oplus_display_aod_ramless_support) {
+					fpd_notify_check_trig();
+				}
+			}
+			//#endif
 
 			primary_display_wakeup_pf_thread();
 		}

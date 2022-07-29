@@ -318,7 +318,7 @@ static const char * const *get_all_clk_names(void)
 }
 
 static const char * const off_pll_names[] = {
-	"univ2pll",
+	"univpll",
 	"apll1",
 	"mfgpll",
 	"msdcpll",

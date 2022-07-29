@@ -21,6 +21,9 @@
 #include <linux/cpu.h>
 #include "sspm_stf.h"
 #endif
+//#ifdef OPLUS_DEBUG_STABILITY
+#include <memory/mediatek/emi.h>
+//#endif
 
 #define IPI_MONITOR
 #define TIMEOUT_COMPLETE msecs_to_jiffies(2000)
@@ -177,6 +180,9 @@ static void ipi_monitor_dump_timeout(int mid, int opts)
 
 	spin_unlock_irqrestore(&lock_monitor, flags);
 	pr_err("Error: SSPM IPI=%d timeout\n", mid);
+//#ifdef OPLUS_DEBUG_STABILITY
+	mtk_emidbg_dump();
+//#endif
 	sspm_ipi_timeout_cb(mid);
 	BUG_ON(1);
 }

@@ -4,9 +4,9 @@
  */
 #include "sched.h"
 #include <trace/events/sched.h>
-#ifdef CONFIG_MTK_TASK_TURBO
-#include <mt-plat/turbo_common.h>
-#endif
+#ifdef OPLUS_FEATURE_UIFIRST
+#include <linux/uifirst/uifirst_sched_common.h>
+#endif /* OPLUS_FEATURE_UIFIRST */
 
 DEFINE_PER_CPU(struct task_struct*, migrate_task);
 static int idle_pull_cpu_stop(void *data)
@@ -283,10 +283,6 @@ int select_task_prefer_cpu(struct task_struct *p, int new_cpu)
 	int i, iter_domain, domain_cnt = 0;
 	int iter_cpu;
 	struct cpumask *tsk_cpus_allow = &p->cpus_allowed;
-#ifdef CONFIG_MTK_TASK_TURBO
-	unsigned long spare_cap, max_spare_cap = 0;
-	int max_spare_cpu = -1;
-#endif
 
 	task_prefer = cpu_prefer(p);
 
@@ -302,12 +298,6 @@ int select_task_prefer_cpu(struct task_struct *p, int new_cpu)
 		iter_domain = (task_prefer == SCHED_PREFER_BIG) ?
 				domain_cnt-i-1 : i;
 		domain = tmp_domain[iter_domain];
-
-#ifdef CONFIG_MTK_TASK_TURBO
-		/* check fastest domain for turbo task*/
-		if (is_turbo_task(p) && i != 0)
-			break;
-#endif
 
 		if (cpumask_test_cpu(new_cpu, &domain->possible_cpus)
 			&& !cpu_isolated(new_cpu))
@@ -326,23 +316,10 @@ int select_task_prefer_cpu(struct task_struct *p, int new_cpu)
 			 */
 			if (idle_cpu(iter_cpu))
 				return iter_cpu;
-#ifdef CONFIG_MTK_TASK_TURBO
-			if (is_turbo_task(p)) {
-				spare_cap = capacity_spare_without(iter_cpu, p);
 
-				if (spare_cap > max_spare_cap) {
-					max_spare_cap = spare_cap;
-					max_spare_cpu = iter_cpu;
-				}
-			}
-#endif
 		}
 	}
 
-#ifdef CONFIG_MTK_TASK_TURBO
-	if (is_turbo_task(p) && (max_spare_cpu > 0))
-		return max_spare_cpu;
-#endif
 	return new_cpu;
 }
 
@@ -821,6 +798,12 @@ unsigned int aggressive_idle_pull(int this_cpu)
 	 */
 	if (cpu_is_slowest(this_cpu)) {
 		slowest_domain_idle_prefer_pull(this_cpu, &p, &src_rq);
+#ifdef OPLUS_FEATURE_UIFIRST
+		if(p && sysctl_uifirst_enabled && (sysctl_launcher_boost_enabled || sysctl_slide_boost_enabled) &&
+			is_heavy_ux_task(p) && test_ux_task_cpu(task_cpu(p)))
+			goto done;
+#endif /* OPLUS_FEATURE_UIFIRST */
+
 		if (p) {
 			trace_sched_migrate(p, this_cpu, cpu_of(src_rq),
 							MIGR_IDLE_BALANCE);

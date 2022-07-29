@@ -16,9 +16,7 @@
 	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
 	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT3967) || \
-	defined(CONFIG_MACH_MT6779) || defined(CONFIG_MACH_MT6768) || \
-	defined(CONFIG_MACH_MT6771)
-
+	defined(CONFIG_MACH_MT6779)
 #include <disp_helper.h>
 #endif
 
@@ -31,9 +29,7 @@
 	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
 	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT3967) || \
-	defined(CONFIG_MACH_MT6779) || defined(CONFIG_MACH_MT6768) || \
-	defined(CONFIG_MACH_MT6771)
-
+	defined(CONFIG_MACH_MT6779)
 #include "ddp_clkmgr.h"
 #endif
 
@@ -56,9 +52,7 @@
 	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
 	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT3967) || \
-	defined(CONFIG_MACH_MT6779) || defined(CONFIG_MACH_MT6768) || \
-	defined(CONFIG_MACH_MT6771)
-
+	defined(CONFIG_MACH_MT6779)
 #define COLOR_SUPPORT_PARTIAL_UPDATE
 #endif
 
@@ -1131,10 +1125,9 @@ static unsigned long g_tdshp1_va;
 #define TDSHP_PA_BASE   0x14009000
 #elif defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6763) || \
 	defined(CONFIG_MACH_MT6758) || defined(CONFIG_MACH_MT3967) || \
-	defined(CONFIG_MACH_MT6779) || defined(CONFIG_MACH_MT6771)
+	defined(CONFIG_MACH_MT6779)
 #define TDSHP_PA_BASE   0x14007000
-#elif defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
-	defined(CONFIG_MACH_MT6768)
+#elif defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761)
 #define TDSHP_PA_BASE   0x1400A000
 #else
 #define TDSHP_PA_BASE   0x14006000
@@ -1145,8 +1138,6 @@ static unsigned long g_tdshp1_va;
 #if defined(CONFIG_MACH_MT6797) || defined(CONFIG_MACH_MT6757) || \
 	defined(CONFIG_MACH_KIBOPLUS) || defined(CONFIG_MACH_MT6799)
 #define MDP_COLOR_PA_BASE 0x1400A000
-#elif defined(CONFIG_MACH_MT6771)
-#define MDP_COLOR_PA_BASE 0x1400E000
 #else
 #define MDP_COLOR_PA_BASE 0x14007000
 #endif
@@ -1247,17 +1238,14 @@ static void ddp_color_backup(enum DISP_MODULE_ENUM module)
 		DISP_REG_GET(offset + DISP_COLOR_CFG_MAIN);
 }
 
-static void ddp_color_restore(enum DISP_MODULE_ENUM module, void *cmdq_handle)
+static void ddp_color_restore(enum DISP_MODULE_ENUM module)
 {
 	int offset = C0_OFFSET;
-	struct cmdqRecStruct *cmdq = (struct cmdqRecStruct *) cmdq_handle;
 
-	COLOR_DBG("g_color_backup.COLOR_CFG_MAIN = 0x%08x", g_color_backup.COLOR_CFG_MAIN);
 	offset = color_get_offset(module);
-	DISP_REG_SET(cmdq, offset + DISP_COLOR_CFG_MAIN, g_color_backup.COLOR_CFG_MAIN);
+	DISP_REG_SET(NULL, offset + DISP_COLOR_CFG_MAIN, g_color_backup.COLOR_CFG_MAIN);
 }
 #endif
-
 
 bool disp_color_reg_get(enum DISP_MODULE_ENUM module, unsigned long addr,
 		unsigned int *value)
@@ -2281,7 +2269,7 @@ static unsigned long color_get_TDSHP_VA(void)
 	struct device_node *node = NULL;
 #if defined(CONFIG_MACH_MT6595) || defined(CONFIG_MACH_MT6795) || \
 	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
-	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT6768)
+	defined(CONFIG_MACH_MT6761)
 	node = of_find_compatible_node(NULL, NULL, "mediatek,mdp_tdshp0");
 #else
 	node = of_find_compatible_node(NULL, NULL, "mediatek,mdp_tdshp");
@@ -2509,8 +2497,7 @@ static unsigned int color_is_reg_addr_valid(unsigned long addr)
 #if defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739) || \
 	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
-	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779) || \
-	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT6771)
+	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779)
 	i = is_reg_addr_valid(1, addr);
 	if (i) {
 		COLOR_DBG("addr valid, addr=0x%lx, module=%s!\n",
@@ -2649,8 +2636,7 @@ static unsigned long color_pa2va(unsigned int addr)
 #if defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739) || \
 	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
-	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779) || \
-	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT6771)
+	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779)
 
 	i = is_reg_addr_valid(0, addr);
 	if (i) {
@@ -2796,8 +2782,7 @@ static unsigned int color_read_sw_reg(unsigned int reg_id)
 #elif defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739) || \
 	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
-	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779) || \
-	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT6771)
+	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779)
 			ret = ddp_get_module_pa(DISP_MODULE_COLOR0);
 #else
 			ret = ddp_reg_pa_base[DISP_REG_COLOR];
@@ -2815,8 +2800,7 @@ static unsigned int color_read_sw_reg(unsigned int reg_id)
 #elif defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
 	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT3967) || \
-	defined(CONFIG_MACH_MT6779) || defined(CONFIG_MACH_MT6768) || \
-	defined(CONFIG_MACH_MT6771)
+	defined(CONFIG_MACH_MT6779)
 			ret = ddp_get_module_pa(DISP_MODULE_GAMMA0);
 
 #else
@@ -2835,8 +2819,7 @@ static unsigned int color_read_sw_reg(unsigned int reg_id)
 #elif defined(CONFIG_MACH_MT6758) || defined(CONFIG_MACH_MT6763) || \
 	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
 	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT3967) || \
-	defined(CONFIG_MACH_MT6779) || defined(CONFIG_MACH_MT6768) || \
-	defined(CONFIG_MACH_MT6771)
+	defined(CONFIG_MACH_MT6779)
 			ret = ddp_get_module_pa(DISP_MODULE_AAL0);
 #else
 			ret = ddp_reg_pa_base[DISP_REG_AAL];
@@ -2855,8 +2838,7 @@ static unsigned int color_read_sw_reg(unsigned int reg_id)
 #elif defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
 	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT3967) || \
-	defined(CONFIG_MACH_MT6779) || defined(CONFIG_MACH_MT6768) || \
-	defined(CONFIG_MACH_MT6771)
+	defined(CONFIG_MACH_MT6779)
 			ret = ddp_get_module_pa(DISP_MODULE_CCORR0);
 
 #else
@@ -3036,10 +3018,6 @@ static void color_write_sw_reg(unsigned int reg_id, unsigned int value)
 
 static int _color_clock_on(enum DISP_MODULE_ENUM module, void *cmq_handle)
 {
-
-#if defined(CONFIG_MACH_MT6779)
-	bool is_color_restore = (g_color_backup.COLOR_CFG_MAIN != 0);
-#endif
 	atomic_set(&g_color_is_clock_on[index_of_color(module)], 1);
 
 #if defined(CONFIG_MACH_MT6755)
@@ -3050,14 +3028,11 @@ static int _color_clock_on(enum DISP_MODULE_ENUM module, void *cmq_handle)
 #if defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739) || \
 	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
-	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779) || \
-	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT6771)
+	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779)
 	ddp_clk_prepare_enable(ddp_get_module_clk_id(module));
 
 #if defined(CONFIG_MACH_MT6779)
-	COLOR_DBG("is_color_restore = %d", is_color_restore);
-	if (is_color_restore)
-		ddp_color_restore(module, cmq_handle);
+	ddp_color_restore(module);
 #endif
 
 	return 0;
@@ -3115,8 +3090,7 @@ static int _color_clock_off(enum DISP_MODULE_ENUM module, void *cmq_handle)
 #if defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739) || \
 	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
-	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779) || \
-	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT6771)
+	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779)
 	ddp_clk_disable_unprepare(ddp_get_module_clk_id(module));
 	return 0;
 #else
@@ -4026,8 +4000,7 @@ static int _color_build_cmdq(enum DISP_MODULE_ENUM module,
 #elif defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739) || \
 	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) ||  \
-	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779) ||  \
-	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT6771)
+	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779)
 		ret = cmdqRecReadToDataRegister(cmdq_trigger_handle,
 			ddp_get_module_pa(DISP_MODULE_COLOR0) +
 			(DISP_COLOR_TWO_D_W1_RESULT - DISPSYS_COLOR0_BASE),

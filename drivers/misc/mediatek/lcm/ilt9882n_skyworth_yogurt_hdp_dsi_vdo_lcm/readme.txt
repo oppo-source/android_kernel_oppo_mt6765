@@ -1,0 +1,1 @@
+bringup lcm for project S97567AA1,and this panel is ilt9882n_skyworth ilt9882n_skyworth_yogurt_hdp_dsi_vdo_lcm.c

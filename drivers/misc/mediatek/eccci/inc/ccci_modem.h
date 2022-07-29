@@ -71,15 +71,6 @@ enum {
 	MD_CFG_MDLOG_MODE,
 	MD_CFG_SBP_CODE,
 	MD_CFG_DUMP_FLAG,
-	MD_CFG_SBP_SUB_ID,
-	MD_CFG_RAT_CHK_FLAG,
-	MD_CFG_RAT_STR0,
-	MD_CFG_RAT_STR1,
-	MD_CFG_RAT_STR2,
-	MD_CFG_RAT_STR3,
-	MD_CFG_RAT_STR4,
-	MD_CFG_RAT_STR5,
-	MD_CFG_WM_IDX,
 };
 
 enum {
@@ -175,10 +166,6 @@ enum{
 	MD_MTEE_SHARE_MEMORY_ENABLE = 32,
 	MD_POS_SHARE_MEMORY = 33,
 	UDC_RAW_SHARE_MEMORY = 34,
-	MD_WIFI_PROXY_SHARE_MEMORY = 35,
-	NVRAM_CACHE_SHARE_MEMORY = 36,
-	SECURITY_SHARE_MEMORY = 37,
-	MD_MEM_AP_VIEW_INF = 38,
 	MD_RUNTIME_FEATURE_ID_MAX,
 }; /* MD_CCCI_RUNTIME_FEATURE_ID; */
 
@@ -221,9 +208,7 @@ struct md_query_ap_feature {
 	u32 head_pattern;
 	struct ccci_feature_support feature_set[FEATURE_COUNT];
 	u32 tail_pattern;
-#if (MD_GENERATION >= 6293)
 	u8  reserved[CCCI_MD_RUNTIME_RESERVED_SIZE];
-#endif
 };
 
 struct ap_query_md_feature {
@@ -237,9 +222,7 @@ struct ap_query_md_feature {
 	u32 set_md_mpu_start_addr;
 	u32 set_md_mpu_total_size;
 	u32 tail_pattern;
-#if (MD_GENERATION >= 6293)
 	u8  reserved[CCCI_AP_RUNTIME_RESERVED_SIZE];
-#endif
 };
 
 struct ap_query_md_feature_v2_1 {
@@ -354,13 +337,6 @@ struct ccci_runtime_share_memory {
 
 struct ccci_misc_info_element {
 	u32 feature[4];
-};
-
-struct ccci_runtime_md_mem_ap_addr {
-	u32 md_view_phy;
-	u32 size;
-	u32 ap_view_phy_lo32;
-	u32 ap_view_phy_hi32;
 };
 
 enum {

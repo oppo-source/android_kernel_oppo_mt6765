@@ -35,9 +35,6 @@
 #include "cmdq_mmp.h"
 #endif
 
-#include <linux/of_platform.h>
-#include "cmdq-bdg.h"
-
 #define CMDQ_GET_COOKIE_CNT(thread) \
 	(CMDQ_REG_GET32(CMDQ_THR_EXEC_CNT(thread)) & CMDQ_MAX_COOKIE_VALUE)
 #define CMDQ_SYNC_TOKEN_APPEND_THR(id)     (CMDQ_SYNC_TOKEN_APPEND_THR0 + id)
@@ -65,9 +62,12 @@ static DEFINE_SPINLOCK(cmdq_write_addr_lock);
 static DEFINE_SPINLOCK(cmdq_record_lock);
 static DEFINE_SPINLOCK(cmdq_first_err_lock);
 
+
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
 static struct dma_pool *mdp_rb_pool;
 static atomic_t mdp_rb_pool_cnt;
 static u32 mdp_rb_pool_limit = 256;
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 
 /* callbacks */
 static BLOCKING_NOTIFIER_HEAD(cmdq_status_dump_notifier);
@@ -75,6 +75,7 @@ static BLOCKING_NOTIFIER_HEAD(cmdq_status_dump_notifier);
 static struct cmdq_client *cmdq_clients[CMDQ_MAX_THREAD_COUNT];
 static struct cmdq_base *cmdq_client_base;
 static atomic_t cmdq_thread_usage;
+struct wakeup_source *cmdq_wake_lock;
 
 static wait_queue_head_t *cmdq_wait_queue; /* task done notify */
 static struct ContextStruct cmdq_ctx; /* cmdq driver context */
@@ -1415,14 +1416,8 @@ int cmdq_core_print_status_seq(struct seq_file *m, void *v)
 			handle->sram_base);
 
 		client = cmdq_clients[(u32)handle->thread];
-#if defined(CONFIG_MTK_MT6382_BDG)
-		if (CMDQ_BDG_TASK(handle->thread))
-			cmdq_bdg_client_get_irq(client, &irq);
-		else
-			cmdq_task_get_thread_irq(client->chan, &irq);
-#else
 		cmdq_task_get_thread_irq(client->chan, &irq);
-#endif
+
 		seq_printf(m,
 			"Scenario:%d Priority:%d Flag:0x%llx va end:0x%p IRQ:0x%x\n",
 			handle->scenario, 0, handle->engineFlag,
@@ -1723,6 +1718,7 @@ static void cmdq_core_save_hex_first_dump(const char *prefix_str,
 	}
 }
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
 static void *mdp_pool_alloc_impl(struct dma_pool *pool,
 	dma_addr_t *pa_out, atomic_t *cnt, u32 limit)
 {
@@ -1763,11 +1759,24 @@ static void mdp_pool_free_impl(struct dma_pool *pool, void *va,
 	atomic_dec(cnt);
 }
 
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
+
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+void *cmdq_core_alloc_hw_buffer_clt(struct device *dev, size_t size,
+	dma_addr_t *dma_handle, const gfp_t flag, enum CMDQ_CLT_ENUM clt)
+#else
 void *cmdq_core_alloc_hw_buffer_clt(struct device *dev, size_t size,
 	dma_addr_t *dma_handle, const gfp_t flag, enum CMDQ_CLT_ENUM clt,
 	bool *pool)
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 {
 	s32 alloc_cnt, alloc_max = 1 << 10;
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+	void *ret = cmdq_core_alloc_hw_buffer(dev, size, dma_handle, flag);
+
+	if (!ret)
+		return NULL;
+#else
 	void *va = NULL;
 
 	va = mdp_pool_alloc_impl(mdp_rb_pool, dma_handle,
@@ -1781,7 +1790,7 @@ void *cmdq_core_alloc_hw_buffer_clt(struct device *dev, size_t size,
 	} else {
 		*pool = true;
 	}
-
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 	alloc_cnt = atomic_inc_return(&cmdq_alloc_cnt[CMDQ_CLT_MAX]);
 	alloc_cnt = atomic_inc_return(&cmdq_alloc_cnt[clt]);
 	if (alloc_cnt > alloc_max)
@@ -1792,7 +1801,12 @@ void *cmdq_core_alloc_hw_buffer_clt(struct device *dev, size_t size,
 			atomic_read(&cmdq_alloc_cnt[3]),
 			atomic_read(&cmdq_alloc_cnt[4]),
 			atomic_read(&cmdq_alloc_cnt[5]));
+
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+	return ret;
+#else
 	return va;
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 }
 EXPORT_SYMBOL(cmdq_core_alloc_hw_buffer_clt);
 
@@ -1844,18 +1858,26 @@ void *cmdq_core_alloc_hw_buffer(struct device *dev, size_t size,
 }
 EXPORT_SYMBOL(cmdq_core_alloc_hw_buffer);
 
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+void cmdq_core_free_hw_buffer_clt(struct device *dev, size_t size,
+	void *cpu_addr, dma_addr_t dma_handle, enum CMDQ_CLT_ENUM clt)
+#else
 void cmdq_core_free_hw_buffer_clt(struct device *dev, size_t size,
 	void *cpu_addr, dma_addr_t dma_handle, enum CMDQ_CLT_ENUM clt,
 	bool pool)
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 {
 	atomic_dec(&cmdq_alloc_cnt[CMDQ_CLT_MAX]);
 	atomic_dec(&cmdq_alloc_cnt[clt]);
-
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+	cmdq_core_free_hw_buffer(dev, size, cpu_addr, dma_handle);
+#else
 	if (pool)
 		mdp_pool_free_impl(mdp_rb_pool, cpu_addr, dma_handle,
 			&mdp_rb_pool_cnt);
 	else
 		cmdq_core_free_hw_buffer(dev, size, cpu_addr, dma_handle);
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 }
 EXPORT_SYMBOL(cmdq_core_free_hw_buffer_clt);
 
@@ -2028,7 +2050,11 @@ int cmdqCoreAllocWriteAddress(u32 count, dma_addr_t *paStart,
 		pWriteAddr->count = count;
 		pWriteAddr->va = cmdq_core_alloc_hw_buffer_clt(cmdq_dev_get(),
 			count * sizeof(u32), &(pWriteAddr->pa), GFP_KERNEL,
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+			clt);
+#else
 			clt, &pWriteAddr->pool);
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 		if (current)
 			pWriteAddr->user = current->pid;
 
@@ -2057,8 +2083,13 @@ int cmdqCoreAllocWriteAddress(u32 count, dma_addr_t *paStart,
 		if (pWriteAddr && pWriteAddr->va) {
 			cmdq_core_free_hw_buffer_clt(cmdq_dev_get(),
 				sizeof(u32) * pWriteAddr->count,
+
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+				pWriteAddr->va, pWriteAddr->pa, clt);
+#else
 				pWriteAddr->va, pWriteAddr->pa, clt,
 				pWriteAddr->pool);
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 			memset(pWriteAddr, 0, sizeof(struct WriteAddrStruct));
 		}
 
@@ -2244,7 +2275,12 @@ int cmdqCoreFreeWriteAddress(dma_addr_t paStart, enum CMDQ_CLT_ENUM clt)
 	if (pWriteAddr->va) {
 		cmdq_core_free_hw_buffer_clt(cmdq_dev_get(),
 			sizeof(u32) * pWriteAddr->count,
+
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+			pWriteAddr->va, pWriteAddr->pa, clt);
+#else
 			pWriteAddr->va, pWriteAddr->pa, clt, pWriteAddr->pool);
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 		memset(pWriteAddr, 0xda, sizeof(struct WriteAddrStruct));
 	}
 
@@ -2959,14 +2995,7 @@ static void cmdq_core_parse_handle_error(const struct cmdqRecStruct *handle,
 
 	/* fill output parameter */
 	*moduleName = module ? module : "CMDQ";
-#if defined(CONFIG_MTK_MT6382_BDG)
-	if (CMDQ_BDG_TASK(handle->thread))
-		cmdq_bdg_client_get_irq(client, flag);
-	else
-		cmdq_task_get_thread_irq(client->chan, flag);
-#else
 	cmdq_task_get_thread_irq(client->chan, flag);
-#endif
 	if (pc_va)
 		*pc_va = cmdq_core_get_pc_va(curr_pc, handle);
 }
@@ -3328,18 +3357,9 @@ static void cmdq_core_attach_cmdq_error(
 	/* Then we just print out info */
 	CMDQ_ERR("============== [CMDQ] Begin of Error %d =============\n",
 		cmdq_ctx.errNum);
-#if defined(CONFIG_MTK_MT6382_BDG)
-	if (CMDQ_BDG_TASK(handle->thread))
-		cmdq_bdg_dump_handle((void *)handle, "ERR");
-	else {
-		cmdq_core_dump_handle_summary(
-			handle, thread, &nghandle, nginfo_out);
-		cmdq_core_dump_error_handle(handle, thread, pc_out);
-	}
-#else
+
 	cmdq_core_dump_handle_summary(handle, thread, &nghandle, nginfo_out);
 	cmdq_core_dump_error_handle(handle, thread, pc_out);
-#endif
 
 
 	CMDQ_ERR("============== [CMDQ] End of Error %d =============\n",
@@ -3843,6 +3863,29 @@ bool cmdq_thread_in_use(void)
 }
 EXPORT_SYMBOL(cmdq_thread_in_use);
 
+static void cmdq_lock_wake_lock(bool lock)
+{
+	static bool is_locked;
+
+	if (lock) {
+		if (!is_locked) {
+			__pm_stay_awake(cmdq_wake_lock);
+			is_locked = true;
+		} else  {
+			/* should not reach here */
+			CMDQ_ERR("try lock twice\n");
+		}
+	} else {
+		if (is_locked) {
+			__pm_relax(cmdq_wake_lock);
+			is_locked = false;
+		} else {
+			/* should not reach here */
+			CMDQ_ERR("try unlock twice\n");
+		}
+	}
+}
+
 static void cmdq_core_clk_enable(struct cmdqRecStruct *handle)
 {
 	s32 clock_count;
@@ -3852,8 +3895,11 @@ static void cmdq_core_clk_enable(struct cmdqRecStruct *handle)
 	CMDQ_MSG("[CLOCK]enable usage:%d scenario:%d\n",
 		clock_count, handle->scenario);
 
-	if (clock_count == 1)
+	if (clock_count == 1) {
+		/* make sure pm not suspend */
+		cmdq_lock_wake_lock(true);
 		cmdq_core_reset_gce();
+	}
 
 	cmdq_core_group_clk_cb(true, handle->engineFlag, handle->engine_clk);
 }
@@ -3873,6 +3919,9 @@ static void cmdq_core_clk_disable(struct cmdqRecStruct *handle)
 		cmdq_get_func()->eventBackup();
 		/* clock-off */
 		cmdq_get_func()->enableGCEClockLocked(false);
+
+		/* now allow pm suspend */
+		cmdq_lock_wake_lock(false);
 	} else if (clock_count < 0) {
 		CMDQ_ERR(
 			"enable clock %s error usage:%d smi use:%d\n",
@@ -4237,7 +4286,6 @@ s32 cmdq_core_suspend(void)
 {
 	s32 ref_count;
 	u32 exec_thread = 0;
-	bool kill_task = false;
 
 	ref_count = atomic_read(&cmdq_thread_usage);
 	if (ref_count)
@@ -4249,12 +4297,12 @@ s32 cmdq_core_suspend(void)
 		CMDQ_ERR(
 			"[SUSPEND] MDP running, kill tasks. threads:0x%08x ref:%d\n",
 			exec_thread, ref_count);
-		kill_task = true;
+		return -EBUSY;
 	} else if ((ref_count > 0) || (0x80000000 & exec_thread)) {
 		CMDQ_ERR(
 			"[SUSPEND] other running, kill tasks. threads:0x%08x ref:%d\n",
 			exec_thread, ref_count);
-		kill_task = true;
+		return -EBUSY;
 	}
 
 	atomic_set(&cmdq_sec_dbg_ctrl, 0);
@@ -4960,6 +5008,9 @@ s32 cmdq_pkt_wait_flush_ex_result(struct cmdqRecStruct *handle)
 			break;
 		}
 
+		/* tick mailbox see to make pending task run */
+		mbox_client_txdone(cmdq_clients[(u32)handle->thread]->chan, 0);
+
 		if (waitq)
 			break;
 
@@ -4968,15 +5019,6 @@ s32 cmdq_pkt_wait_flush_ex_result(struct cmdqRecStruct *handle)
 			"===== SW timeout Pre-dump %d handle:0x%p pkt:0x%p thread:%d state:%d =====\n",
 			count, handle, handle->pkt, handle->thread,
 			handle->state);
-
-#if defined(CONFIG_MTK_MT6382_BDG)
-		if (CMDQ_BDG_TASK(handle->thread)) {
-			cmdq_bdg_dump_handle((void *)handle, "INFO");
-			count += 1;
-			continue;
-		}
-#endif
-
 		cmdq_core_dump_status("INFO");
 		cmdq_core_dump_pc(handle, handle->thread, "INFO");
 		cmdq_core_dump_thread(handle, handle->thread, true, "INFO");
@@ -5348,10 +5390,6 @@ s32 cmdq_helper_mbox_register(struct device *dev)
 	u32 i;
 	s32 chan_id;
 	struct cmdq_client *clt;
-#if defined(CONFIG_MTK_MT6382_BDG)
-	struct device_node *node;
-	struct platform_device *pdev;
-#endif
 
 #ifdef CMDQ_SECURE_PATH_SUPPORT
 	u32 sec_thread[2] = {0};
@@ -5395,25 +5433,6 @@ s32 cmdq_helper_mbox_register(struct device *dev)
 			chan_id, cmdq_clients[chan_id]->chan, dev);
 	}
 
-#if defined(CONFIG_MTK_MT6382_BDG)
-	node = of_parse_phandle(dev->of_node, "gce_mbox_bdg", 0);
-	pdev = of_find_device_by_node(node);
-	of_node_put(node);
-	CMDQ_LOG("%s: node:%p pdev:%p dev:%p MAX_THREAD_COUNT:%d\n",
-		__func__, node, pdev, &pdev->dev, CMDQ_MAX_THREAD_COUNT);
-	for (i = 0; i < CMDQ_MAX_THREAD_COUNT; i++) {
-		clt = cmdq_mbox_create(&pdev->dev, i);
-		if (!clt || IS_ERR(clt)) {
-			CMDQ_LOG("%s:cmdq_mbox_create clt:%p err:%d",
-				__func__, clt, PTR_ERR(clt));
-			break;
-		}
-		chan_id = cmdq_mbox_chan_id(clt->chan);
-		cmdq_clients[BIT(5) | chan_id] = clt;
-		CMDQ_LOG("%s: i:%d chan_id:%d clt:%p",
-			__func__, i, BIT(5) | chan_id, cmdq_clients[chan_id]);
-	}
-#endif
 	cmdq_client_base = cmdq_register_device(dev);
 
 	/* for mm like mdp set large pool count */
@@ -5467,7 +5486,7 @@ void cmdq_core_initialize(void)
 	cmdq_helper_mbox_register(cmdq_dev_get());
 
 	atomic_set(&cmdq_thread_usage, 0);
-
+	cmdq_wake_lock = wakeup_source_register(cmdq_dev_get(), "cmdq_wakelock");
 	cmdq_wait_queue = kcalloc(max_thread_count, sizeof(*cmdq_wait_queue),
 		GFP_KERNEL);
 	for (index = 0; index < max_thread_count; index++)
@@ -5564,9 +5583,12 @@ void cmdq_core_initialize(void)
 	cmdqSecInitialize();
 #endif
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
 	mdp_rb_pool = dma_pool_create("mdp_rb", cmdq_dev_get(),
 		CMDQ_BUF_ALLOC_SIZE, 0, 0);
 	atomic_set(&mdp_rb_pool_cnt, 0);
+
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 }
 EXPORT_SYMBOL(cmdq_core_initialize);
 

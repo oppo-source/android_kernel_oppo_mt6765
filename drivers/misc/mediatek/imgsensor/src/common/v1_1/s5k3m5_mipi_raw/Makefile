@@ -1,0 +1,8 @@
+#include $(srctree)/drivers/misc/mediatek/Makefile.custom
+#ifdef VENDOR_EDIT
+ifeq ($(CONFIG_KASAN),y)
+subdir-ccflags-y += -Wno-format
+endif
+#endif /*VENDOR_EDIT*/
+obj-y += s5k3m5mipiraw_Sensor.o
+

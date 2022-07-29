@@ -276,3 +276,7 @@ config GENERIC_ARCH_TOPOLOGY
 	  runtime.
 
 endmenu
+
+#ifdef OPLUS_FEATURE_POWERINFO_STANDBY
+source "drivers/base/power/owakelock/Kconfig"
+#endif /* OPLUS_FEATURE_POWERINFO_STANDBY */

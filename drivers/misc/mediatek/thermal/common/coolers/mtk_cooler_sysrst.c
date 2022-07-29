@@ -21,6 +21,7 @@
 #include <linux/slab.h>
 #include <linux/seq_file.h>
 #include <tscpu_settings.h>
+#include <soc/oplus/system/oppo_project.h>
 
 /*=============================================================
  *Local variable definition
@@ -64,31 +65,19 @@ struct thermal_cooling_device *cdev, unsigned long *state)
 static int sysrst_cpu_set_cur_state(
 struct thermal_cooling_device *cdev, unsigned long state)
 {
-#ifdef CONFIG_LVTS_DYNAMIC_ENABLE_REBOOT
-	int tpcb = mtk_thermal_get_temp(MTK_THERMAL_SENSOR_AP);
-#endif
-
 	cl_dev_sysrst_state = state;
 
 	if (cl_dev_sysrst_state == 1) {
-		tscpu_printk("%s, CPU T=%d, BTS T=%d\n", __func__,
-			mtk_thermal_get_temp(MTK_THERMAL_SENSOR_CPU),
-			mtk_thermal_get_temp(MTK_THERMAL_SENSOR_AP));
+		tscpu_printk("%s = 1\n", __func__);
 		tscpu_printk("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
 		tscpu_printk("*****************************************\n");
 		tscpu_printk("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
 
-#ifdef CONFIG_LVTS_DYNAMIC_ENABLE_REBOOT
-		if (tpcb > DYNAMIC_REBOOT_TRIP_TEMP) {
-			tscpu_printk("SW reset! tpcb = %d\n", tpcb);
-			BUG();
-		} else {
-			tscpu_printk("Skip SW reset! tpcb = %d\n", tpcb);
-		}
-#else
+
 		/* To trigger data abort to reset the system
 		 * for thermal protection.
 		 */
+#ifndef VENDOR_EDIT
 		BUG();
 #endif
 
@@ -127,8 +116,10 @@ struct thermal_cooling_device *cdev, unsigned long state)
 		/* To trigger data abort to reset the system
 		 * for thermal protection.
 		 */
-		BUG();
-
+		if (get_eng_version() != HIGH_TEMP_AGING)
+			BUG();
+		else
+			tscpu_printk("should reset bypass \n");
 	}
 	return 0;
 }
@@ -164,8 +155,10 @@ struct thermal_cooling_device *cdev, unsigned long state)
 		/* To trigger data abort to reset the system
 		 * for thermal protection.
 		 */
-		BUG();
-
+		if (get_eng_version() != HIGH_TEMP_AGING)
+			BUG();
+		else
+			tscpu_printk("should reset bypass \n");
 	}
 	return 0;
 }
@@ -201,8 +194,10 @@ struct thermal_cooling_device *cdev, unsigned long state)
 		/* To trigger data abort to reset the system
 		 * for thermal protection.
 		 */
-		BUG();
-
+		if (get_eng_version() != HIGH_TEMP_AGING)
+			BUG();
+		else
+			tscpu_printk("should reset bypass \n");
 	}
 	return 0;
 }

@@ -21,6 +21,8 @@
 #include <linux/usb.h>
 #include <linux/usb/audio.h>
 #include <linux/usb/audio-v2.h>
+#include <linux/io.h>
+#include <linux/module.h>
 #include <linux/pm_qos.h>
 
 #include <sound/core.h>
@@ -39,6 +41,9 @@
 
 #define SUBSTREAM_FLAG_DATA_EP_STARTED	0
 #define SUBSTREAM_FLAG_SYNC_EP_STARTED	1
+
+int increase_stop_threshold = 1;
+module_param(increase_stop_threshold, int, 0644);
 
 /* return the estimated delay based on USB frame counters */
 snd_pcm_uframes_t snd_usb_pcm_delay(struct snd_usb_substream *subs,
@@ -422,7 +427,6 @@ static int set_sync_ep_implicit_fb_quirk(struct snd_usb_substream *subs,
 	switch (subs->stream->chip->usb_id) {
 	case USB_ID(0x0763, 0x2030): /* M-Audio Fast Track C400 */
 	case USB_ID(0x0763, 0x2031): /* M-Audio Fast Track C600 */
-	case USB_ID(0x22f0, 0x0006): /* Allen&Heath Qu-16 */
 		ep = 0x81;
 		ifnum = 3;
 		goto add_sync_ep_from_ifnum;
@@ -432,16 +436,11 @@ static int set_sync_ep_implicit_fb_quirk(struct snd_usb_substream *subs,
 		ifnum = 2;
 		goto add_sync_ep_from_ifnum;
 	case USB_ID(0x2466, 0x8003): /* Fractal Audio Axe-Fx II */
-	case USB_ID(0x0499, 0x172a): /* Yamaha MODX */
 		ep = 0x86;
 		ifnum = 2;
 		goto add_sync_ep_from_ifnum;
 	case USB_ID(0x2466, 0x8010): /* Fractal Audio Axe-Fx III */
 		ep = 0x81;
-		ifnum = 2;
-		goto add_sync_ep_from_ifnum;
-	case USB_ID(0x1686, 0xf029): /* Zoom UAC-2 */
-		ep = 0x82;
 		ifnum = 2;
 		goto add_sync_ep_from_ifnum;
 	case USB_ID(0x1397, 0x0001): /* Behringer UFX1604 */
@@ -1133,6 +1132,18 @@ static int snd_usb_pcm_prepare(struct snd_pcm_substream *substream)
 	subs->last_delay = 0;
 	subs->last_frame_number = 0;
 	runtime->delay = 0;
+
+	/* increase stop threshold to make underrun mechanism disabled */
+	if (increase_stop_threshold  &&
+			subs->direction == SNDRV_PCM_STREAM_PLAYBACK &&
+			subs->data_endpoint &&
+			subs->buffer_periods != 4) {
+		runtime->stop_threshold *= 10;
+		pr_info("adjust stop_threshold to %ld frames",
+				runtime->stop_threshold);
+	} else
+		pr_info("stop_threshold %ld frames",
+				runtime->stop_threshold);
 
 	/* for playback, submit the URBs now; otherwise, the first hwptr_done
 	 * updates for all URBs would happen at the same time when starting */
@@ -2045,7 +2056,7 @@ void snd_usb_preallocate_buffer(struct snd_usb_substream *subs)
 {
 	struct snd_pcm *pcm = subs->stream->pcm;
 	struct snd_pcm_substream *s = pcm->streams[subs->direction].substream;
-	struct device *dev = subs->dev->bus->sysdev;
+	struct device *dev = subs->dev->bus->controller;
 
 	if (!snd_usb_use_vmalloc)
 		snd_pcm_lib_preallocate_pages(s, SNDRV_DMA_TYPE_DEV_SG,

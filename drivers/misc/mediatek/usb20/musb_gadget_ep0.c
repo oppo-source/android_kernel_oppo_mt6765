@@ -415,14 +415,13 @@ __acquires(musb->lock)
 						goto stall;
 					}
 
-#ifdef CONFIG_MTK_MUSB_PHY
 					if (musb->usb_rev6_setting &&
 						(musb->test_mode_nr ==
 						MUSB_TEST_K ||
 						musb->test_mode_nr ==
 						MUSB_TEST_J))
 						musb->usb_rev6_setting(0x0);
-#endif
+
 					/* enter test mode after irq */
 #if defined(CONFIG_USBIF_COMPLIANCE)
 					if (handled > 0 &&
@@ -1047,8 +1046,11 @@ musb_g_ep0_queue(struct usb_ep *e, struct usb_request *r, gfp_t gfp_flags)
 
 	if (!musb->is_active) {
 		DBG(0, "ep0 request queued when usb not active\n");
+#ifndef OPLUS_FEATURE_CHG_BASIC
+/* modify for dajiang connect */
 		status = -EINVAL;
 		goto cleanup;
+#endif
 	}
 
 	if (!list_empty(&ep->req_list)) {

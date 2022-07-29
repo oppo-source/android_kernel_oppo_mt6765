@@ -163,6 +163,7 @@
 #define ERR_SBOOT_CHECK_INVALID_IMG_TYPE        0xB010
 #define ERR_SBOOT_CHECK_NULL_POINTER            0xB011
 
+
 /* META */
 #define ERR_META_NOT_CORRECT_MODE               0xC000
 #define ERR_NVRAM_DATA_NOT_ALIGNED              0xC001

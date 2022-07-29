@@ -31,7 +31,7 @@
 #include <linux/ktime.h>
 /* ------------------------- */
 
-#if defined(CONFIG_MACH_MT6779)
+#if defined(CONFIG_MACH_MT6779) || defined(CONFIG_MACH_MT6765)
 #include <archcounter_timesync.h>
 #endif
 
@@ -50,8 +50,12 @@
 #endif
 
 #if I2C_CONFIG_SETTING == 1
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#define LENS_I2C_BUSNUM 2
+#else
 #define LENS_I2C_BUSNUM 0
-#define I2C_REGISTER_ID 0x28
+#endif
+#define I2C_REGISTER_ID            0x28
 #endif
 
 #define PLATFORM_DRIVER_NAME "lens_actuator_main_af"
@@ -69,10 +73,11 @@ static struct i2c_board_info kd_lens_dev __initdata = {
 #else
 #define LOG_INF(format, args...)
 #endif
-
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
 /* OIS/EIS Timer & Workqueue */
 static struct workqueue_struct *ois_workqueue;
 static struct work_struct ois_work;
+#endif
 static struct hrtimer ois_timer;
 
 static DEFINE_MUTEX(ois_mutex);
@@ -83,10 +88,30 @@ static struct stAF_OisPosInfo OisPosInfo;
 /* ------------------------- */
 
 static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
+	#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	{1, AFDRV_FP5510E4AF, FP5510E4AF_SetI2Cclient, FP5510E4AF_Ioctl,
+	 FP5510E4AF_Release, FP5510E4AF_GetFileName, NULL},
+	{1, AFDRV_BU64253AF, BU64253AF_SetI2Cclient, BU64253AF_Ioctl,
+	 BU64253AF_Release, BU64253AF_GetFileName, NULL},
+	{1, AFDRV_FP5516AF, FP5516AF_SetI2Cclient, FP5516AF_Ioctl,
+	 FP5516AF_Release, FP5516AF_GetFileName, NULL},
+	#endif
+	{1, AFDRV_DW9718TAF_PARKERA_OV13B10, DW9718TAF_PARKERA_OV13B10_SetI2Cclient, DW9718TAF_PARKERA_OV13B10_Ioctl,
+	 DW9718TAF_PARKERA_OV13B10_Release, DW9718TAF_PARKERA_OV13B10_GetFileName, NULL},
+	{1, AFDRV_DW9718TAF_PARKERA_OV13B2A, DW9718TAF_PARKERA_OV13B2A_SetI2Cclient, DW9718TAF_PARKERA_OV13B2A_Ioctl,
+	 DW9718TAF_PARKERA_OV13B2A_Release, DW9718TAF_PARKERA_OV13B2A_GetFileName, NULL},
+	{1, AFDRV_DW9718TAF_PARKERA_S5KJN103, DW9718TAF_PARKERA_S5KJN103_SetI2Cclient, DW9718TAF_PARKERA_S5KJN103_Ioctl,
+	 DW9718TAF_PARKERA_S5KJN103_Release, DW9718TAF_PARKERA_S5KJN103_GetFileName, NULL},
+	{1, AFDRV_DW9718TAF_PARKERB_S5KJN103, DW9718TAF_PARKERB_S5KJN103_SetI2Cclient, DW9718TAF_PARKERB_S5KJN103_Ioctl,
+	 DW9718TAF_PARKERB_S5KJN103_Release, DW9718TAF_PARKERB_S5KJN103_GetFileName, NULL},
+	{1, AFDRV_DW9718TAF_YOGURTA_OV13B10, DW9718TAF_YOGURTA_OV13B10_SetI2Cclient, DW9718TAF_YOGURTA_OV13B10_Ioctl,
+	DW9718TAF_YOGURTA_OV13B10_Release, DW9718TAF_YOGURTA_OV13B10_GetFileName, NULL},
 	{1, AFDRV_DW9718TAF, DW9718TAF_SetI2Cclient, DW9718TAF_Ioctl,
 	 DW9718TAF_Release, DW9718TAF_GetFileName, NULL},
 	{1, AFDRV_AK7371AF, AK7371AF_SetI2Cclient, AK7371AF_Ioctl,
 	 AK7371AF_Release, AK7371AF_GetFileName, NULL},
+	{1, AFDRV_LC898229AF, LC898229AF_SetI2Cclient, LC898229AF_Ioctl,
+	LC898229AF_Release, LC898229AF_GetFileName, NULL},
 	{1, AFDRV_BU6424AF, BU6424AF_SetI2Cclient, BU6424AF_Ioctl,
 	 BU6424AF_Release, BU6424AF_GetFileName, NULL},
 	{1, AFDRV_BU6429AF, BU6429AF_SetI2Cclient, BU6429AF_Ioctl,
@@ -138,8 +163,6 @@ static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
 	 LC898217AFB_Release, LC898217AFB_GetFileName, NULL},
 	{1, AFDRV_LC898217AFC, LC898217AFC_SetI2Cclient, LC898217AFC_Ioctl,
 	 LC898217AFC_Release, LC898217AFC_GetFileName, NULL},
-	{1, AFDRV_LC898229AF, LC898229AF_SetI2Cclient, LC898229AF_Ioctl,
-	 LC898229AF_Release, LC898229AF_GetFileName, NULL},
 	{1, AFDRV_LC898122AF, LC898122AF_SetI2Cclient, LC898122AF_Ioctl,
 	 LC898122AF_Release, LC898122AF_GetFileName, NULL},
 	{1, AFDRV_WV511AAF, WV511AAF_SetI2Cclient, WV511AAF_Ioctl,
@@ -159,15 +182,125 @@ static struct cdev *g_pAF_CharDrv;
 static struct class *actuator_class;
 static struct device *lens_device;
 
+/* PMIC */
+#if !defined(CONFIG_MTK_LEGACY)
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+static struct regulator *regVCAMAF = NULL;
+static int g_regVCAMAFEn;
+#ifndef CONFIG_MACH_MT6765
+extern struct regulator *regulator_get_regVCAMAF(void);
+#endif /* CONFIG_MACH_MT6765 */
+#endif
+
+void AFRegulatorCtrl(int Stage)
+{
+	#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	LOG_INF("AFIOC_S_SETPOWERCTRL regulator_put %p, stage: %d\n", regVCAMAF, Stage);
+
+	if (Stage == 0) {
+		if (regVCAMAF == NULL) {
+			struct device_node *node, *kd_node;
+
+			/* check if customer camera node defined */
+			node = of_find_compatible_node(
+				NULL, NULL, "mediatek,CAMERA_MAIN_AF");
+
+			if (node) {
+				kd_node = lens_device->of_node;
+				lens_device->of_node = node;
+				#ifndef OPLUS_FEATURE_CAMERA_COMMON
+				if (strncmp(CONFIG_ARCH_MTK_PROJECT,
+					    "tb8766", 6) == 0)
+					regVCAMAF = regulator_get(lens_device,
+								  "vldo28");
+				else if (strncmp(CONFIG_ARCH_MTK_PROJECT,
+					    "tb8768", 6) == 0)
+					regVCAMAF = regulator_get(lens_device,
+								  "vldo28");
+				else {
+					#if defined(CONFIG_MACH_MT6761)
+					regVCAMAF = regulator_get(lens_device,
+								  "vldo28");
+					#else
+					regVCAMAF = regulator_get(lens_device,
+								  "vcamaf");
+					#endif
+				}
+				#endif
+				LOG_INF("[Init] regulator_get %p\n", regVCAMAF);
+
+				lens_device->of_node = kd_node;
+			}
+		}
+	} else if (Stage == 1) {
+		#ifdef OPLUS_FEATURE_CAMERA_COMMON
+		#ifndef CONFIG_MACH_MT6765
+		if (regVCAMAF == NULL)
+			regVCAMAF = regulator_get_regVCAMAF();
+		#endif /* CONFIG_MACH_MT6765 */
+		#endif
+		if (regVCAMAF != NULL && g_regVCAMAFEn == 0) {
+			int Status = regulator_is_enabled(regVCAMAF);
+			LOG_INF("regulator_is_enabled %d\n", Status);
+
+			if (!Status) {
+				Status = regulator_set_voltage(
+					regVCAMAF, 2800000, 2800000);
+
+				LOG_INF("regulator_set_voltage %d\n", Status);
+
+				if (Status != 0)
+					LOG_INF("regulator_set_voltage fail\n");
+
+				Status = regulator_enable(regVCAMAF);
+				LOG_INF("regulator_enable %d\n", Status);
+
+				if (Status != 0)
+					LOG_INF("regulator_enable fail\n");
+
+				g_regVCAMAFEn = 1;
+				usleep_range(5000, 5500);
+			} else {
+				LOG_INF("AF Power on\n");
+			}
+		}
+	} else {
+		if (regVCAMAF != NULL && g_regVCAMAFEn == 1) {
+			int Status = regulator_is_enabled(regVCAMAF);
+
+			LOG_INF("regulator_is_enabled %d\n", Status);
+
+			if (Status) {
+				LOG_INF("Camera Power enable\n");
+
+				Status = regulator_disable(regVCAMAF);
+				LOG_INF("regulator_disable %d\n", Status);
+				if (Status != 0)
+					LOG_INF("Fail to regulator_disable\n");
+			}
+			/* regulator_put(regVCAMAF); */
+			LOG_INF("AFIOC_S_SETPOWERCTRL regulator_put %p\n",
+				regVCAMAF);
+			/* regVCAMAF = NULL; */
+			g_regVCAMAFEn = 0;
+		}
+	}
+	#endif
+}
+#endif
+
+#if 0
 static struct regulator *vcamaf_ldo;
 static struct pinctrl *vcamaf_pio;
 static struct pinctrl_state *vcamaf_pio_on;
 static struct pinctrl_state *vcamaf_pio_off;
+#endif
 
 #define CAMAF_PMIC     "camaf_m1_pmic"
 #define CAMAF_GPIO_ON  "camaf_m1_gpio_on"
 #define CAMAF_GPIO_OFF "camaf_m1_gpio_off"
 
+#if 0
 static void camaf_power_init(void)
 {
 	int ret;
@@ -250,6 +383,7 @@ static void camaf_power_off(void)
 		LOG_INF("pinctrl disable (%d)\n", ret);
 	}
 }
+#endif
 
 #ifdef CONFIG_MACH_MT6765
 static int DrvPwrDn1 = 1;
@@ -358,7 +492,7 @@ static long AF_ControlParam(unsigned long a_u4Param)
 	switch (CtrlCmd.i8CmdID) {
 	case CONVERT_CCU_TIMESTAMP:
 		{
-#if defined(CONFIG_MACH_MT6779)
+#if defined(CONFIG_MACH_MT6779) || (CONFIG_MACH_MT6765)
 		long long monotonicTime = 0;
 		long long hwTickCnt     = 0;
 
@@ -399,6 +533,7 @@ static inline int64_t getCurNS(void)
 	return ns;
 }
 
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
 /* OIS/EIS Timer & Workqueue */
 static void ois_pos_polling(struct work_struct *data)
 {
@@ -406,7 +541,6 @@ static void ois_pos_polling(struct work_struct *data)
 	if (g_pstAF_CurDrv) {
 		if (g_pstAF_CurDrv->pAF_OisGetHallPos) {
 			int PosX = 0, PosY = 0;
-
 			g_pstAF_CurDrv->pAF_OisGetHallPos(&PosX, &PosY);
 			if (g_OisPosIdx >= 0) {
 				OisPosInfo.TimeStamp[g_OisPosIdx] = getCurNS();
@@ -436,6 +570,7 @@ static enum hrtimer_restart ois_timer_func(struct hrtimer *timer)
 	return HRTIMER_RESTART;
 }
 /* ------------------------- */
+#endif
 
 /* ////////////////////////////////////////////////////////////// */
 static long AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
@@ -580,6 +715,57 @@ static long AF_Ioctl_Compat(struct file *a_pstFile, unsigned int a_u4Command,
 /* 3.Update f_op pointer. */
 /* 4.Fill data structures into private_data */
 /* CAM_RESET */
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+static int AF_Open(struct inode *a_pstInode, struct file *a_pstFile)
+{
+	LOG_INF("Start\n");
+
+	spin_lock(&g_AF_SpinLock);
+	if (g_s4AF_Opened) {
+		/* spin_unlock(&g_AF_SpinLock); */
+		LOG_INF("The device is opened (%d)\n", g_s4AF_Opened);
+		/* return -EBUSY; */
+	}
+	g_s4AF_Opened = 1;
+	spin_unlock(&g_AF_SpinLock);
+
+#if !defined(CONFIG_MTK_LEGACY)
+	AFRegulatorCtrl(0);  //init regulator first
+	AFRegulatorCtrl(1);
+#endif
+
+	LOG_INF("End\n");
+
+	return 0;
+}
+
+/* Main jobs: */
+/* 1.Deallocate anything that "open" allocated in private_data. */
+/* 2.Shut down the device on last close. */
+/* 3.Only called once on last time. */
+/* Q1 : Try release multiple times. */
+static int AF_Release(struct inode *a_pstInode, struct file *a_pstFile)
+{
+	LOG_INF("Start\n");
+
+	if (g_pstAF_CurDrv) {
+		g_pstAF_CurDrv->pAF_Release(a_pstInode, a_pstFile);
+		g_pstAF_CurDrv = NULL;
+	}
+
+	spin_lock(&g_AF_SpinLock);
+	g_s4AF_Opened = 0;
+	spin_unlock(&g_AF_SpinLock);
+
+#if !defined(CONFIG_MTK_LEGACY)
+	AFRegulatorCtrl(2);
+#endif
+
+	LOG_INF("End\n");
+
+	return 0;
+}
+#else
 static int AF_Open(struct inode *a_pstInode, struct file *a_pstFile)
 {
 	LOG_INF("Start\n");
@@ -599,6 +785,11 @@ static int AF_Open(struct inode *a_pstInode, struct file *a_pstFile)
 	/* OIS/EIS Timer & Workqueue */
 	/* init work queue */
 	INIT_WORK(&ois_work, ois_pos_polling);
+
+#if 0
+	if (ois_workqueue == NULL)
+		ois_workqueue = create_singlethread_workqueue("ois_polling");
+#endif
 
 	/* init timer */
 	hrtimer_init(&ois_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
@@ -650,6 +841,7 @@ static int AF_Release(struct inode *a_pstInode, struct file *a_pstFile)
 
 	return 0;
 }
+#endif
 
 static const struct file_operations g_stAF_fops = {
 	.owner = THIS_MODULE,

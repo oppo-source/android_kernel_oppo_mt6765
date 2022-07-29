@@ -14,8 +14,13 @@
 
 extern int isolate_lru_page(struct page *page);
 extern void putback_lru_page(struct page *page);
+#if defined(OPLUS_FEATURE_PROCESS_RECLAIM) && defined(CONFIG_PROCESS_RECLAIM_ENHANCE)
 extern unsigned long reclaim_pages_from_list(struct list_head *page_list,
-					     struct vm_area_struct *vma);
+			struct vm_area_struct *vma, struct mm_walk *walk);
+#else
+extern unsigned long reclaim_pages_from_list(struct list_head *page_list,
+					struct vm_area_struct *vma);
+#endif
 
 /*
  * The anon_vma heads a list of private "related" vmas, to scan if
@@ -230,8 +235,7 @@ struct page_vma_mapped_walk {
 
 static inline void page_vma_mapped_walk_done(struct page_vma_mapped_walk *pvmw)
 {
-	/* HugeTLB pte is set to the relevant page table entry without pte_mapped. */
-	if (pvmw->pte && !PageHuge(pvmw->page))
+	if (pvmw->pte)
 		pte_unmap(pvmw->pte);
 	if (pvmw->ptl)
 		spin_unlock(pvmw->ptl);

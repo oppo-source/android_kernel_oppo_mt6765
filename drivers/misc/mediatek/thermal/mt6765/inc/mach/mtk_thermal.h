@@ -49,7 +49,7 @@ struct TS_PTPOD {
 };
 
 extern int mtktscpu_limited_dmips;
-extern int tscpu_get_temperature_range(void);
+
 /* Valid if it returns 1, invalid if it returns 0. */
 extern int tscpu_is_temp_valid(void);
 
@@ -140,5 +140,6 @@ extern void thermal_set_big_core_speed
  * and no thermal current limit.
  */
 extern int mtk_cooler_is_abcct_unlimit(void);
+extern int get_FlashLightNTC_temp(void);
 
 #endif /* __MT6765_THERMAL_H__ */

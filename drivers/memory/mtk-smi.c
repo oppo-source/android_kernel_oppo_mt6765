@@ -829,11 +829,7 @@ module_init(mtk_smi_init);
 late_initcall(mtk_smi_init_late);
 #endif
 #else
-#if (defined(CONFIG_MACH_MT6833) || defined(CONFIG_MACH_MT6893))
-arch_initcall_sync(mtk_smi_init);
-#else
 arch_initcall(mtk_smi_init);
-#endif
 #endif
 MODULE_DESCRIPTION("MediaTek SMI driver");
 MODULE_LICENSE("GPL v2");

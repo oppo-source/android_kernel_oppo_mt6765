@@ -29,6 +29,7 @@
 #define MOD		"SELINUX"
 #define SCONTEXT_FILTER
 #define AV_FILTER
+#define NE_FILTER
 /* #define ENABLE_CURRENT_NE_CORE_DUMP */
 
 #ifdef ENABLE_CURRENT_NE_CORE_DUMP
@@ -99,6 +100,12 @@ static const char *skip_pattern[SKIP_PATTERN_NUM] = {
 	"scontext=u:r:untrusted_app"
 };
 
+static const char * const ne_list[] = {
+	"u:r:system_server:s0",
+	"u:r:system_app:s0",
+	"u:r:platform_app:s0",
+	"u:r:priv_app:s0",
+};
 
 static int mtk_check_filter(char *scontext);
 static int mtk_get_scontext(char *data, char *buf);
@@ -179,7 +186,7 @@ static void mtk_check_av(char *data)
 #ifdef CONFIG_MTK_AEE_FEATURE
 					aee_kernel_warning_api(
 							__FILE__, __LINE__,
-							DB_OPT_DEFAULT | DB_OPT_NATIVE_BACKTRACE,
+							DB_OPT_DEFAULT,
 							printbuf, data);
 #endif
 				}
@@ -191,6 +198,31 @@ static void mtk_check_av(char *data)
 		iter++;
 	}
 }
+#ifdef NE_FILTER
+static void mtk_check_ne(char *data)
+{
+	int i;
+	int size = sizeof(ne_list)/sizeof(char *);
+	char scontext[AEE_FILTER_LEN] = { '\0' };
+
+	if (!mtk_get_scontext(data, scontext))
+		return;
+
+	for (i = 0; i < size; i++) {
+		if (strcmp(scontext,
+					ne_list[i]) == 0) {
+			pr_notice("SIGQUIT and delay\n");
+
+			/* delay after signal sent */
+			/* block current thread */
+			/* let other thread to handle stack */
+			send_sig(SIGQUIT, current, 0);
+			mdelay(1000);
+		}
+	}
+
+}
+#endif
 
 static int mtk_get_scontext(char *data, char *buf)
 {
@@ -302,7 +334,7 @@ void mtk_audit_hook(char *data)
 
 #ifdef CONFIG_MTK_AEE_FEATURE
 			aee_kernel_warning_api(__FILE__, __LINE__,
-					DB_OPT_DEFAULT | DB_OPT_NATIVE_BACKTRACE,
+					DB_OPT_DEFAULT,
 					printbuf, data);
 #endif
 
@@ -331,6 +363,9 @@ void mtk_audit_hook(char *data)
 #endif
 #ifdef AV_FILTER
 	mtk_check_av(data);
+#endif
+#ifdef NE_FILTER
+	mtk_check_ne(data);
 #endif
 }
 EXPORT_SYMBOL(mtk_audit_hook);

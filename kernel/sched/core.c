@@ -25,16 +25,18 @@
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/sched.h>
-#ifdef CONFIG_MTK_TASK_TURBO
-#include <mt-plat/turbo_common.h>
-#endif
-#ifdef CONFIG_MTK_QOS_FRAMEWORK
-#include <mt-plat/mtk_qos_prefetch_common.h>
-#endif /* CONFIG_MTK_QOS_FRAMEWORK */
+
+#ifdef OPLUS_FEATURE_UIFIRST
+#include <linux/uifirst/uifirst_sched_common.h>
+#endif /* OPLUS_FEATURE_UIFIRST */
+
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+#include "walt.h"
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
 
 DEFINE_PER_CPU_SHARED_ALIGNED(struct rq, runqueues);
 
-#ifdef CONFIG_SCHED_DEBUG
+#if defined(CONFIG_SCHED_DEBUG) && defined(CONFIG_JUMP_LABEL)
 /*
  * Debugging: various feature bits
  *
@@ -1372,9 +1374,6 @@ static inline void enqueue_task(struct rq *rq, struct task_struct *p, int flags)
 
 	uclamp_rq_inc(rq, p);
 	p->sched_class->enqueue_task(rq, p, flags);
-
-	/* update last_enqueued_ts for big task rotation */
-	p->last_enqueued_ts = ktime_get_ns();
 }
 
 static inline void dequeue_task(struct rq *rq, struct task_struct *p, int flags)
@@ -1565,8 +1564,18 @@ static struct rq *move_queued_task(struct rq *rq, struct rq_flags *rf,
 
 	WRITE_ONCE(p->on_rq, TASK_ON_RQ_MIGRATING);
 	dequeue_task(rq, p, DEQUEUE_NOCLOCK);
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+	rq_unpin_lock(rq, rf);
+	double_lock_balance(rq, cpu_rq(new_cpu));
+	if (!(rq->clock_update_flags & RQCF_UPDATED))
+		update_rq_clock(rq);
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
 	set_task_cpu(p, new_cpu);
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+	double_rq_unlock(cpu_rq(new_cpu), rq);
+#else
 	rq_unlock(rq, rf);
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
 
 	rq = cpu_rq(new_cpu);
 
@@ -1869,6 +1878,10 @@ void set_task_cpu(struct task_struct *p, unsigned int new_cpu)
 		p->se.nr_migrations++;
 		rseq_migrate(p);
 		perf_event_task_migrate(p);
+
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+	walt_fixup_busy_time(p, new_cpu);
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
 	}
 
 	__set_task_cpu(p, new_cpu);
@@ -2700,6 +2713,22 @@ static void ttwu_queue(struct task_struct *p, int cpu, int wake_flags)
  * Return: %true if @p->state changes (an actual wakeup was done),
  *	   %false otherwise.
  */
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+/* utility function to update walt signals at wakeup */
+static inline void walt_try_to_wake_up(struct task_struct *p)
+{
+	struct rq *rq = cpu_rq(task_cpu(p));
+	struct rq_flags rf;
+	u64 wallclock;
+
+	rq_lock_irqsave(rq, &rf);
+	wallclock = walt_ktime_clock();
+	walt_update_task_ravg(rq->curr, rq, TASK_UPDATE, wallclock, 0);
+	walt_update_task_ravg(p, rq, TASK_WAKE, wallclock, 0);
+	p->last_wake_ts = wallclock;
+	rq_unlock_irqrestore(rq, &rf);
+}
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
 static int
 try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags,
 	       int sibling_count_hint)
@@ -2781,6 +2810,10 @@ try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags,
 	 */
 	smp_cond_load_acquire(&p->on_cpu, !VAL);
 
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+	walt_try_to_wake_up(p);
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
+
 	p->sched_contributes_to_load = !!task_contributes_to_load(p);
 	p->state = TASK_WAKING;
 
@@ -2852,11 +2885,20 @@ static void try_to_wake_up_local(struct task_struct *p, struct rq_flags *rf)
 	trace_sched_waking(p);
 
 	if (!task_on_rq_queued(p)) {
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+	u64 wallclock = walt_ktime_clock();
+
+	walt_update_task_ravg(rq->curr, rq, TASK_UPDATE, wallclock, 0);
+	walt_update_task_ravg(p, rq, TASK_WAKE, wallclock, 0);
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
 		if (p->in_iowait) {
 			delayacct_blkio_end(p);
 			atomic_dec(&rq->nr_iowait);
 		}
 		ttwu_activate(rq, p, ENQUEUE_WAKEUP | ENQUEUE_NOCLOCK);
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+	p->last_wake_ts = wallclock;
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
 	}
 
 	ttwu_do_wakeup(rq, p, 0, rf);
@@ -2914,6 +2956,10 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
 	memset(&p->se.statistics, 0, sizeof(p->se.statistics));
 #endif
 
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+	p->last_sleep_ts	=  0;
+	walt_init_new_task_load(p);
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
 	RB_CLEAR_NODE(&p->dl.rb_node);
 	init_dl_task_timer(&p->dl);
 	init_dl_inactive_task_timer(&p->dl);
@@ -3064,18 +3110,9 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	 * Make sure we do not leak PI boosting priority to the child.
 	 */
 	p->prio = current->normal_prio;
-#ifdef CONFIG_MTK_TASK_TURBO
-	if (unlikely(is_turbo_task(current))) {
-		if (task_has_dl_policy(p) || task_has_rt_policy(p))
-			p->static_prio = NICE_TO_PRIO(current->nice_backup);
-		else {
-			p->static_prio = NICE_TO_PRIO(current->nice_backup);
-			p->prio = p->normal_prio = p->static_prio;
-			set_load_weight(p, false);
-		}
-	}
-#endif
+
 	uclamp_fork(p);
+
 	/*
 	 * Revert to default priority/policy on fork if requested.
 	 */
@@ -3102,13 +3139,8 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 		return -EAGAIN;
 	else if (rt_prio(p->prio))
 		p->sched_class = &rt_sched_class;
-	else {
+	else
 		p->sched_class = &fair_sched_class;
-#ifdef CONFIG_MTK_TASK_TURBO
-		/* prio and backup should be aligned */
-		p->nice_backup = PRIO_TO_NICE(p->prio);
-#endif
-	}
 
 	init_entity_runnable_average(&p->se);
 
@@ -3122,7 +3154,6 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	 * Silence PROVE_RCU.
 	 */
 	raw_spin_lock_irqsave(&p->pi_lock, flags);
-	rseq_migrate(p);
 	/*
 	 * We're setting the CPU for the first time, we don't migrate,
 	 * so use __set_task_cpu().
@@ -3176,6 +3207,9 @@ void wake_up_new_task(struct task_struct *p)
 	struct rq *rq;
 
 	raw_spin_lock_irqsave(&p->pi_lock, rf.flags);
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+	walt_init_new_task_load(p);
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
 	p->state = TASK_RUNNING;
 #ifdef CONFIG_SMP
 	/*
@@ -3187,15 +3221,16 @@ void wake_up_new_task(struct task_struct *p)
 	 * as we're not fully set-up yet.
 	 */
 	p->recent_used_cpu = task_cpu(p);
-	rseq_migrate(p);
 	__set_task_cpu(p, select_task_rq(p, task_cpu(p), SD_BALANCE_FORK, 0, 1));
 #endif
 	rq = __task_rq_lock(p, &rf);
 	update_rq_clock(rq);
 	post_init_entity_util_avg(&p->se);
 
-	p->last_enqueued_ts = ktime_get_ns();
 	activate_task(rq, p, ENQUEUE_NOCLOCK);
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+	walt_mark_task_starting(p);
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
 	p->on_rq = TASK_ON_RQ_QUEUED;
 	trace_sched_wakeup_new(p);
 	check_preempt_curr(rq, p, WF_FORK);
@@ -3816,6 +3851,44 @@ unsigned long long task_sched_runtime(struct task_struct *p)
 	return ns;
 }
 
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+extern int sysctl_frame_rate;
+extern unsigned int walt_ravg_window;
+extern bool ux_task_misfit(struct task_struct *p, int cpu);
+u64 ux_task_load[NR_CPUS] = {0};
+u64 ux_load_ts[NR_CPUS] = {0};
+static u64 calc_freq_ux_load(struct task_struct *p, u64 wallclock)
+{
+	unsigned int maxtime = 0, factor = 0;
+	unsigned int window_size = walt_ravg_window / NSEC_PER_MSEC;
+	u64 timeline = 0, freq_exec_load = 0, freq_ravg_load = 0;
+	u64 wakeclock = p->last_wake_ts;
+
+	if (wallclock < wakeclock)
+		return 0;
+
+	if (sysctl_frame_rate <= 90)
+		maxtime = 5;
+	else if (sysctl_frame_rate <= 120)
+		maxtime = 4;
+	else
+		maxtime = 3;
+
+	timeline = wallclock - wakeclock;
+	factor = window_size / maxtime;
+	freq_exec_load = timeline * factor;
+
+	if (freq_exec_load > walt_ravg_window)
+		freq_exec_load = walt_ravg_window;
+
+	freq_ravg_load = (p->ravg.prev_window + p->ravg.curr_window) << 1;
+	if (freq_ravg_load > walt_ravg_window)
+		freq_ravg_load = walt_ravg_window;
+
+	return max(freq_exec_load, freq_ravg_load);
+}
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
+
 /*
  * This function gets called by the timer code, with HZ frequency.
  * We call it with interrupts disabled.
@@ -3831,7 +3904,27 @@ void scheduler_tick(void)
 
 	rq_lock(rq, &rf);
 
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+	walt_set_window_start(rq, &rf);
+	walt_update_task_ravg(rq->curr, rq, TASK_UPDATE,
+			walt_ktime_clock(), 0);
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
 	update_rq_clock(rq);
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+	if (sysctl_uifirst_enabled && sysctl_slide_boost_enabled) {
+		u64 wallclock = walt_ktime_clock();
+		unsigned int flag = 0;
+		if(rq->curr && (rq->curr->static_ux == 2 || rq->curr->sched_class == &rt_sched_class) && !ux_task_misfit(rq->curr, cpu)) {
+			ux_task_load[cpu] = calc_freq_ux_load(rq->curr, wallclock);
+			ux_load_ts[cpu] = wallclock;
+
+			flag = SCHED_CPUFREQ_BOOST;
+			cpufreq_update_util(rq, flag);
+		} else if (ux_task_load[cpu] != 0) {
+			ux_task_load[cpu] = 0;
+		}
+	}
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
 	curr->sched_class->task_tick(rq, curr, 0);
 	cpu_load_update_active(rq);
 	calc_global_load_tick(rq);
@@ -3840,9 +3933,6 @@ void scheduler_tick(void)
 	rq_unlock(rq, &rf);
 
 	perf_event_task_tick();
-#ifdef CONFIG_MTK_CORE_CTL
-	sched_max_util_task_tracking();
-#endif
 #ifdef CONFIG_MTK_PERF_COMMON
 	perf_common(ktime_get_ns());
 #endif
@@ -3855,9 +3945,6 @@ void scheduler_tick(void)
 	if (curr->sched_class == &fair_sched_class)
 		check_for_migration(curr);
 #endif
-#ifdef CONFIG_MTK_QOS_FRAMEWORK
-	qos_prefetch_tick(cpu);
-#endif /* CONFIG_MTK_QOS_FRAMEWORK */
 }
 
 #ifdef CONFIG_NO_HZ_FULL
@@ -4228,6 +4315,9 @@ static void __sched notrace __schedule(bool preempt)
 	struct rq_flags rf;
 	struct rq *rq;
 	int cpu;
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+	u64 wallclock;
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
 
 	cpu = smp_processor_id();
 	rq = cpu_rq(cpu);
@@ -4285,11 +4375,24 @@ static void __sched notrace __schedule(bool preempt)
 		switch_count = &prev->nvcsw;
 	}
 
+#ifdef OPLUS_FEATURE_UIFIRST
+	prev->enqueue_time = rq->clock;
+#endif /* OPLUS_FEATURE_UIFIRST */
+
 	next = pick_next_task(rq, prev, &rf);
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+	wallclock = walt_ktime_clock();
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
 	clear_tsk_need_resched(prev);
 	clear_preempt_need_resched();
 
 	if (likely(prev != next)) {
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+		if (!prev->on_rq)
+			prev->last_sleep_ts = wallclock;
+		walt_update_task_ravg(prev, rq, PUT_PREV_TASK, wallclock, 0);
+		walt_update_task_ravg(next, rq, PICK_NEXT_TASK, wallclock, 0);
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
 		rq->nr_switches++;
 		rq->curr = next;
 		/*
@@ -4313,6 +4416,9 @@ static void __sched notrace __schedule(bool preempt)
 		/* Also unlocks the rq: */
 		rq = context_switch(rq, prev, next, &rf);
 	} else {
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+		walt_update_task_ravg(prev, rq, TASK_UPDATE, wallclock, 0);
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
 		rq->clock_update_flags &= ~(RQCF_ACT_SKIP|RQCF_REQ_SKIP);
 		rq_unlock_irq(rq, &rf);
 	}
@@ -4589,36 +4695,6 @@ void rt_mutex_setprio(struct task_struct *p, struct task_struct *pi_task)
 	struct rq_flags rf;
 	struct rq *rq;
 
-#ifdef CONFIG_MTK_TASK_TURBO
-	rq = __task_rq_lock(p, &rf);
-	update_rq_clock(rq);
-
-	/* if rt boost, recover prio with backup */
-	if (unlikely(is_turbo_task(p))) {
-		if (!dl_prio(p->prio) && !rt_prio(p->prio)) {
-			int backup = p->nice_backup;
-
-			if (backup >= MIN_NICE && backup <= MAX_NICE) {
-				queued = task_on_rq_queued(p);
-				running = task_current(rq, p);
-				if (queued)
-					dequeue_task(rq, p, DEQUEUE_SAVE | DEQUEUE_NOCLOCK);
-				if (running)
-					put_prev_task(rq, p);
-
-				p->static_prio = NICE_TO_PRIO(backup);
-				p->prio = p->normal_prio = __normal_prio(p);
-				set_load_weight(p, false);
-
-				if (queued)
-					enqueue_task(rq, p, ENQUEUE_RESTORE | ENQUEUE_NOCLOCK);
-				if (running)
-					set_curr_task(rq, p);
-			}
-		}
-	}
-	__task_rq_unlock(rq, &rf);
-#endif
 	/* XXX used to be waiter->prio, not waiter->task->prio */
 	prio = __rt_effective_prio(pi_task, p->normal_prio);
 
@@ -4691,8 +4767,7 @@ void rt_mutex_setprio(struct task_struct *p, struct task_struct *pi_task)
 	 */
 	if (dl_prio(prio)) {
 		if (!dl_prio(p->normal_prio) ||
-		    (pi_task && dl_prio(pi_task->prio) &&
-		     dl_entity_preempt(&pi_task->dl, &p->dl))) {
+		    (pi_task && dl_entity_preempt(&pi_task->dl, &p->dl))) {
 			p->dl.dl_boosted = 1;
 			queue_flag |= ENQUEUE_REPLENISH;
 		} else
@@ -4735,10 +4810,6 @@ static inline int rt_effective_prio(struct task_struct *p, int prio)
 }
 #endif
 
-#ifdef CONFIG_MTK_TASK_TURBO
-#define task_turbo_nice(nice) (nice == 0xbeef || nice == 0xbeee)
-#endif
-
 void set_user_nice(struct task_struct *p, long nice)
 {
 	bool queued, running;
@@ -4746,38 +4817,14 @@ void set_user_nice(struct task_struct *p, long nice)
 	struct rq_flags rf;
 	struct rq *rq;
 
-#ifdef CONFIG_MTK_TASK_TURBO
-	if ((nice < MIN_NICE || nice > MAX_NICE) && !task_turbo_nice(nice))
-		return;
-#else
 	if (task_nice(p) == nice || nice < MIN_NICE || nice > MAX_NICE)
 		return;
-#endif
 	/*
 	 * We have to be careful, if called from sys_setpriority(),
 	 * the task might be in the middle of scheduling on another CPU.
 	 */
 	rq = task_rq_lock(p, &rf);
 	update_rq_clock(rq);
-
-#ifdef CONFIG_MTK_TASK_TURBO
-	/* for general use, backup it */
-	if (!task_turbo_nice(nice))
-		p->nice_backup = nice;
-
-	if (is_turbo_task(p)) {
-		nice = rlimit_to_nice(task_rlimit(p, RLIMIT_NICE));
-		if (unlikely(nice > MAX_NICE)) {
-			printk_deferred("[name:task-turbo&]pid=%d RLIMIT_NICE=%ld is not set\n",
-				p->pid, nice);
-			nice = p->nice_backup;
-		}
-	}
-	else
-		nice = p->nice_backup;
-
-	trace_sched_set_user_nice(p, nice, is_turbo_task(p));
-#endif
 
 	/*
 	 * The RT priorities are set via sched_setscheduler(), but we still
@@ -4999,15 +5046,8 @@ static void __setscheduler(struct rq *rq, struct task_struct *p,
 		p->sched_class = &dl_sched_class;
 	else if (rt_prio(p->prio))
 		p->sched_class = &rt_sched_class;
-#ifdef CONFIG_MTK_TASK_TURBO
-	else {
-		p->sched_class = &fair_sched_class;
-		p->nice_backup = PRIO_TO_NICE(p->prio);
-	}
-#else
 	else
 		p->sched_class = &fair_sched_class;
-#endif
 }
 
 /*
@@ -5894,8 +5934,12 @@ static void do_sched_yield(void)
 	schedstat_inc(rq->yld_count);
 	current->sched_class->yield_task(rq);
 
+	/*
+	 * Since we are going to call schedule() anyway, there's
+	 * no need to preempt or enable interrupts:
+	 */
 	preempt_disable();
-	rq_unlock_irq(rq, &rf);
+	rq_unlock(rq, &rf);
 	sched_preempt_enable_no_resched();
 
 	schedule();
@@ -6481,14 +6525,13 @@ void idle_task_exit(void)
 	struct mm_struct *mm = current->active_mm;
 
 	BUG_ON(cpu_online(smp_processor_id()));
-	BUG_ON(current != this_rq()->idle);
 
 	if (mm != &init_mm) {
 		switch_mm(mm, &init_mm, current);
+		current->active_mm = &init_mm;
 		finish_arch_post_lock_switch();
 	}
-
-	/* finish_cpu(), as ran on the BP, will clean up the active_mm state */
+	mmdrop(mm);
 }
 
 /*
@@ -6797,6 +6840,13 @@ int sched_cpu_deactivate(unsigned int cpu)
 static void sched_rq_cpu_starting(unsigned int cpu)
 {
 	struct rq *rq = cpu_rq(cpu);
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+	struct rq_flags rf;
+
+	rq_lock(rq, &rf);
+	walt_set_window_start(rq, &rf);
+	rq_unlock(rq, &rf);
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
 
 	rq->calc_load_update = calc_load_update;
 	update_max_interval();
@@ -6820,6 +6870,9 @@ int sched_cpu_dying(unsigned int cpu)
 	sched_tick_stop(cpu);
 
 	rq_lock_irqsave(rq, &rf);
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+	walt_migrate_sync_cpu(cpu);
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
 	if (rq->rd) {
 		BUG_ON(!cpumask_test_cpu(cpu, rq->rd->span));
 		set_rq_offline(rq);
@@ -6861,6 +6914,9 @@ void __init sched_init_smp(void)
 		BUG();
 	sched_init_granularity();
 
+#ifdef OPLUS_FEATURE_UIFIRST
+	ux_init_cpu_data();
+#endif /* OPLUS_FEATURE_UIFIRST */
 	init_sched_rt_class();
 	init_sched_dl_class();
 
@@ -6988,6 +7044,9 @@ void __init sched_init(void)
 		init_cfs_rq(&rq->cfs);
 		init_rt_rq(&rq->rt);
 		init_dl_rq(&rq->dl);
+#ifdef OPLUS_FEATURE_UIFIRST
+		ux_init_rq_data(rq);
+#endif /* OPLUS_FEATURE_UIFIRST */
 #ifdef CONFIG_FAIR_GROUP_SCHED
 		root_task_group.shares = ROOT_TASK_GROUP_LOAD;
 		INIT_LIST_HEAD(&rq->leaf_cfs_rq_list);

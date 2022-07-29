@@ -1566,6 +1566,11 @@ static inline int genetlink_init(void) { return 0; }
 static inline void genetlink_exit(void) {}
 #endif /* !CONFIG_NET */
 
+//#ifdef VENDOR_EIDT
+//cuixiaogang@thermal. hack here. don't update thermal if pm suspend/resume
+//TODO: only for parker
+int thermal_pm_event = 0;
+//#endif
 static int thermal_pm_notify(struct notifier_block *nb,
 			     unsigned long mode, void *_unused)
 {
@@ -1582,6 +1587,10 @@ static int thermal_pm_notify(struct notifier_block *nb,
 	case PM_POST_SUSPEND:
 		mutex_lock(&thermal_list_lock);
 		atomic_set(&in_suspend, 0);
+//#ifdef VENDOR_EIDT
+//cuixiaogang@thermal. hack here. don't update thermal if pm suspend/resume
+		thermal_pm_event = 1;
+//#endif
 		list_for_each_entry(tz, &thermal_tz_list, node) {
 			if (tz->ops && tz->ops->is_wakeable &&
 			    tz->ops->is_wakeable(tz))
@@ -1590,6 +1599,10 @@ static int thermal_pm_notify(struct notifier_block *nb,
 			thermal_zone_device_update(tz,
 						   THERMAL_EVENT_UNSPECIFIED);
 		}
+//#ifdef VENDOR_EIDT
+//cuixiaogang@thermal. hack here. don't update thermal if pm suspend/resume
+		thermal_pm_event = 0;
+//#endif
 		mutex_unlock(&thermal_list_lock);
 		break;
 	default:

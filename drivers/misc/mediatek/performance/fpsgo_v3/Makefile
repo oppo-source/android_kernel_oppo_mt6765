@@ -38,4 +38,3 @@ ccflags-y += \
         -I$(COM_TOP)/include/ \
         -I$(EARA_JOB_TOP)/include/ \
         -I$(VIDEOX_TOP)/ \
-        -I$(srctree)/drivers/gpu/drm/mediatek/ \

@@ -376,7 +376,7 @@ PVRSRV_ERROR RGXBvncInitialiseConfiguration(PVRSRV_DEVICE_NODE *psDeviceNode)
 		OSFreeKMAppHintState(pvAppHintState);
 	}
 
-#if !defined(NO_HARDWARE) && !defined(CONFIG_MACH_MT8167)
+#if !defined(NO_HARDWARE)
 
 	/* Try to detect the RGX BVNC from the HW device */
 	if ((NULL == pui64Cfg) && !psDevInfo->bIgnoreHWReportedBVNC)

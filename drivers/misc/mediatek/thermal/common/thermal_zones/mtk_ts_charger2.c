@@ -97,6 +97,12 @@ static int get_charger_type(void)
 	if (of_property_read_u32(node, "charger_configuration", &val))
 		return 0;
 
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	if(val == 0) {
+		if (of_property_read_u32(node, "dual_ts_configuration", &val))
+			return 0;
+	}
+#endif
 	return val;
 }
 static struct power_supply *get_charger2_handle(void)
@@ -125,6 +131,7 @@ static struct power_supply *get_charger2_handle(void)
  * for main charger
  * in both PEP30 and dual charging cases.
  */
+extern thermal_pm_event;
 static int mtktscharger2_get_hw_temp(void)
 {
 	int ret = -1;
@@ -132,14 +139,17 @@ static int mtktscharger2_get_hw_temp(void)
 	union power_supply_propval prop;
 	struct power_supply *chg_psy;
 
-
+	if (thermal_pm_event) {
+		mtktscharger2_pr_notice("skip mtktscharger2_get_hw_temp while pm\n");
+		return prev_temp;
+	}
 	chg_psy = get_charger2_handle();
 	if (chg_psy == NULL)
 		return t;
 	ret = power_supply_get_property(chg_psy,
 			POWER_SUPPLY_PROP_TEMP, &prop);
 	if (ret == 0) {
-		t = 1000 * prop.intval;
+		t = 100 * prop.intval;
 		prev_temp = t;
 	} else
 		t = prev_temp;

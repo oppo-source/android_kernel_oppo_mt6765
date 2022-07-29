@@ -69,7 +69,7 @@ const char *const ssmr_state_text[NR_STATES] = {
 
 static struct SSMR_Feature _ssmr_feats[__MAX_NR_SSMR_FEATURES] = {
 	[SSMR_FEAT_SVP] = {
-		.dt_prop_name = "svp-region-based-size",
+		.dt_prop_name = "svp-size",
 		.feat_name = "svp",
 		.cmd_online = "svp=on",
 		.cmd_offline = "svp=off",
@@ -83,7 +83,7 @@ static struct SSMR_Feature _ssmr_feats[__MAX_NR_SSMR_FEATURES] = {
 		.scheme_flag = SVP_FLAGS
 	},
 	[SSMR_FEAT_PROT_SHAREDMEM] = {
-		.dt_prop_name = "prot-region-based-size",
+		.dt_prop_name = "prot-sharedmem-size",
 		.feat_name = "prot-sharedmem",
 		.cmd_online = "prot_sharedmem=on",
 		.cmd_offline = "prot_sharedmem=off",
@@ -811,7 +811,6 @@ static ssize_t ssmr_store(struct kobject *kobj, struct kobj_attribute *attr,
 	char buf[64];
 	int buf_size;
 	int feat = 0, ret;
-
 
 	if (count >= 64) {
 		pr_info("copy size too long.\n");

@@ -88,6 +88,24 @@ extern struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence[];
 extern struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[];
 extern enum IMGSENSOR_RETURN (*hw_open[IMGSENSOR_HW_ID_MAX_NUM])
 					(struct IMGSENSOR_HW_DEVICE **);
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+extern struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence_19301[];
+extern struct IMGSENSOR_HW_CFG imgsensor_custom_config_19301[];
+extern struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence_19301[];
+extern struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence_19537[];
+extern struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence_19537[];
+extern struct IMGSENSOR_HW_CFG imgsensor_custom_config_19537[];
+extern struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence_20291[];
+extern struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence_20291[];
+extern struct IMGSENSOR_HW_CFG imgsensor_custom_config_20291[];
+extern struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence_19551[];
+extern struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence_18593[];
+extern struct IMGSENSOR_HW_CFG imgsensor_custom_config_18593[];
+extern struct IMGSENSOR_HW_CFG imgsensor_custom_config_P90Q[];
+extern struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence_19357[];
+extern struct IMGSENSOR_HW_CFG imgsensor_custom_config_19357[];
+void set_gc02m0_flag(enum IMGSENSOR_SENSOR_IDX sensor_idx);
+#endif
 
 #endif
 

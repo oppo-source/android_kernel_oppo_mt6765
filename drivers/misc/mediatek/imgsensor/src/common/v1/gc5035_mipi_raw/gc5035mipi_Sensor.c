@@ -35,7 +35,7 @@ static kal_uint32 Dgain_ratio = GC5035_SENSOR_DGAIN_BASE;
 static struct gc5035_otp_t gc5035_otp_data;
 
 static struct imgsensor_info_struct imgsensor_info = {
-	.sensor_id = GC5035_SENSOR_ID,
+	.sensor_id = ROID_GC5035_SENSOR_ID,
 	.checksum_value = 0xdc9f7d95,
 
 	.pre = {

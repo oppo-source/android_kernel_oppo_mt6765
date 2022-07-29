@@ -140,9 +140,13 @@ static unsigned int idle_cond_mask_scenario
 	[IDLE_TYPE_DP] = {
 		0xBE7000B8,	/* MTCMOS1 */
 		0xBE7000B8,	/* MTCMOS2 */
-		0x08040802,	/* INFRA0  */
+		0x08040816,	/* INFRA0  */
 		0x03AFB900,	/* INFRA1  */
+#ifdef OPLUS_BUG_STABILITY
 		0x040000C5,	/* INFRA2  */
+#else /* OPLUS_BUG_STABILITY */
+		0x000000C5,	/* INFRA2  */
+#endif /* OPLUS_BUG_STABILITY */
 		0x00000000,	/* INFRA3  */
 		0xFFFFFFFF,	/* MMSYS0  */
 		0x0001FFFF,	/* MMSYS1  */
@@ -150,9 +154,13 @@ static unsigned int idle_cond_mask_scenario
 	[IDLE_TYPE_SO3] = {
 		0xBE7000B0,	/* MTCMOS1 */
 		0xBE7000B0,	/* MTCMOS2 */
-		0x0A040802,	/* INFRA0  */
+		0x08040816,	/* INFRA0  */
 		0x03AFB900,	/* INFRA1  */
+#ifdef OPLUS_BUG_STABILITY
 		0x040000D1,	/* INFRA2  */
+#else /* OPLUS_BUG_STABILITY */
+		0x000000D1,	/* INFRA2  */
+#endif /* OPLUS_BUG_STABILITY */
 		0x08000000,	/* INFRA3  */
 		0xFFFFFFFF,	/* MMSYS0  */
 		0x0001FFFF,	/* MMSYS1  */
@@ -160,9 +168,13 @@ static unsigned int idle_cond_mask_scenario
 	[IDLE_TYPE_SO] = {
 		0xBE7000B0,	/* MTCMOS1 */
 		0xBE7000B0,	/* MTCMOS2 */
-		0x08040802,	/* INFRA0  */
+		0x08040816,	/* INFRA0  */
 		0x03AFB900,	/* INFRA1  */
+#ifdef OPLUS_BUG_STABILITY
 		0x040000C1,	/* INFRA2  */
+#else /* OPLUS_BUG_STABILITY */
+		0x000000C1,	/* INFRA2  */
+#endif /* OPLUS_BUG_STABILITY */
 		0x00000000,	/* INFRA3  */
 		0x000DFC00,	/* MMSYS0  */
 		0x00003F7C,	/* MMSYS1  */
@@ -177,9 +189,13 @@ static unsigned int idle_cond_mask_resource
 	[SPM_RES_LEVEL_DRAM] = {
 		0xBE7000B0,	/* MTCMOS1 */
 		0xBE7000B0,	/* MTCMOS2 */
-		0x08040802,	/* INFRA0  */
+		0x08040816,	/* INFRA0  */
 		0x03AFB900,	/* INFRA1  */
+#ifdef OPLUS_BUG_STABILITY
 		0x040000C1,	/* INFRA2  */
+#else /* OPLUS_BUG_STABILITY */
+		0x000000C1,	/* INFRA2  */
+#endif /* OPLUS_BUG_STABILITY */
 		0x00000000,	/* INFRA3  */
 		0x01023000,	/* MMSYS0  */
 		0x00000000,	/* MMSYS1  */
@@ -187,9 +203,13 @@ static unsigned int idle_cond_mask_resource
 	[SPM_RES_LEVEL_SYSPLL] = {
 		0xBE7000B0,	/* MTCMOS1 */
 		0xBE7000B0,	/* MTCMOS1 */
-		0x08040802,	/* INFRA0  */
+		0x08040816,	/* INFRA0  */
 		0x03AFB900,	/* INFRA1  */
+#ifdef OPLUS_BUG_STABILITY
 		0x040000C1,	/* INFRA2  */
+#else /* OPLUS_BUG_STABILITY */
+		0x000000C1,	/* INFRA2  */
+#endif /* OPLUS_BUG_STABILITY */
 		0x00000000,	/* INFRA3  */
 		0x03F63000,	/* MMSYS0  */
 		0x00000000,	/* MMSYS1  */
@@ -197,9 +217,13 @@ static unsigned int idle_cond_mask_resource
 	[SPM_RES_LEVEL_BUS_26M] = {
 		0xBE7000B0,	/* MTCMOS1 */
 		0xBE7000B0,	/* MTCMOS1 */
-		0x08040802,	/* INFRA0  */
+		0x08040816,	/* INFRA0  */
 		0x03AFB900,	/* INFRA1  */
+#ifdef OPLUS_BUG_STABILITY
 		0x040000D1,	/* INFRA2  */
+#else /* OPLUS_BUG_STABILITY */
+		0x000000D1,	/* INFRA2  */
+#endif /* OPLUS_BUG_STABILITY */
 		0x08000000,	/* INFRA3  */
 		0x00000000,	/* MMSYS0  */
 		0x00000000,	/* MMSYS1  */

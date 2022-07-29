@@ -18,7 +18,6 @@
 #define SYS "sys"
 #define SMEM "shm"
 #define UDC "udc"
-#define MISC "misc"
 
 enum {
 	CCCI_LOG_ALL_UART = 1,
@@ -65,7 +64,7 @@ do { \
 do { \
 	ccci_dump_write(idx, CCCI_DUMP_INIT, CCCI_DUMP_TIME_FLAG, \
 		"[%d]" fmt, (idx+1), ##args); \
-	CCCI_LEGACY_ALWAYS_LOG(idx, tag, fmt, ##args); \
+	CCCI_LEGACY_DBG_LOG(idx, tag, fmt, ##args); \
 } while (0)
 
 /* This log is used for save runtime data */
@@ -75,14 +74,14 @@ do { \
 	ccci_dump_write(idx, CCCI_DUMP_BOOTUP, \
 		CCCI_DUMP_CURR_FLAG|CCCI_DUMP_TIME_FLAG, \
 			"[%d]" fmt, (idx+1), ##args); \
-	CCCI_LEGACY_ALWAYS_LOG(idx, tag, fmt, ##args); \
+	CCCI_LEGACY_DBG_LOG(idx, tag, fmt, ##args); \
 } while (0)
 
 #define CCCI_BOOTUP_DUMP_LOG(idx, tag, fmt, args...) \
 do { \
 	ccci_dump_write(idx, CCCI_DUMP_BOOTUP, 0, \
 		"[%d]" fmt, (idx+1), ##args); \
-	CCCI_LEGACY_ALWAYS_LOG(idx, tag, fmt, ##args); \
+	CCCI_LEGACY_DBG_LOG(idx, tag, fmt, ##args); \
 } while (0)
 
 /* This log is used for modem boot up log and event */

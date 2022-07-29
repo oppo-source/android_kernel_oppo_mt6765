@@ -11,6 +11,7 @@
 #include <linux/of_irq.h>
 #include <linux/regulator/driver.h>
 #include <linux/regulator/machine.h>
+#include <soc/oppo/oppo_project.h>
 
 #include "../inc/mt6360_ldo.h"
 
@@ -20,7 +21,9 @@ module_param(dbg_log_en, bool, 0644);
 static const struct mt6360_ldo_platform_data def_platform_data = {
 	.sdcard_det_en = true,
 };
-
+#ifdef OPLUS_FEATURE_TP_BASIC
+static const u8 ldo5_ctrl_init[] = { 0x00, 0x80, 0x81, 0x2d, 0xa4 };
+#endif
 struct mt6360_regulator_desc {
 	const struct regulator_desc desc;
 	unsigned int enst_reg;
@@ -316,14 +319,23 @@ static int mt6360_ldo_enable(struct regulator_dev *rdev)
 		dev_err(&rdev->dev, "%s: fail (%d)\n", __func__, ret);
 		return ret;
 	}
-	/* when LDO5 enable, enable SDCARD_DET */
-	if (id == MT6360_LDO_LDO5 && pdata->sdcard_det_en) {
+	if (get_project() == 18073) {
 		ret = mt6360_ldo_reg_update_bits(mli, MT6360_LDO_LDO5_CTRL0,
 						 0x40, 0xff);
 		if (ret < 0) {
-			dev_err(&rdev->dev,
-				"%s: en sdcard_det fail (%d)\n", __func__, ret);
+			dev_err(&rdev->dev, "%s: touch ldo5 enable, ret = %d\n", __func__, ret);
 			return ret;
+		}
+	} else {
+	/* when LDO5 enable, enable SDCARD_DET */
+		if (id == MT6360_LDO_LDO5 && pdata->sdcard_det_en) {
+			ret = mt6360_ldo_reg_update_bits(mli, MT6360_LDO_LDO5_CTRL0,
+							 0x40, 0xff);
+			if (ret < 0) {
+				dev_err(&rdev->dev,
+					"%s: en sdcard_det fail (%d)\n", __func__, ret);
+				return ret;
+			}
 		}
 	}
 	return 0;
@@ -614,13 +626,22 @@ static const struct mt6360_pdata_prop mt6360_pdata_props[] = {
 static int mt6360_ldo_apply_pdata(struct mt6360_ldo_info *mli,
 				  struct mt6360_ldo_platform_data *pdata)
 {
-	int ret;
+	int i, ret;
 
 	dev_dbg(mli->dev, "%s ++\n", __func__);
 	ret = mt6360_pdata_apply_helper(mli, pdata, mt6360_pdata_props,
 					ARRAY_SIZE(mt6360_pdata_props));
 	if (ret < 0)
 		return ret;
+#ifdef OPLUS_FEATURE_TP_BASIC
+	for (i = 0; i < MT6360_LDO_CTRLS_NUM && get_project() == 18073; i++) {
+		ret = mt6360_ldo_reg_update_bits(mli,
+				MT6360_LDO_LDO5_EN_CTRL1 + i, ldo_ctrl_mask[i],
+				ldo5_ctrl_init[i]);
+		if (ret < 0)
+			return ret;
+	}
+#endif
 	dev_dbg(mli->dev, "%s --\n", __func__);
 	return 0;
 }
@@ -651,6 +672,7 @@ static int mt6360_ldo_parse_dt_data(struct device *dev,
 	ret = of_irq_to_resource_table(np, res, res_cnt);
 	pdata->irq_res = res;
 	pdata->irq_res_cnt = ret;
+
 bypass_irq_res:
 	dev_dbg(dev, "%s --\n", __func__);
 	return 0;

@@ -494,12 +494,10 @@ static void print_disp_info_to_log_buffer(struct disp_layer_info *disp_info)
 		"Last hrt query data[start]\n");
 	for (i = 0 ; i < 2 ; i++) {
 		n += scnprintf(status_buf + n, LOGGER_BUFFER_SIZE - n,
-			"HRT D%d/M%d/LN%d/hrt_num:%d/G(%d,%d)/fps:%d/config_id:%d\n",
+			"HRT D%d/M%d/LN%d/hrt_num:%d/G(%d,%d)/fps:%d\n",
 			i, disp_info->disp_mode[i], disp_info->layer_num[i],
 			disp_info->hrt_num,	disp_info->gles_head[i],
-			disp_info->gles_tail[i], l_rule_info->primary_fps,
-			disp_info->active_config_id[0]);
-
+			disp_info->gles_tail[i], l_rule_info->primary_fps);
 
 		for (j = 0 ; j < disp_info->layer_num[i] ; j++) {
 			layer_info = &disp_info->input_config[i][j];
@@ -1626,7 +1624,7 @@ static int _copy_layer_info_from_disp(struct disp_layer_info *disp_info_user,
 	unsigned long layer_size = 0;
 	int ret = 0, layer_num = 0;
 
-	if (disp_idx < 0 || l_info->layer_num[disp_idx] <= 0)
+	if (l_info->layer_num[disp_idx] <= 0)
 		return -EFAULT;
 
 
@@ -1761,14 +1759,6 @@ int layering_rule_start(struct disp_layer_info *disp_info_user,
 		DISPWARN("Layering rule has not been initialize.\n");
 		return -EFAULT;
 	}
-#ifdef CONFIG_MTK_HIGH_FRAME_RATE
-	/*DynFPS, only primary display support*/
-	/*l_rule_info->active_config_id = disp_info_user->active_config_id[0];*/
-	if (g_force_cfg) {
-		disp_info_user->active_config_id[0] = g_force_cfg_id;
-	}
-	/*primary_display_update_cfg_id(disp_info_user->active_config_id[0]);*/
-#endif
 
 	if (check_disp_info(disp_info_user) < 0) {
 		DISPERR("check_disp_info fail\n");
@@ -1880,8 +1870,7 @@ static void debug_set_layer_data(struct disp_layer_info *disp_info,
 	static int layer_id = -1;
 	struct layer_config *layer_info = NULL;
 
-	if ((data_type != HRT_LAYER_DATA_ID && layer_id == -1) ||
-		disp_id < 0)
+	if (data_type != HRT_LAYER_DATA_ID && layer_id == -1)
 		return;
 
 	layer_info = &disp_info->input_config[disp_id][layer_id];
@@ -1947,7 +1936,6 @@ static int load_hrt_test_data(struct disp_layer_info *disp_info)
 	struct layer_config *input_config;
 
 	pos = 0;
-	disp_id = 0;
 	test_case = -1;
 	oldfs = get_fs();
 	set_fs(KERNEL_DS);
@@ -2003,7 +1991,7 @@ static int load_hrt_test_data(struct disp_layer_info *disp_info)
 			if (disp_info->input_config[disp_id] == NULL)
 				return 0;
 		} else if (strncmp(line_buf, "[set_layer]", 11) == 0) {
-			unsigned long tmp_info = 0;
+			unsigned long tmp_info;
 
 			tok = strchr(line_buf, ']');
 			if (!tok)

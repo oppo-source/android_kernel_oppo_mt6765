@@ -16,8 +16,7 @@
 #include <linux/atomic.h>
 #include <linux/delay.h>
 #if defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
-	defined(CONFIG_MACH_MT6580) || defined(CONFIG_MACH_MT6779) || \
-	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT6771)
+	defined(CONFIG_MACH_MT6580) || defined(CONFIG_MACH_MT6779)
 #include <mtk_leds_drv.h>
 #else
 #define backlight_brightness_set(x) do { } while (0)
@@ -42,8 +41,7 @@
 	defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739) || \
 	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
-	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779) || \
-	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT6771)
+	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779)
 #include <ddp_clkmgr.h>
 #endif
 #endif
@@ -64,8 +62,7 @@
 	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
 	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT3967) || \
-	defined(CONFIG_MACH_MT6779) || defined(CONFIG_MACH_MT6768) || \
-    defined(CONFIG_MACH_MT6771)
+	defined(CONFIG_MACH_MT6779)
 #define AAL0_MODULE_NAMING (DISP_MODULE_AAL0)
 #else
 #define AAL0_MODULE_NAMING (DISP_MODULE_AAL)
@@ -74,8 +71,7 @@
 #if defined(CONFIG_MACH_MT6799) || defined(CONFIG_MACH_MT6763) || \
 	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
 	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT3967) || \
-	defined(CONFIG_MACH_MT6779) || defined(CONFIG_MACH_MT6768) || \
-    defined(CONFIG_MACH_MT6771)
+	defined(CONFIG_MACH_MT6779)
 #define AAL0_CLK_NAMING (DISP0_DISP_AAL0)
 #else
 #define AAL0_CLK_NAMING (DISP0_DISP_AAL)
@@ -85,8 +81,7 @@
 	defined(CONFIG_MACH_MT6799) || defined(CONFIG_MACH_MT6763) || \
 	defined(CONFIG_MACH_MT6758) || defined(CONFIG_MACH_MT6739) || \
 	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
-	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779) || \
-	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT6771)
+	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779)
 #define AAL_SUPPORT_PARTIAL_UPDATE
 #endif
 
@@ -1339,18 +1334,28 @@ static void disp_aal_notify_backlight_log(int bl_1024)
 void disp_aal_notify_backlight_changed(int bl_1024)
 {
 	unsigned long flags;
+	#ifndef OPLUS_BUG_STABILITY
+	/*
+	JianBin.Zhang@PSW.MultiMedia.Display.LCD.Machine, 2020/06/12,
+	modify for multibits backlight.
+	*/
 	int max_backlight;
+	#endif/*OPLUS_BUG_STABILITY*/
 	unsigned int service_flags;
 
 	/* pr_debug("disp_aal_notify_backlight_changed: %d/1023", bl_1024); */
 	disp_aal_notify_backlight_log(bl_1024);
 
 	disp_aal_exit_idle(__func__, 1);
-
+	#ifndef OPLUS_BUG_STABILITY
+	/*
+	Jianbin.Zhang@PSW.MultiMedia.Display.LCD.Machine, 2020/06/12,
+	modify for multibits backlight.
+	*/
 	max_backlight = disp_pwm_get_max_backlight(DISP_PWM0);
 	if (bl_1024 > max_backlight)
 		bl_1024 = max_backlight;
-
+	#endif/*OPLUS_BUG_STABILITY*/
 	atomic_set(&g_aal_backlight_notified, bl_1024);
 
 	service_flags = 0;
@@ -1379,6 +1384,10 @@ void disp_aal_notify_backlight_changed(int bl_1024)
 	g_aal_hist.serviceFlags |= service_flags;
 	spin_unlock_irqrestore(&g_aal_hist_lock, flags);
 
+	#ifndef OPLUS_BUG_STABILITY
+	/*
+	* modify for support aod state.
+	*/
 	if (atomic_read(&g_aal_is_init_regs_valid) == 1) {
 		spin_lock_irqsave(&g_aal_irq_en_lock, flags);
 		atomic_set(&g_aal_force_enable_irq, 1);
@@ -1387,6 +1396,9 @@ void disp_aal_notify_backlight_changed(int bl_1024)
 		/* Backlight latency should be as smaller as possible */
 		disp_aal_trigger_refresh(AAL_REFRESH_17MS);
 	}
+	#else
+	backlight_brightness_set_with_lock(bl_1024);
+	#endif
 }
 
 
@@ -1597,8 +1609,22 @@ int disp_aal_set_param(struct DISP_AAL_PARAM __user *param,
 	AAL_DBG("(latency = %d): ret = %d",
 		g_aal_param.refreshLatency, ret);
 
-	backlight_brightness_set(backlight_value);
+	#ifdef OPLUS_BUG_STABILITY
+	/*
+	Yongpeng.Yi@PSW.MultiMedia.Display.LCD.Machine, 2017/12/08,
+	modify for multibits backlight.
+	*/
+	if (backlight_value > LED_FULL) {
+		backlight_value = LED_FULL;
+	}
+	#endif/*OPLUS_BUG_STABILITY*/
 
+	#ifndef OPLUS_BUG_STABILITY
+	/*
+	* modify for support aod state.
+	*/
+	backlight_brightness_set(backlight_value);
+	#endif
 	disp_aal_trigger_refresh(g_aal_param.refreshLatency);
 
 	return ret;
@@ -1655,8 +1681,7 @@ static int disp_aal_write_dre_to_reg(enum DISP_MODULE_ENUM module,
 	gain = param->DREGainFltStatus;
 #if defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
-	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT6768) || \
-	defined(CONFIG_MACH_MT6771)
+	defined(CONFIG_MACH_MT6761)
 	DISP_REG_MASK(cmdq, DISP_AAL_DRE_FLT_FORCE(0) + offset,
 	    DRE_REG_2(gain[0], 0, gain[1], 14), ~0);
 	DISP_REG_MASK(cmdq, DISP_AAL_DRE_FLT_FORCE(1) + offset,
@@ -1907,8 +1932,7 @@ static int aal_config(enum DISP_MODULE_ENUM module,
 #if defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
 	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT3967) || \
-	defined(CONFIG_MACH_MT6779) || defined(CONFIG_MACH_MT6768) || \
-	defined(CONFIG_MACH_MT6771)
+	defined(CONFIG_MACH_MT6779)
 #define DRE_FLT_NUM	(13)
 #elif defined(CONFIG_MACH_MT6799)
 #define DRE_FLT_NUM	(12)
@@ -2003,8 +2027,7 @@ static void ddp_aal_dre_backup(void)
 
 #if defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
-	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT6768) || \
-	defined(CONFIG_MACH_MT6771)
+	defined(CONFIG_MACH_MT6761)
 	g_aal_backup.DRE_FLT_FORCE[11] =
 		DISP_REG_GET(DISP_AAL_DRE_FLT_FORCE_11);
 	g_aal_backup.DRE_FLT_FORCE[12] =
@@ -2117,8 +2140,7 @@ static void ddp_aal_dre_restore(enum DISP_MODULE_ENUM module, void *cmq_handle)
 
 #if defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
-	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT6768) || \
-	defined(CONFIG_MACH_MT6771)
+	defined(CONFIG_MACH_MT6761)
 	DISP_REG_SET(cmq_handle, DISP_AAL_DRE_FLT_FORCE_11 + offset,
 	    g_aal_backup.DRE_FLT_FORCE[11]);
 	DISP_REG_SET(cmq_handle, DISP_AAL_DRE_FLT_FORCE_12 + offset,
@@ -2183,8 +2205,7 @@ static int aal_clock_on(enum DISP_MODULE_ENUM module, void *cmq_handle)
 #elif defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739) || \
 	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
-	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779) || \
-	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT6771)
+	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779)
 	ddp_clk_prepare_enable(ddp_get_module_clk_id(module));
 #else
 #ifdef ENABLE_CLK_MGR
@@ -2240,8 +2261,7 @@ static int aal_clock_off(enum DISP_MODULE_ENUM module, void *cmq_handle)
 #elif defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739) || \
 	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
-	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779) || \
-	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT6771)
+	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779)
 	ddp_clk_disable_unprepare(ddp_get_module_clk_id(module));
 #else
 #ifdef ENABLE_CLK_MGR

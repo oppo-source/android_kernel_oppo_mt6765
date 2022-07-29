@@ -21,10 +21,15 @@
 #include <linux/slab.h>
 #include <linux/regmap.h>
 #include <linux/mfd/syscon.h>
+#include <soc/oppo/oppo_project.h>
 
 #include "mtk_sd.h"
 #include "dbg.h"
 //#include "include/pmic_api_buck.h"
+
+#ifdef CONFIG_OPLUS_FEATURE_SDCARD
+unsigned int cd_ldo_gpio;
+#endif
 
 #if defined(CONFIG_MTK_PMIC_WRAP)
 #include <linux/soc/mediatek/pmic_wrap.h>
@@ -108,6 +113,13 @@ int msdc_regulator_set_and_enable(struct regulator *reg, int powerVolt)
 #else
 	return 0;
 #endif
+}
+
+void msdc_sd_power_off_quick(void)
+{
+	regmap_update_bits(regmap, MT6357_RG_LDO_VMCH_SW_OP_EN_ADDR, MT6357_RG_LDO_VMCH_SW_OP_EN_MASK, 1);
+	regmap_update_bits(regmap, MT6357_RG_LDO_VMCH_EN_ADDR,MT6357_RG_LDO_VMCH_EN_MASK, 0);
+	pr_err("sdcard removed and power off VMCH first!\n");
 }
 
 void msdc_ldo_power(u32 on, struct regulator *reg, int voltage_mv, u32 *status)
@@ -284,6 +296,7 @@ void msdc_sd_power(struct msdc_host *host, u32 on)
 {
 #if !defined(CONFIG_MTK_MSDC_BRING_UP_BYPASS)
 	u32 card_on = on;
+	int project_id = 0;
 
 	switch (host->id) {
 	case 1:
@@ -292,23 +305,42 @@ void msdc_sd_power(struct msdc_host *host, u32 on)
 		msdc_set_rdsel(host, MSDC_TDRDSEL_3V, 0);
 		if (host->hw->flags & MSDC_SD_NEED_POWER)
 			card_on = 1;
+		project_id = get_project();
+		if (project_id == 20091 || project_id == 20271 ||  project_id == 20272 || project_id == 20273 || project_id == 20274 ||
+			project_id == 0x2027A || project_id == 0x2027B || project_id == 0x2027C || project_id == 0x2027D ||
+			project_id == 0x2027E || project_id == 0x202A1 || project_id == 0x202A2 || project_id == 0x202A3 ||
+			project_id == 20375 || project_id == 20376 || project_id == 20377 ||
+			project_id == 20378 || project_id == 20379 || project_id == 0x2037A || project_id == 20701 ||
+			project_id == 20361 || project_id == 20362 || project_id == 20363 ||
+			project_id == 20364 || project_id == 20365 || project_id == 20366|| project_id == 21251|| project_id == 21253|| project_id == 21254 ||
+			project_id == 21281 || project_id == 21282 || project_id == 21283 || project_id == 21285) {
+			/* Disable VMCH OC */
+			if (!card_on)
+				devm_regulator_unregister_notifier(
+						host->mmc->supply.vmmc, &sd_oc.nb);
 
-		/* Disable VMCH OC */
-		if (!card_on)
-			devm_regulator_unregister_notifier(
-				host->mmc->supply.vmmc, &sd_oc.nb);
+			/* VMCH VOLSEL */
+			msdc_ldo_power(card_on, host->mmc->supply.vmmc, VOL_3000,
+					&host->power_flash);
 
-		/* VMCH VOLSEL */
-		msdc_ldo_power(card_on, host->mmc->supply.vmmc, VOL_3000,
-			&host->power_flash);
-
-		/* Enable VMCH OC */
-		if (card_on) {
-			mdelay(3);
-			devm_regulator_register_notifier(host->mmc->supply.vmmc,
-				&sd_oc.nb);
+			/* Enable VMCH OC */
+			if (card_on) {
+				mdelay(3);
+				devm_regulator_register_notifier(host->mmc->supply.vmmc,
+						&sd_oc.nb);
+			}
+			//#else
+		} else {
+			if(card_on) {
+				pr_err("%s enable cd_ldo_gpio!\n",__func__);
+				__gpio_set_value(cd_ldo_gpio, 1);
+				pr_err("%s cd_ldo_gpio = %d!\n",__func__,__gpio_get_value(cd_ldo_gpio));
+			} else {
+				pr_err("%s disable cd_ldo_gpio!\n",__func__);
+				__gpio_set_value(cd_ldo_gpio, 0);
+				pr_err("%s cd_ldo_gpio = %d!\n",__func__,__gpio_get_value(cd_ldo_gpio));
+			}
 		}
-
 		msdc_ldo_power(on, host->mmc->supply.vqmmc, VOL_3000,
 			&host->power_io);
 
@@ -1188,7 +1220,8 @@ int msdc_of_parse(struct platform_device *pdev, struct mmc_host *mmc)
 	struct msdc_host *host = mmc_priv(mmc);
 	int ret = 0;
 	int len = 0;
-	u8 id = 0;
+	int project_id = 0;
+	u8 id;
 	const char *dup_name;
 #if defined(CONFIG_MTK_PMIC_WRAP)
 	struct device_node *pwrap_node;
@@ -1262,6 +1295,18 @@ int msdc_of_parse(struct platform_device *pdev, struct mmc_host *mmc)
 		pr_notice("[msdc%d] cd_level isn't found in device tree\n",
 			host->id);
 
+	project_id = get_project();
+	if (project_id != 20091 && project_id != 20271 && project_id != 20272 &&
+		project_id != 20273 && project_id != 20274 && project_id != 0x2027A && project_id != 0x2027B && project_id != 0x2027C && project_id != 0x2027D && project_id != 0x2027E &&
+		project_id != 0x202A1 && project_id != 0x202A2 && project_id != 0x202A3 &&
+		project_id != 20361 && project_id != 20362 && project_id != 20363 && project_id != 20364 && project_id != 20365 && project_id != 20366 &&
+		project_id != 20375 && project_id != 20376 && project_id != 20377 &&
+		project_id != 20378 && project_id != 20379 && project_id != 0x2037A && project_id != 20701 && project_id != 21251 && project_id != 21253 && project_id != 21254 &&
+		project_id != 21281 && project_id != 21282 && project_id != 21283 && project_id != 21285) {
+		cd_ldo_gpio = of_get_named_gpio(np, "cd-ldo-gpio", 0);
+		pr_notice("[msdc%d] found in cd-ldo-gpio %d \n", host->id, cd_ldo_gpio);
+		gpio_direction_output(cd_ldo_gpio, 0);
+	}
 	msdc_get_register_settings(host, np);
 
 #if !defined(FPGA_PLATFORM)
@@ -1310,11 +1355,18 @@ int msdc_of_parse(struct platform_device *pdev, struct mmc_host *mmc)
 	pdev->name = pdev->dev.kobj.name;
 	kfree_const(dup_name);
 
-	if (host->id == 1) {
-		sd_oc.nb.notifier_call = msdc_sd_event;
-		INIT_WORK(&sd_oc.work, sdcard_oc_handler);
+	if (project_id == 20091 || project_id == 20271 ||  project_id == 20272 || project_id == 20273 || project_id == 20274 ||
+		project_id == 0x2027A || project_id == 0x2027B || project_id == 0x2027C || project_id == 0x2027D ||
+		project_id == 0x2027E || project_id == 0x202A1 || project_id == 0x202A2 || project_id == 0x202A3 ||
+		project_id == 20361 || project_id == 20362 || project_id == 20363 || project_id == 20364 || project_id == 20365 || project_id == 20366 ||
+		project_id == 20375 || project_id == 20376 || project_id == 20377 ||
+		project_id == 20378 || project_id == 20379 || project_id == 0x2037A || project_id == 20701 || project_id == 21251 || project_id == 21253 || project_id == 21254 ||
+		project_id == 21281 || project_id == 21282 || project_id == 21283 || project_id == 21285) {
+		if (host->id == 1) {
+			sd_oc.nb.notifier_call = msdc_sd_event;
+			INIT_WORK(&sd_oc.work, sdcard_oc_handler);
+		}
 	}
-
 	return host->id;
 }
 

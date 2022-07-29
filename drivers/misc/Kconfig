@@ -528,6 +528,23 @@ config UID_SYS_STATS_DEBUG
 	help
 	  Per TASK based io statistics exported to /proc/uid_io
 
+#ifdef OPLUS_FEATURE_TP_BASIC
+config SIM_DETECT
+	tristate "SIM_DETECT system"
+	default n
+	help
+	  Say Y here to enable sim detect system support
+#endif /* OPLUS_FEATURE_TP_BASIC */
+
+#ifdef OPLUS_FEATURE_SDCARD
+config OPLUS_FEATURE_SDCARD
+        tristate "Sdcard add for sdcard support"
+        default n
+        help
+          Say Y here to use ldo5 in mt6360 for sdcard
+
+#endif /*OPLUS_FEATURE_SDCARD*/
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
@@ -543,4 +560,5 @@ source "drivers/misc/cxl/Kconfig"
 source "drivers/misc/ocxl/Kconfig"
 source "drivers/misc/cardreader/Kconfig"
 source "drivers/misc/mediatek/Kconfig"
+source "drivers/misc/oppo_motor/Kconfig"
 endmenu

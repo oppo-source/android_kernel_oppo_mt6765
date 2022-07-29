@@ -15,6 +15,9 @@
 
 #include "internals.h"
 
+#ifdef VENDOR_EDIT
+extern bool oppo_daily_build(void);
+#endif
 /* For !GENERIC_IRQ_EFFECTIVE_AFF_MASK this looks at general affinity mask */
 static inline bool irq_needs_fixup(struct irq_data *d)
 {
@@ -163,11 +166,18 @@ void irq_migrate_all_off_this_cpu(void)
 		raw_spin_lock(&desc->lock);
 		affinity_broken = migrate_one_irq(desc);
 		raw_spin_unlock(&desc->lock);
-
-		if (affinity_broken) {
-			pr_warn_ratelimited("IRQ %u: no longer affine to CPU%u\n",
+#ifndef VENDOR_EDIT
+		if (affinity_broken)
+			pr_warn_ratelimited("IRQ%u no longer affine to CPU%u\n",
 					    irq, smp_processor_id());
+#else
+		if (oppo_daily_build() == true) {
+			if (affinity_broken)
+				pr_warn_ratelimited("IRQ%u no longer affine to CPU%u\n",
+							irq, smp_processor_id());
 		}
+#endif /*VENDOR_EDIT*/
+
 	}
 }
 

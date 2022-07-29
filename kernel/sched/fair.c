@@ -23,7 +23,24 @@
 #include "sched.h"
 
 #include <trace/events/sched.h>
+#if defined(OPLUS_FEATURE_IOMONITOR) && defined(CONFIG_IOMONITOR)
+#include <linux/iomonitor/iomonitor.h>
+#endif /*OPLUS_FEATURE_IOMONITOR*/
 
+#ifdef OPLUS_FEATURE_HEALTHINFO
+// Add for get cpu load
+#ifdef CONFIG_OPPO_HEALTHINFO
+#include <soc/oplus/oppo_healthinfo.h>
+#endif
+#endif /* OPLUS_FEATURE_HEALTHINFO */
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+#include <linux/sched.h>
+extern u64 ux_task_load[];
+extern u64 ux_load_ts[];
+extern unsigned int walt_ravg_window;
+#define walt_scale_demand_divisor (walt_ravg_window >> SCHED_CAPACITY_SHIFT)
+#define scale_demand(d) ((d)/walt_scale_demand_divisor)
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
 /*
  * Targeted preemption latency for CPU-bound tasks:
  *
@@ -95,6 +112,10 @@ unsigned int sysctl_sched_wakeup_granularity		= 1000000UL;
 unsigned int normalized_sysctl_sched_wakeup_granularity	= 1000000UL;
 
 const_debug unsigned int sysctl_sched_migration_cost	= 500000UL;
+
+#ifdef OPLUS_FEATURE_UIFIRST
+#include <linux/uifirst/uifirst_sched_common.h>
+#endif /* OPLUS_FEATURE_UIFIRST */
 
 #ifdef CONFIG_SMP
 /*
@@ -820,6 +841,11 @@ static void update_tg_load_avg(struct cfs_rq *cfs_rq, int force)
 }
 #endif /* CONFIG_SMP */
 
+#ifdef OPLUS_FEATURE_HEALTHINFO
+#ifdef CONFIG_OPPO_JANK_INFO
+extern void  update_jank_trace_info(struct task_struct *tsk, int trace_type, unsigned int cpu, u64 delta);
+#endif
+#endif /* OPLUS_FEATURE_HEALTHINFO */
 /*
  * Update the current task's runtime statistics.
  */
@@ -853,8 +879,12 @@ static void update_curr(struct cfs_rq *cfs_rq)
 		trace_sched_stat_runtime(curtask, delta_exec, curr->vruntime);
 		cgroup_account_cputime(curtask, delta_exec);
 		account_group_exec_runtime(curtask, delta_exec);
+#ifdef OPLUS_FEATURE_HEALTHINFO
+#ifdef CONFIG_OPPO_JANK_INFO
+		update_jank_trace_info(curtask, JANK_TRACE_RUNNING, cpu_of(rq_of(cfs_rq)), delta_exec);
+#endif
+#endif /* OPLUS_FEATURE_HEALTHINFO */
 	}
-
 	account_cfs_rq_runtime(cfs_rq, delta_exec);
 }
 
@@ -903,6 +933,20 @@ update_stats_wait_end(struct cfs_rq *cfs_rq, struct sched_entity *se)
 			__schedstat_set(se->statistics.wait_start, delta);
 			return;
 		}
+#ifdef OPLUS_FEATURE_HEALTHINFO
+// Add for get sched latency stat
+#ifdef CONFIG_OPPO_HEALTHINFO
+		ohm_schedstats_record(OHM_SCHED_SCHEDLATENCY, p, (delta >> 20));
+#endif
+#endif /* OPLUS_FEATURE_HEALTHINFO */
+#ifdef OPLUS_FEATURE_HEALTHINFO
+#ifdef CONFIG_OPPO_JANK_INFO
+		update_jank_trace_info(p, JANK_TRACE_RUNNABLE, 0, delta);
+#endif
+#endif /* OPLUS_FEATURE_HEALTHINFO */
+#ifdef CONFIG_OPLUS_FEATURE_AUDIO_OPT
+		sched_assist_update_record(p, delta, TST_RUNNABLE);
+#endif
 		trace_sched_stat_wait(p, delta);
 	}
 
@@ -943,6 +987,15 @@ update_stats_enqueue_sleeper(struct cfs_rq *cfs_rq, struct sched_entity *se)
 		if (tsk) {
 			account_scheduler_latency(tsk, delta >> 10, 1);
 			trace_sched_stat_sleep(tsk, delta);
+#ifdef OPLUS_FEATURE_HEALTHINFO
+#ifdef CONFIG_OPPO_JANK_INFO
+			update_jank_trace_info(tsk, JANK_TRACE_SSTATE, 0, delta);
+#endif
+#endif /* OPLUS_FEATURE_HEALTHINFO */
+
+#ifdef CONFIG_OPLUS_FEATURE_AUDIO_OPT
+			sched_assist_update_record(tsk, delta, TST_SLEEP);
+#endif
 		}
 	}
 	if (block_start) {
@@ -962,8 +1015,31 @@ update_stats_enqueue_sleeper(struct cfs_rq *cfs_rq, struct sched_entity *se)
 				__schedstat_add(se->statistics.iowait_sum, delta);
 				__schedstat_inc(se->statistics.iowait_count);
 				trace_sched_stat_iowait(tsk, delta);
+#ifdef OPLUS_FEATURE_HEALTHINFO
+// Add for get iowait
+#ifdef CONFIG_OPPO_HEALTHINFO
+				ohm_schedstats_record(OHM_SCHED_IOWAIT, tsk, (delta >> 20));
+#endif
+#endif /* OPLUS_FEATURE_HEALTHINFO */
+#if defined(OPLUS_FEATURE_IOMONITOR) && defined(CONFIG_IOMONITOR)
+				iomonitor_record_iowait(tsk, (delta >> 20));
+#endif /*OPLUS_FEATURE_IOMONITOR*/
 			}
-
+#ifdef OPLUS_FEATURE_HEALTHINFO
+#ifdef CONFIG_OPPO_HEALTHINFO
+			if(!tsk->in_iowait) {
+				 ohm_schedstats_record(OHM_SCHED_DSTATE, tsk, (delta >> 20));
+			}
+#endif
+#endif /* OPLUS_FEATURE_HEALTHINFO */
+#ifdef OPLUS_FEATURE_HEALTHINFO
+#ifdef CONFIG_OPPO_JANK_INFO
+			update_jank_trace_info(tsk, JANK_TRACE_DSTATE, 0, delta);
+#endif
+#endif /* OPLUS_FEATURE_HEALTHINFO */
+#ifdef CONFIG_OPLUS_FEATURE_AUDIO_OPT
+			sched_assist_update_record(tsk, delta, TST_SLEEP);
+#endif
 			trace_sched_stat_blocked(tsk, delta);
 			trace_sched_blocked_reason(tsk);
 
@@ -2693,7 +2769,7 @@ void task_tick_numa(struct rq *rq, struct task_struct *curr)
 	/*
 	 * We don't care about NUMA placement if we don't have memory.
 	 */
-	if ((curr->flags & (PF_EXITING | PF_KTHREAD)) || work->next != work)
+	if (!curr->mm || (curr->flags & PF_EXITING) || work->next != work)
 		return;
 
 	/*
@@ -3609,18 +3685,8 @@ static inline void update_load_avg(struct cfs_rq *cfs_rq, struct sched_entity *s
 	 * Track task load average for carrying it to new CPU after migrated, and
 	 * track group sched_entity load average for task_h_load calc in migration
 	 */
-	if (se->avg.last_update_time && !(flags & SKIP_AGE_LOAD)) {
-#ifdef CONFIG_MTK_CORE_CTL
-		if (entity_is_task(se) && se->on_rq)
-			inc_nr_heavy_running(0, task_of(se), -1, false);
-#endif
+	if (se->avg.last_update_time && !(flags & SKIP_AGE_LOAD))
 		__update_load_avg_se(now, cfs_rq, se);
-#ifdef CONFIG_MTK_CORE_CTL
-		if (entity_is_task(se) && se->on_rq)
-			inc_nr_heavy_running(1, task_of(se), 1, false);
-#endif
-
-	}
 
 	decayed  = update_cfs_rq_load_avg(now, cfs_rq);
 	decayed |= propagate_entity_load_avg(se);
@@ -3966,6 +4032,9 @@ place_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int initial)
 
 	/* ensure we never gain time by being placed backwards. */
 	se->vruntime = max_vruntime(se->vruntime, vruntime);
+#ifdef OPLUS_FEATURE_UIFIRST
+	place_entity_adjust_ux_task(cfs_rq, se, initial);
+#endif
 }
 
 static void check_enqueue_throttle(struct cfs_rq *cfs_rq);
@@ -4107,7 +4176,7 @@ static void __clear_buddies_skip(struct sched_entity *se)
 	}
 }
 
-static void clear_buddies(struct cfs_rq *cfs_rq, struct sched_entity *se)
+void clear_buddies(struct cfs_rq *cfs_rq, struct sched_entity *se)
 {
 	if (cfs_rq->last == se)
 		__clear_buddies_last(se);
@@ -4269,7 +4338,11 @@ pick_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 		left = curr;
 
 	se = left; /* ideally we run the leftmost entity */
-
+#ifdef CONFIG_OPLUS_FEATURE_AUDIO_OPT
+	if (sched_assist_pick_next_task(cfs_rq,se)) {
+			return se;
+	}
+#endif
 	/*
 	 * Avoid running the skip buddy, if running something else can
 	 * be done without getting too unfair.
@@ -5226,66 +5299,15 @@ static inline void hrtick_update(struct rq *rq)
 #endif
 
 #ifdef CONFIG_SMP
+#ifdef OPLUS_FEATURE_UIFIRST
+unsigned long cpu_util(int cpu);
+#else
 static inline unsigned long cpu_util(int cpu);
+#endif /* OPLUS_FEATURE_UIFIRST */
 static unsigned long capacity_of(int cpu);
-
-#ifdef CONFIG_MTK_SCHED_EXTENSION
-#define fits_capacity(cap, max) ((cap) * 1280 < (max) * 1024)
-
-static struct perf_domain *find_pd(struct perf_domain *pd, int cpu)
-{
-	while (pd) {
-		if (cpumask_test_cpu(cpu, perf_domain_span(pd)))
-			return pd;
-
-		pd = pd->next;
-	}
-
-	return NULL;
-}
-
-void mtk_cpu_overutilized(int cpu, int *overutilized)
-{
-	struct perf_domain *pd = NULL;
-	struct rq *rq = cpu_rq(cpu);
-	unsigned long sum_util = 0, sum_cap = 0;
-	int i = 0;
-
-	rcu_read_lock();
-	pd = rcu_dereference(rq->rd->pd);
-	pd = find_pd(pd, cpu);
-	if (!pd) {
-		rcu_read_unlock();
-		return;
-	}
-
-	if (cpumask_weight(perf_domain_span(pd)) == 1 &&
-		capacity_orig_of(cpu) == SCHED_CAPACITY_SCALE) {
-		*overutilized = 0;
-		rcu_read_unlock();
-		return;
-	}
-
-	for_each_cpu(i, perf_domain_span(pd)) {
-		sum_util += cpu_util(i);
-		sum_cap += capacity_of(i);
-	}
-
-	*overutilized = !fits_capacity(sum_util, sum_cap);
-	rcu_read_unlock();
-}
-#endif
-
 
 static inline bool cpu_overutilized(int cpu)
 {
-#ifdef CONFIG_MTK_SCHED_EXTENSION
-	int overutilized = -1;
-
-	mtk_cpu_overutilized(cpu, &overutilized);
-	if (overutilized != -1)
-		return overutilized;
-#endif
 	return (capacity_of(cpu) * 1024) < (cpu_util(cpu) * capacity_margin);
 }
 
@@ -5311,7 +5333,6 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 {
 	struct cfs_rq *cfs_rq;
 	struct sched_entity *se = &p->se;
-	int task_new = !(flags & ENQUEUE_WAKEUP);
 
 	/*
 	 * The code below (indirectly) updates schedutil which looks at
@@ -5365,7 +5386,11 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 
 		flags = ENQUEUE_WAKEUP;
 	}
-
+#ifdef OPLUS_FEATURE_UIFIRST
+	if (sysctl_uifirst_enabled) {
+		enqueue_ux_thread(rq, p);
+	}
+#endif /* OPLUS_FEATURE_UIFIRST */
 	for_each_sched_entity(se) {
 		cfs_rq = cfs_rq_of(se);
 		cfs_rq->h_nr_running++;
@@ -5378,9 +5403,6 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 	}
 
 	if (!se) {
-#ifdef CONFIG_MTK_CORE_CTL
-		inc_nr_heavy_running(2, p, 1, false);
-#endif
 		add_nr_running(rq, 1);
 		/*
 		 * Since new tasks are assigned an initial util_avg equal to
@@ -5396,7 +5418,7 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 		 * into account, but that is not straightforward to implement,
 		 * and the following generally works well enough in practice.
 		 */
-		if (!task_new)
+		if (flags & ENQUEUE_WAKEUP)
 			update_overutilized_status(rq);
 
 	}
@@ -5470,7 +5492,11 @@ static void dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 		}
 		flags |= DEQUEUE_SLEEP;
 	}
-
+#ifdef OPLUS_FEATURE_UIFIRST
+	if (sysctl_uifirst_enabled) {
+		dequeue_ux_thread(rq, p);
+	}
+#endif /* OPLUS_FEATURE_UIFIRST */
 	for_each_sched_entity(se) {
 		cfs_rq = cfs_rq_of(se);
 		cfs_rq->h_nr_running--;
@@ -5482,12 +5508,14 @@ static void dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 		update_cfs_group(se);
 	}
 
-	if (!se) {
-#ifdef CONFIG_MTK_CORE_CTL
-		inc_nr_heavy_running(3, p, -1, false);
-#endif
+	if (!se)
 		sub_nr_running(rq, 1);
+
+#ifdef CONFIG_OPLUS_FEATURE_AUDIO_OPT
+	if (!se && task_sleep) {
+		sched_assist_update_record(p, p->se.sum_exec_runtime - p->se.prev_sum_exec_runtime, TST_EXEC);
 	}
+#endif
 
 	util_est_dequeue(&rq->cfs, p, task_sleep);
 	hrtick_update(rq);
@@ -6047,14 +6075,9 @@ schedtune_cpu_margin(unsigned long util, int cpu)
 
 #endif /* CONFIG_SCHED_TUNE */
 
-void get_task_util(struct task_struct *p, unsigned long *util)
-{
-	*util = task_util(p);
-}
-
 static unsigned long cpu_util_without(int cpu, struct task_struct *p);
 
-unsigned long capacity_spare_without(int cpu, struct task_struct *p)
+static unsigned long capacity_spare_without(int cpu, struct task_struct *p)
 {
 	return max_t(long, capacity_of(cpu) - cpu_util_without(cpu, p), 0);
 }
@@ -6601,7 +6624,11 @@ static int select_idle_sibling(struct task_struct *p, int prev, int target)
  *
  * Return: the (estimated) utilization for the specified CPU
  */
+#ifdef OPLUS_FEATURE_UIFIRST
+unsigned long cpu_util(int cpu)
+#else
 static inline unsigned long cpu_util(int cpu)
+#endif /* OPLUS_FEATURE_UIFIRST */
 {
 	struct cfs_rq *cfs_rq;
 	unsigned int util;
@@ -6614,6 +6641,9 @@ static inline unsigned long cpu_util(int cpu)
 
 	return min_t(unsigned long, util, capacity_orig_of(cpu));
 }
+#ifdef OPLUS_FEATURE_UIFIRST
+EXPORT_SYMBOL(cpu_util);
+#endif /* OPLUS_FEATURE_UIFIRST */
 
 /*
  * cpu_util_without: compute cpu utilization without any contributions from *p
@@ -6766,6 +6796,21 @@ static void find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 
 			if (cpu_isolated(i))
 				continue;
+
+#ifdef OPLUS_FEATURE_UIFIRST
+			if (sysctl_uifirst_enabled && test_task_ux(p)) {
+				if (sysctl_launcher_boost_enabled && is_heavy_ux_task(p) && !test_ux_task_cpu(i))
+					continue;
+
+				if (!sysctl_launcher_boost_enabled || !is_heavy_ux_task(p)) {
+					if (cpu_rq(i)->rt.rt_nr_running)
+						continue;
+
+					if (!list_empty(&cpu_rq(i)->ux_thread_list))
+						continue;
+				}
+			}
+#endif /* OPLUS_FEATURE_UIFIRST */
 
 #ifdef CONFIG_MTK_SCHED_INTEROP
 			if (cpu_rq(i)->rt.rt_nr_running &&
@@ -7253,6 +7298,15 @@ static void select_cpu_candidates(struct sched_domain *sd, cpumask_t *cpus,
 		cpumask_set_cpu(highest_spare_cap_cpu, cpus);
 }
 
+#ifdef OPLUS_FEATURE_UIFIRST
+bool static inline is_heavy_boost_task(struct task_struct *p)
+{
+	return sysctl_uifirst_enabled && (sysctl_launcher_boost_enabled || sysctl_slide_boost_enabled)
+		&& is_heavy_ux_task(p);
+}
+bool ux_task_misfit(struct task_struct *p, int cpu);
+#endif  /* OPLUS_FEATURE_UIFIRST */
+
 static DEFINE_PER_CPU(cpumask_t, energy_cpus);
 
 /*
@@ -7305,7 +7359,11 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu, int sy
 	struct sched_domain *sd;
 	cpumask_t *candidates;
 
+#ifdef OPLUS_FEATURE_UIFIRST
+	if (sysctl_sched_sync_hint_enable && sync && !is_heavy_ux_task(p)) {
+#else  /* OPLUS_FEATURE_UIFIRST */
 	if (sysctl_sched_sync_hint_enable && sync) {
+#endif  /* OPLUS_FEATURE_UIFIRST */
 		cpu = smp_processor_id();
 		if (cpumask_test_cpu(cpu, &p->cpus_allowed) &&
 			!cpu_isolated(cpu))
@@ -7314,8 +7372,13 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu, int sy
 
 	rcu_read_lock();
 	pd = rcu_dereference(rd->pd);
-	if (!pd || READ_ONCE(rd->overutilized))
+#ifdef OPLUS_FEATURE_UIFIRST
+	if (!pd || (READ_ONCE(rd->overutilized) && !is_heavy_ux_task(p))) {
+#else  /* OPLUS_FEATURE_UIFIRST */
+	if (!pd || READ_ONCE(rd->overutilized)) {
+#endif  /* OPLUS_FEATURE_UIFIRST */
 		goto fail;
+	}
 
 	/*
 	 * Energy-aware wake-up happens on the lowest sched_domain starting
@@ -7342,6 +7405,10 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu, int sy
 
 	/* Bail out if no candidate was found. */
 	weight = cpumask_weight(candidates);
+#ifdef OPLUS_FEATURE_SCHED_ASSIST
+	if (!weight && (is_animator_ux_task(p) || sysctl_slide_boost_enabled))
+		set_ux_task_cpu_common_by_prio(p, &best_energy_cpu, true, false);
+#endif
 	if (!weight)
 		goto unlock;
 
@@ -7376,6 +7443,25 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu, int sy
 	}
 unlock:
 	rcu_read_unlock();
+
+#ifdef OPLUS_FEATURE_UIFIRST
+		if (sysctl_uifirst_enabled && sysctl_launcher_boost_enabled &&
+			is_heavy_ux_task(p) && !test_ux_prefer_cpu(p, best_energy_cpu)) {
+			find_ux_task_cpu(p, &best_energy_cpu);
+			if (test_ux_task_cpu(best_energy_cpu))
+				return best_energy_cpu;
+		}
+#endif  /* OPLUS_FEATURE_UIFIRST */
+
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+		if (sysctl_uifirst_enabled && sysctl_slide_boost_enabled && is_heavy_ux_task(p) &&
+			ux_task_misfit(p, best_energy_cpu)) {
+			find_ux_task_cpu(p, &best_energy_cpu);
+			if (test_ux_task_cpu(best_energy_cpu))
+				return best_energy_cpu;
+		}
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
+
 
 	/*
 	 * Pick the best CPU if prev_cpu cannot be used, or if it saves at
@@ -7496,7 +7582,9 @@ sd_loop:
 
 	return select_reason | new_cpu;
 }
-
+#if defined (CONFIG_SCHED_WALT) && defined (OPLUS_FEATURE_UIFIRST)
+extern void find_ux_task_cpu_capacity(struct task_struct *tsk, int *target_cpu);
+#endif
 static inline int
 select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag,
 	int wake_flags, int sibling_count_hint)
@@ -7509,11 +7597,17 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag,
 #ifdef CONFIG_MTK_SCHED_CPU_PREFER
 	select_task_prefer_cpu_fair(p, &result);
 #endif
-	cpu = (result & LB_CPU_MASK);
-
+        cpu = (result & LB_CPU_MASK);
+#if defined (CONFIG_SCHED_WALT) && defined (OPLUS_FEATURE_UIFIRST)
+	if (sysctl_uifirst_enabled && (sysctl_launcher_boost_enabled || sysctl_slide_boost_enabled) &&
+		is_heavy_ux_task(p) && ux_task_misfit(p, cpu)) {
+		find_ux_task_cpu_capacity(p, &cpu);
+		result = LB_UX_BOOST | cpu;
+	}
+#endif
 #ifdef CONFIG_MTK_SCHED_EXTENSION
 	trace_sched_select_task_rq(p, result, prev_cpu, cpu,
-		task_util_est(p), uclamp_task_util(p),
+		task_util(p), uclamp_task_util(p),
 		(schedtune_prefer_idle(p) > 0), wake_flags);
 #endif
 	return cpu;
@@ -7671,6 +7765,9 @@ static void set_skip_buddy(struct sched_entity *se)
 /*
  * Preempt the current task with a newly woken task if needed:
  */
+#ifdef CONFIG_OPLUS_FEATURE_AUDIO_OPT
+extern bool is_small_task(struct task_struct *task);
+#endif
 static void check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_flags)
 {
 	struct task_struct *curr = rq->curr;
@@ -7724,6 +7821,19 @@ static void check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_
 	find_matching_se(&se, &pse);
 	update_curr(cfs_rq_of(se));
 	BUG_ON(!pse);
+#ifdef CONFIG_OPLUS_FEATURE_AUDIO_OPT
+	if (unlikely(is_small_task(p))) {
+		if (!next_buddy_marked)
+			set_next_buddy(pse);
+		goto preempt;
+	}
+#endif
+#ifdef OPLUS_FEATURE_UIFIRST
+	if (should_ux_preempt_wakeup(p, curr))
+		goto preempt;
+	else if (test_task_ux(curr))
+		return;
+#endif /* OPLUS_FEATURE_UIFIRST */
 	if (wakeup_preempt_entity(se, pse) == 1) {
 		/*
 		 * Bias pick_next to pick the sched entity that is
@@ -7814,6 +7924,11 @@ again:
 	} while (cfs_rq);
 
 	p = task_of(se);
+#ifdef OPLUS_FEATURE_UIFIRST
+	if (sysctl_uifirst_enabled) {
+		pick_ux_thread(rq, &p, &se);
+	}
+#endif /* OPLUS_FEATURE_UIFIRST */
 
 	/*
 	 * Since we haven't yet done put_prev_entity and if the selected task
@@ -8310,7 +8425,17 @@ static void detach_task(struct task_struct *p, struct lb_env *env)
 
 	p->on_rq = TASK_ON_RQ_MIGRATING;
 	deactivate_task(env->src_rq, p, DEQUEUE_NOCLOCK);
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+	lockdep_off();
+	double_lock_balance(env->src_rq, env->dst_rq);
+	if (!(env->src_rq->clock_update_flags & RQCF_UPDATED))
+		update_rq_clock(env->src_rq);
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
 	set_task_cpu(p, env->dst_cpu);
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+	double_unlock_balance(env->src_rq, env->dst_rq);
+	lockdep_on();
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
 }
 
 /*
@@ -8348,6 +8473,17 @@ static struct task_struct *detach_one_task(struct lb_env *env)
 		if (!can_migrate_task(p, env))
 			continue;
 #endif
+
+#ifdef OPLUS_FEATURE_UIFIRST
+		if (sysctl_uifirst_enabled && test_task_ux(p)) {
+			if (is_heavy_boost_task(p) && test_ux_task_cpu(task_cpu(p)) &&
+					!test_ux_task_cpu(env->dst_cpu))
+				continue;
+
+			if ((!sysctl_launcher_boost_enabled || p->static_ux != 2) && !list_empty(&env->dst_rq->ux_thread_list))
+				continue;
+		}
+#endif  /* OPLUS_FEATURE_UIFIRST */
 
 		detach_task(p, env);
 		/*
@@ -8407,15 +8543,18 @@ static int detach_tasks(struct lb_env *env)
 		if (!can_migrate_task(p, env))
 			goto next;
 
-		/*
-		 * Depending of the number of CPUs and tasks and the
-		 * cgroup hierarchy, task_h_load() can return a null
-		 * value. Make sure that env->imbalance decreases
-		 * otherwise detach_tasks() will stop only after
-		 * detaching up to loop_max tasks.
-		 */
-		load = max_t(unsigned long, task_h_load(p), 1);
+#ifdef OPLUS_FEATURE_UIFIRST
+		if (sysctl_uifirst_enabled && test_task_ux(p)) {
+			if (is_heavy_boost_task(p) && test_ux_task_cpu(task_cpu(p)) &&
+					!test_ux_task_cpu(env->dst_cpu))
+				goto next;
 
+			if ((!sysctl_launcher_boost_enabled || p->static_ux != 2) && !list_empty(&env->dst_rq->ux_thread_list))
+				goto next;
+		}
+#endif /* OPLUS_FEATURE_UIFIRST */
+
+		load = task_h_load(p);
 
 		if (sched_feat(LB_MIN) && load < 16 && !env->sd->nr_balance_failed)
 			goto next;
@@ -10548,12 +10687,7 @@ static void kick_ilb(unsigned int flags)
 {
 	int ilb_cpu;
 
-	/*
-	 * Increase nohz.next_balance only when if full ilb is triggered but
-	 * not if we only update stats.
-	 */
-	if (flags & NOHZ_BALANCE_KICK)
-		nohz.next_balance = jiffies+1;
+	nohz.next_balance++;
 
 	ilb_cpu = find_new_ilb();
 
@@ -10866,14 +11000,6 @@ static bool _nohz_idle_balance(struct rq *this_rq, unsigned int flags,
 		}
 	}
 
-	/*
-	 * next_balance will be updated only when there is a need.
-	 * When the CPU is attached to null domain for ex, it will not be
-	 * updated.
-	 */
-	if (likely(update_next_balance))
-		nohz.next_balance = next_balance;
-
 	/* Newly idle CPU doesn't need an update */
 	if (idle != CPU_NEWLY_IDLE) {
 		update_blocked_averages(this_cpu);
@@ -10893,6 +11019,14 @@ abort:
 	/* There is still blocked load, enable periodic update */
 	if (has_blocked_load)
 		WRITE_ONCE(nohz.has_blocked, 1);
+
+	/*
+	 * next_balance will be updated only when there is a need.
+	 * When the CPU is attached to null domain for ex, it will not be
+	 * updated.
+	 */
+	if (likely(update_next_balance))
+		nohz.next_balance = next_balance;
 
 	return ret;
 }
@@ -11159,7 +11293,7 @@ static void rq_offline_fair(struct rq *rq)
 #ifdef CONFIG_MTK_SCHED_BIG_TASK_MIGRATE
 void task_check_for_rotation(struct rq *src_rq)
 {
-	u64 wc, wait, max_wait = 0, run, max_run = 0;
+	u64 wait, max_wait = 0, run, max_run = 0;
 	int deserved_cpu = nr_cpu_ids, dst_cpu = nr_cpu_ids;
 	int i, src_cpu = cpu_of(src_rq);
 	struct rq *dst_rq;
@@ -11185,7 +11319,6 @@ void task_check_for_rotation(struct rq *src_rq)
 	if (heavy_task < HEAVY_TASK_NUM)
 		return;
 
-	wc = ktime_get_ns();
 	for_each_possible_cpu(i) {
 		struct rq *rq = cpu_rq(i);
 
@@ -11199,7 +11332,8 @@ void task_check_for_rotation(struct rq *src_rq)
 						&fair_sched_class)
 			continue;
 
-		wait = wc - rq->curr->last_enqueued_ts;
+		wait = (rq->curr->se.sum_exec_runtime) -
+			(rq->curr->se.prev_sum_exec_runtime);
 
 		if (wait > max_wait) {
 			max_wait = wait;
@@ -11225,7 +11359,13 @@ void task_check_for_rotation(struct rq *src_rq)
 		if (rq->nr_running > 1)
 			continue;
 
-		run = wc - rq->curr->last_enqueued_ts;
+#ifdef OPLUS_FEATURE_UIFIRST
+		if (is_heavy_boost_task(rq->curr))
+			continue;
+#endif  /* OPLUS_FEATURE_UIFIRST */
+
+		run = (rq->curr->se.sum_exec_runtime) -
+			(rq->curr->se.prev_sum_exec_runtime);
 
 		if (run < TASK_ROTATION_THRESHOLD_NS)
 			continue;
@@ -11278,6 +11418,18 @@ void task_check_for_rotation(struct rq *src_rq)
 	}
 }
 
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+extern struct ux_sched_cputopo ux_sched_cputopo;
+bool ux_task_misfit(struct task_struct *p, int cpu)
+{
+	if ((scale_demand(p->ravg.sum) >= sysctl_boost_task_threshold ||
+	     scale_demand(p->ravg.demand) >= sysctl_boost_task_threshold) && !cpumask_test_cpu(cpu, &ux_sched_cputopo.sched_cls[ux_sched_cputopo.big_cluster_idx].cpus))
+		return true;
+
+	return false;
+}
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
+
 static DEFINE_RAW_SPINLOCK(migration_lock);
 static bool big_task_migration_enable = true;
 void check_for_migration(struct task_struct *p)
@@ -11304,7 +11456,12 @@ void check_for_migration(struct task_struct *p)
 		}
 	}
 
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+	if (rq->misfit_task_load || (sysctl_uifirst_enabled && sysctl_slide_boost_enabled &&
+					p->static_ux == 2 && ux_task_misfit(p, cpu))) {
+#else
 	if (rq->misfit_task_load) {
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
 		if (rq->curr->state != TASK_RUNNING ||
 			rq->curr->nr_cpus_allowed == 1)
 			return;
@@ -11314,9 +11471,19 @@ void check_for_migration(struct task_struct *p)
 		new_cpu = select_task_rq_fair(p, cpu, SD_BALANCE_WAKE, 0, 1);
 		rcu_read_unlock();
 
-		if (capacity_orig_of(new_cpu) > capacity_orig_of(cpu)
-			&& !rq->rd->overutilized) {
+		if (capacity_orig_of(new_cpu) > capacity_orig_of(cpu)) {
 			if (!big_task_migration_enable) {
+				raw_spin_unlock(&migration_lock);
+				return;
+			}
+
+			/*
+			 * If p make new CPU overutil,
+			 * we should not migrate p to new CPU.
+			 */
+			if ((capacity_of(new_cpu) * 1024) <
+				max(cpu_util(new_cpu) + task_util_est(p),
+					(unsigned long)uclamp_task(p)) * capacity_margin) {
 				raw_spin_unlock(&migration_lock);
 				return;
 			}
@@ -11457,22 +11624,16 @@ static void propagate_entity_cfs_rq(struct sched_entity *se)
 {
 	struct cfs_rq *cfs_rq;
 
-	list_add_leaf_cfs_rq(cfs_rq_of(se));
-
 	/* Start to propagate at parent */
 	se = se->parent;
 
 	for_each_sched_entity(se) {
 		cfs_rq = cfs_rq_of(se);
 
-		if (!cfs_rq_throttled(cfs_rq)){
-			update_load_avg(cfs_rq, se, UPDATE_TG);
-			list_add_leaf_cfs_rq(cfs_rq);
-			continue;
-		}
-
-		if (list_add_leaf_cfs_rq(cfs_rq))
+		if (cfs_rq_throttled(cfs_rq))
 			break;
+
+		update_load_avg(cfs_rq, se, UPDATE_TG);
 	}
 }
 #else

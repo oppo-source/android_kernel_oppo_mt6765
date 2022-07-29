@@ -36,15 +36,6 @@ int topo_ctrl_get_nr_clusters(void)
 }
 EXPORT_SYMBOL(topo_ctrl_get_nr_clusters);
 
-int topo_ctrl_get_cluster_cpu_id(int id)
-{
-	if (id < 0)
-		return -1;
-
-	return topo_cluster_info[id].cpu_id;
-}
-EXPORT_SYMBOL(topo_ctrl_get_cluster_cpu_id);
-
 /***************************************/
 static void topo_platform_init(void)
 {
@@ -194,8 +185,7 @@ PROC_FOPS_RO(cpus_per_cluster);
 int topo_ctrl_init(struct proc_dir_entry *parent)
 {
 	struct proc_dir_entry *topo_dir = NULL;
-	int ret = 0;
-	size_t i;
+	int i, ret = 0;
 
 	struct pentry {
 		const char *name;

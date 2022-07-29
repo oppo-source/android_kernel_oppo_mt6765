@@ -244,13 +244,13 @@ int security_binder_transaction(const struct cred *from,
 }
 
 int security_binder_transfer_binder(const struct cred *from,
-				    const struct cred *to)
+				const struct cred *to)
 {
 	return call_int_hook(binder_transfer_binder, 0, from, to);
 }
 
 int security_binder_transfer_file(const struct cred *from,
-				  const struct cred *to, struct file *file)
+				const struct cred *to, struct file *file)
 {
 	return call_int_hook(binder_transfer_file, 0, from, to, file);
 }
@@ -603,6 +603,7 @@ int security_path_chown(const struct path *path, kuid_t uid, kgid_t gid)
 		return 0;
 	return call_int_hook(path_chown, 0, path, uid, gid);
 }
+EXPORT_SYMBOL_GPL(security_path_chown);
 
 int security_path_chroot(const struct path *path)
 {

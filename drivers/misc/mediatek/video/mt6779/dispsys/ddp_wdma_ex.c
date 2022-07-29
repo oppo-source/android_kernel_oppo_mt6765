@@ -18,13 +18,6 @@
 #include "ddp_mmp.h"
 #include "ddp_reg_mmsys.h"
 
-#include "mtk_ovl.h"
-
-#include <ion_sec_heap.h>
-#ifdef CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM
-#include "trusted_mem_api.h"
-#endif
-
 #define ALIGN_TO(x, n)	(((x) + ((n) - 1)) & ~((n) - 1))
 
 struct WDMA_CONFIG_STRUCT g_wdma_cfg;
@@ -137,7 +130,6 @@ int wdma_start(enum DISP_MODULE_ENUM module, void *handle)
 static int wdma_config_yuv420(enum DISP_MODULE_ENUM module,
 			      enum UNIFIED_COLOR_FMT fmt, unsigned int dstPitch,
 			      unsigned int Height, unsigned long dstAddress,
-			      struct ion_handle *ion_hnd,
 			      enum DISP_BUFFER_TYPE sec, void *handle)
 {
 	unsigned int idx = wdma_index(module);
@@ -186,34 +178,18 @@ static int wdma_config_yuv420(enum DISP_MODULE_ENUM module,
 	} else {
 #if defined(CONFIG_MTK_M4U)
 		int m4u_port;
-		int sec = -1, sec_id = -1;
-		ion_phys_addr_t sec_hdl = 0;
-		enum TRUSTED_MEM_REQ_TYPE mem_type;
 
 		m4u_port = DISP_M4U_PORT_DISP_WDMA0;
-		if (unlikely(!ion_hnd)) {
-			DISP_LOG_E("%s #%d NULL handle for secure layer, ticket:%d\n",
-				   __func__, __LINE__, get_ovl2mem_ticket());
-			return 0;
-		}
-		mem_type = ion_hdl2sec_type(ion_hnd, &sec, &sec_id, &sec_hdl);
 
-		if (unlikely(mem_type < 0)) {
-			DISP_LOG_E("normal memory set as secure\n");
-			return 0;
-		}
-
-		cmdqRecWriteSecureMetaData(handle,
+		cmdqRecWriteSecure(handle,
 			disp_addr_convert(idx_offst + DISP_REG_WDMA_DST_ADDR1),
-			CMDQ_SAM_H_2_MVA, dstAddress, u_off, u_size, m4u_port,
-			mem_type);
+			CMDQ_SAM_H_2_MVA, dstAddress, u_off, u_size, m4u_port);
 		if (has_v)
-			cmdqRecWriteSecureMetaData(handle,
+			cmdqRecWriteSecure(handle,
 					disp_addr_convert(idx_offst +
 						DISP_REG_WDMA_DST_ADDR2),
 					CMDQ_SAM_H_2_MVA, dstAddress,
-					v_off, u_size, m4u_port,
-					mem_type);
+					v_off, u_size, m4u_port);
 #endif
 	}
 	DISP_REG_SET_FIELD(handle, DST_W_IN_BYTE_FLD_DST_W_IN_BYTE,
@@ -228,7 +204,6 @@ static int wdma_config(enum DISP_MODULE_ENUM module,
 		       enum UNIFIED_COLOR_FMT out_format,
 		       unsigned long dstAddress, unsigned int dstPitch,
 		       unsigned int useSpecifiedAlpha, unsigned char alpha,
-		       struct ion_handle *ion_hnd,
 		       enum DISP_BUFFER_TYPE sec, void *handle)
 {
 	unsigned int idx = wdma_index(module);
@@ -267,7 +242,7 @@ static int wdma_config(enum DISP_MODULE_ENUM module,
 	if (!is_rgb) {
 		/* set DNSP for UYVY and YUV_3P format for better quality */
 		wdma_config_yuv420(module, out_format, dstPitch, clipHeight,
-				   dstAddress, ion_hnd, sec, handle);
+				   dstAddress, sec, handle);
 		/* user internal matrix */
 		SET_VAL_MASK(value, mask, 0, CFG_FLD_EXT_MTX_EN);
 		SET_VAL_MASK(value, mask, 1, CFG_FLD_CT_EN);
@@ -285,32 +260,17 @@ static int wdma_config(enum DISP_MODULE_ENUM module,
 			     dstAddress);
 	} else {
 #if defined(CONFIG_MTK_M4U)
-		int m4u_port = DISP_M4U_PORT_DISP_WDMA0;
-		int sec = -1, sec_id = -1;
-		ion_phys_addr_t sec_hdl = 0;
-		enum TRUSTED_MEM_REQ_TYPE mem_type;
+		int m4u_port;
 
 		m4u_port = DISP_M4U_PORT_DISP_WDMA0;
-		if (unlikely(!ion_hnd)) {
-			DISP_LOG_E("%s #%d NULL handle for secure layer, ticket:%d\n",
-				   __func__, __LINE__, get_ovl2mem_ticket());
-			dump_stack();
-			return 0;
-		}
-		mem_type = ion_hdl2sec_type(ion_hnd, &sec, &sec_id, &sec_hdl);
-
-		if (unlikely(mem_type < 0)) {
-			DISP_LOG_E("normal memory set as secure\n");
-			return 0;
-		}
 		/*
 		 * for sec layer, addr variable stores sec handle
 		 * we need to pass this handle and offset to cmdq driver
 		 * cmdq sec driver will convert handle to correct address
 		 */
-		cmdqRecWriteSecureMetaData(handle,
+		cmdqRecWriteSecure(handle,
 			disp_addr_convert(idx_offst + DISP_REG_WDMA_DST_ADDR0),
-			CMDQ_SAM_H_2_MVA, dstAddress, 0, size, m4u_port, mem_type);
+			CMDQ_SAM_H_2_MVA, dstAddress, 0, size, m4u_port);
 #endif
 	}
 	DISP_REG_SET(handle, idx_offst + DISP_REG_WDMA_DST_W_IN_BYTE, dstPitch);
@@ -1163,8 +1123,6 @@ static inline int wdma_switch_to_sec(enum DISP_MODULE_ENUM module, void *handle)
 	enum CMDQ_ENG_ENUM cmdq_engine;
 	enum CMDQ_EVENT_ENUM cmdq_event;
 
-	DISPFUNC();
-
 	/* cmdq_engine = module_to_cmdq_engine(module); */
 	cmdq_engine = wdma_idx == 0 ?  CMDQ_ENG_DISP_WDMA0 :
 						CMDQ_ENG_DISP_WDMA1;
@@ -1192,8 +1150,6 @@ int wdma_switch_to_nonsec(enum DISP_MODULE_ENUM module, void *handle)
 	enum CMDQ_ENG_ENUM cmdq_engine;
 	enum CMDQ_EVENT_ENUM cmdq_event;
 	enum CMDQ_EVENT_ENUM cmdq_event_nonsec_end;
-
-	DISPFUNC();
 
 	cmdq_engine = wdma_idx == 0 ?  CMDQ_ENG_DISP_WDMA0 :
 						CMDQ_ENG_DISP_WDMA1;
@@ -1319,7 +1275,6 @@ static int wdma_config_l(enum DISP_MODULE_ENUM module,
 			    config->clipHeight, config->outputFormat,
 			    config->dstAddress, config->dstPitch,
 			    config->useSpecifiedAlpha, config->alpha,
-			    config->hnd,
 			    config->security, handle);
 
 		p_golden_setting = pConfig->p_golden_setting_context;

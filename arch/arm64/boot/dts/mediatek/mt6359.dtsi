@@ -27,12 +27,17 @@
 			io-channel-names = "pmic_accdet";
 			nvmem = <&pmic_efuse>;
 			nvmem-names = "mt63xx-accdet-efuse";
+			//#ifdef OPLUS_ARCH_EXTENDS
+			#interconnect-cells = <1>;
+			//#endif
 			status = "okay";
 		};
 
 		mt6359keys: mt6359keys {
 			compatible = "mediatek,mt6359-keys";
-			mediatek,long-press-mode = <1>;
+			//#ifdef VENDOR_EDIT
+			mediatek,long-press-mode = <2>;
+			//#endif
 			power-off-time-sec = <0>;
 
 			power {
@@ -112,12 +117,14 @@
 					<&pmic_auxadc AUXADC_BATADC>,
 					<&pmic_auxadc AUXADC_VBIF>,
 					<&pmic_auxadc AUXADC_IMP>,
-					<&pmic_auxadc AUXADC_IMIX_R>;
+					<&pmic_auxadc AUXADC_IMIX_R>,
+					<&auxadc 3>;
 			io-channel-names = "pmic_battery_temp",
 					"pmic_battery_voltage",
 					"pmic_bif_voltage",
 					"pmic_ptim_voltage",
-					"pmic_ptim_r";
+					"pmic_ptim_r",
+					"auxadc6-batt_id_v";
 			nvmem-cells = <&fg_init>, <&fg_soc>;
 			nvmem-cell-names = "initialization", "state-of-charge";
 		};
@@ -368,7 +375,7 @@
 			};
 			mt_pmic_vemc_ldo_reg: ldo_vemc {
 				regulator-name = "vemc";
-				regulator-min-microvolt = <2900000>;
+				regulator-min-microvolt = <3000000>;
 				regulator-max-microvolt = <3300000>;
 				regulator-enable-ramp-delay = <240>;
 			};

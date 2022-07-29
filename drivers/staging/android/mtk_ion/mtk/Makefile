@@ -11,18 +11,13 @@
 # GNU General Public License for more details.
 #
 
-ccflags-$(CONFIG_MTK_PSEUDO_M4U) += -I$(srctree)/drivers/misc/mediatek/pseudo_m4u/
 ccflags-$(CONFIG_MTK_ION)  += -I$(srctree)/drivers/staging/android/mtk_ion #fro kernel-3.10 ion
 ccflags-$(CONFIG_MTK_M4U) += -I$(srctree)/drivers/misc/mediatek/m4u/$(subst ",,$(CONFIG_MTK_PLATFORM))/
 
 ccflags-$(CONFIG_MTK_M4U) += -I$(srctree)/drivers/misc/mediatek/m4u/2.0/
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/mmp/
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat
-ifeq ($(CONFIG_MACH_MT6781), y)
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/mt6781/include
-else
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(subst ",,$(CONFIG_MTK_PLATFORM))/include
-endif
 ccflags-y += -I$(srctree)/arch/arm/
 ccflags-y += -I$(srctree)/drivers/iommu/
 
@@ -31,6 +26,8 @@ ccflags-y += -DION_HISTORY_RECORD
 obj-$(CONFIG_MTK_ION) += ion_drv.o ion_mm_heap.o ion_fb_heap.o ion_sec_heap.o ion_profile.o
 obj-$(CONFIG_MTK_ION) += ion_history.o
 obj-$(CONFIG_MTK_ION) += ion_comm.o
+
+obj-$(CONFIG_OPLUS_ION_BOOSTPOOL) += oplus_ion_boost_pool.o
 
 ifeq ($(CONFIG_MTK_ENG_BUILD), y)
 ccflags-y += -DION_RUNTIME_DEBUGGER=1

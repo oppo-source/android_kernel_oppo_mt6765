@@ -42,6 +42,10 @@ struct mmc_blk_data {
 	/* debugfs files (only in main mmc_blk_data) */
 	struct dentry *status_dentry;
 	struct dentry *ext_csd_dentry;
+#ifdef MTK_EMMC_SUPPORT
+	struct dentry *sector_count_dentry;
+	struct dentry *life_time_dentry;
+#endif
 };
 
 

@@ -41,6 +41,9 @@
 #include "mtk-eint.h"
 #include "pinctrl-mtk-common.h"
 
+#ifdef VENDOR_EDIT
+#include <soc/oppo/oppo_project.h>
+#endif
 #define MAX_GPIO_MODE_PER_REG 5
 #define GPIO_MODE_BITS        3
 #define GPIO_MODE_PREFIX "GPIO"
@@ -866,6 +869,8 @@ static int mtk_gpio_set_config(struct gpio_chip *chip, unsigned offset,
 	return mtk_eint_set_debounce(pctl->eint, eint_n, debounce);
 }
 
+
+
 static const struct gpio_chip mtk_gpio_chip = {
 	.owner			= THIS_MODULE,
 	.request		= gpiochip_generic_request,
@@ -1119,7 +1124,6 @@ int mtk_pctrl_init(struct platform_device *pdev,
 	ret = mtk_eint_init(pctl, pdev);
 	if (ret)
 		goto chip_error;
-
 	return 0;
 
 chip_error:

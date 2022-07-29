@@ -202,18 +202,11 @@ int pe4_hal_get_uisoc(struct chg_alg_device *alg)
 		return -EINVAL;
 
 	pe4 = dev_get_drvdata(&alg->dev);
-	bat_psy = pe4->bat_psy;
-
-	if (bat_psy == NULL || IS_ERR(bat_psy)) {
-		pr_notice("%s retry to get pe4->bat_psy\n", __func__);
-		bat_psy = devm_power_supply_get_by_phandle(&pe4->pdev->dev, "gauge");
-		pe4->bat_psy = bat_psy;
-	}
-
-	if (bat_psy == NULL || IS_ERR(bat_psy)) {
+	bat_psy = devm_power_supply_get_by_phandle(&pe4->pdev->dev,
+						       "gauge");
+	if (IS_ERR(bat_psy)) {
 		pr_notice("%s Couldn't get bat_psy\n", __func__);
 		ret = 50;
-		return ret;
 	} else {
 		ret = power_supply_get_property(bat_psy,
 			POWER_SUPPLY_PROP_CAPACITY, &prop);
@@ -262,13 +255,8 @@ int pe4_hal_get_battery_temperature(struct chg_alg_device *alg)
 		return -EINVAL;
 
 	pe4 = dev_get_drvdata(&alg->dev);
-	bat_psy = pe4->bat_psy;
-
-	if (IS_ERR(bat_psy)) {
-		pr_notice("%s retry to get pe4->bat_psy\n", __func__);
-		bat_psy = devm_power_supply_get_by_phandle(&pe4->pdev->dev, "gauge");
-		pe4->bat_psy = bat_psy;
-	}
+	bat_psy = devm_power_supply_get_by_phandle(&pe4->pdev->dev,
+						       "gauge");
 
 	if (bat_psy == NULL || IS_ERR(bat_psy)) {
 		chr_err("%s Couldn't get bat_psy\n", __func__);
@@ -582,18 +570,12 @@ int pe4_hal_get_vbat(struct chg_alg_device *alg)
 		return -EINVAL;
 
 	pe4 = dev_get_drvdata(&alg->dev);
-	bat_psy = pe4->bat_psy;
 
-	if (bat_psy == NULL || IS_ERR(bat_psy)) {
-		pr_notice("%s retry to get pe4->bat_psy\n", __func__);
-		bat_psy = devm_power_supply_get_by_phandle(&pe4->pdev->dev, "gauge");
-		pe4->bat_psy = bat_psy;
-	}
-
-	if (bat_psy == NULL || IS_ERR(bat_psy)) {
+	bat_psy = devm_power_supply_get_by_phandle(&pe4->pdev->dev,
+						       "gauge");
+	if (IS_ERR(bat_psy)) {
 		pr_notice("%s Couldn't get bat_psy\n", __func__);
 		ret = 3999;
-		return ret;
 	} else {
 		ret = power_supply_get_property(bat_psy,
 			POWER_SUPPLY_PROP_VOLTAGE_NOW, &prop);
@@ -644,18 +626,11 @@ int pe4_hal_get_ibat(struct chg_alg_device *alg)
 		return -EINVAL;
 
 	pe4 = dev_get_drvdata(&alg->dev);
-	bat_psy = pe4->bat_psy;
-
-	if (bat_psy == NULL || IS_ERR(bat_psy)) {
-		pr_notice("%s retry to get pe4->bat_psy\n", __func__);
-		bat_psy = devm_power_supply_get_by_phandle(&pe4->pdev->dev, "gauge");
-		pe4->bat_psy = bat_psy;
-	}
-
-	if (bat_psy == NULL || IS_ERR(bat_psy)) {
+	bat_psy = devm_power_supply_get_by_phandle(&pe4->pdev->dev,
+						       "gauge");
+	if (IS_ERR(bat_psy)) {
 		pr_notice("%s Couldn't get bat_psy\n", __func__);
 		ret = 0;
-		return ret;
 	} else {
 		ret = power_supply_get_property(bat_psy,
 			POWER_SUPPLY_PROP_CURRENT_NOW, &prop);

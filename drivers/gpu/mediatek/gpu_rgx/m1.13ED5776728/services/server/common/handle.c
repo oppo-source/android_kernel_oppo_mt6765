@@ -120,6 +120,7 @@ typedef struct _HANDLE_DATA_
 	PVRSRV_HANDLE_BASE *psBase;
 #endif
 
+	IMG_UINT32 releaseRetryCount;
 } HANDLE_DATA;
 
 struct _HANDLE_BASE_
@@ -1906,10 +1907,32 @@ static PVRSRV_ERROR FreeHandleDataWrapper(IMG_HANDLE hHandle, void *pvData)
 					 hHandle,
 					 (IMG_UINT32)psHandleData->eType));
 
+				psHandleData->releaseRetryCount += 1;
+				if( psHandleData->releaseRetryCount >= (CLEANUP_THREAD_RETRY_COUNT_DEFAULT -10) )
+				{
+					PVR_DPF((PVR_DBG_ERROR, "Handle: %u, Refs: %u, Type: %s (%u), pvData<%p>, eError:%s",
+					(IMG_UINT32) (uintptr_t) psHandleData->hHandle,
+					psHandleData->ui32RefCount,
+					HandleTypeToString(psHandleData->eType),
+					psHandleData->eType,
+					psHandleData->pvData,
+					PVRSRVGETERRORSTRING(eError)));
+				}
+
 				return eError;
 			}
 			else if (eError != PVRSRV_OK)
 			{
+				if (psHandleData != NULL)
+				{
+					PVR_DPF((PVR_DBG_ERROR, "Handle: %u, Refs: %u, Type: %s (%u), pvData<%p>, eError:%s",
+						(IMG_UINT32) (uintptr_t) psHandleData->hHandle,
+						psHandleData->ui32RefCount,
+						HandleTypeToString(psHandleData->eType),
+						psHandleData->eType,
+						psHandleData->pvData,
+						PVRSRVGETERRORSTRING(eError)));
+				}
 				return eError;
 			}
 		}

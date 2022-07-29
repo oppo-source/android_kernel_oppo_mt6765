@@ -13,10 +13,6 @@
 #include "mtk_static_power_mt6759.h"
 #endif
 
-#if defined(CONFIG_MACH_MT6768)
-#include "mtk_static_power_mt6768.h"
-#endif
-
 #if defined(CONFIG_MACH_MT6763)
 #include "mtk_static_power_mt6763.h"
 #endif
@@ -37,10 +33,6 @@
 #include "mtk_static_power_mt6761.h"
 #endif
 
-#if defined(CONFIG_MACH_MT6771)
-#include "mtk_static_power_mt6771.h"
-#endif
-
 #if defined(CONFIG_MACH_MT3967)
 #include "mtk_static_power_mt3967.h"
 #endif
@@ -48,33 +40,6 @@
 #if defined(CONFIG_MACH_MT6779)
 #include "mtk_static_power_mt6779.h"
 #endif
-
-#if defined(CONFIG_MACH_MT6781)
-#include "mtk_static_power_mt6781.h"
-#endif
-
-#if defined(CONFIG_MACH_MT6893)
-#include "mtk_static_power_mt6893.h"
-#endif
-
-#if defined(CONFIG_MACH_MT6833)
-#include "mtk_static_power_mt6833.h"
-#endif
-#if defined(CONFIG_MACH_MT6877)
-#include "mtk_static_power_mt6877.h"
-#endif
-#if defined(CONFIG_MACH_MT6781)
-#include "mtk_static_power_mt6781.h"
-#endif
-#undef  BIT
-#define BIT(bit)	(1U << (bit))
-
-#define MSB(range)	(1 ? range)
-#define LSB(range)	(0 ? range)
-#define GET_BITS_VAL(_bits_, _val_) \
-	(((_val_) & (BITMASK(_bits_))) >> ((0) ? _bits_))
-
-extern u32 get_devinfo_with_index(u32 index);
 
 /*
  * @argument

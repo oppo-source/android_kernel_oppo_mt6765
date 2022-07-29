@@ -448,13 +448,13 @@ static inline int security_binder_set_context_mgr(const struct cred *mgr)
 }
 
 static inline int security_binder_transaction(const struct cred *from,
-					      const struct cred *to)
+						const struct cred *to)
 {
 	return 0;
 }
 
 static inline int security_binder_transfer_binder(const struct cred *from,
-						  const struct cred *to)
+						const struct cred *to)
 {
 	return 0;
 }
@@ -787,7 +787,7 @@ static inline int security_inode_killpriv(struct dentry *dentry)
 
 static inline int security_inode_getsecurity(struct inode *inode, const char *name, void **buffer, bool alloc)
 {
-	return cap_inode_getsecurity(inode, name, buffer, alloc);
+	return -EOPNOTSUPP;
 }
 
 static inline int security_inode_setsecurity(struct inode *inode, const char *name, const void *value, size_t size, int flags)
@@ -912,11 +912,6 @@ static inline int security_prepare_creds(struct cred *new,
 static inline void security_transfer_creds(struct cred *new,
 					   const struct cred *old)
 {
-}
-
-static inline void security_cred_getsecid(const struct cred *c, u32 *secid)
-{
-	*secid = 0;
 }
 
 static inline int security_kernel_act_as(struct cred *cred, u32 secid)
@@ -1847,6 +1842,17 @@ static inline char *alloc_secdata(void)
 static inline void free_secdata(void *secdata)
 { }
 #endif /* CONFIG_SECURITY */
+
+#ifdef CONFIG_OPLUS_SECURE_GUARD
+#ifdef CONFIG_SECURITY
+extern int get_current_security_context(char **context, u32 *context_len);
+#else
+static inline int get_current_security_context(char **context, u32 *context_len)
+{
+	return -EOPNOTSUPP;
+}
+#endif
+#endif /* CONFIG_OPLUS_SECURE_GUARD */
 
 #ifdef CONFIG_PERF_EVENTS
 struct perf_event_attr;

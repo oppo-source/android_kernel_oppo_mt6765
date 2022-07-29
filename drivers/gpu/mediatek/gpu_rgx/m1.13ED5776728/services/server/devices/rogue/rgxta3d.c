@@ -1519,34 +1519,34 @@ AllocError:
 static void RGXDestroyHWRTData_aux(RGX_KM_HW_RT_DATASET *psKMHWRTDataSet)
 {
 	PVRSRV_RGXDEV_INFO *psDevInfo = psKMHWRTDataSet->psDeviceNode->pvDevice;
-	IMG_UINT32 ui32Loop;
+    IMG_UINT32 ui32Loop;
 
-	if (psKMHWRTDataSet->psRTArrayFwMemDesc) {
+	if (psKMHWRTDataSet->psRTArrayFwMemDesc)
+	{
 		RGXUnsetFirmwareAddress(psKMHWRTDataSet->psRTArrayFwMemDesc);
-		DevmemFwUnmapAndFree(psDevInfo,
-		psKMHWRTDataSet->psRTArrayFwMemDesc);
+		DevmemFwUnmapAndFree(psDevInfo, psKMHWRTDataSet->psRTArrayFwMemDesc);
 	}
 
-if (psKMHWRTDataSet->psRendersAccArrayFwMemDesc) {
-	RGXUnsetFirmwareAddress(psKMHWRTDataSet->psRendersAccArrayFwMemDesc);
-DevmemFwUnmapAndFree(psDevInfo, psKMHWRTDataSet->psRendersAccArrayFwMemDesc);
+	if (psKMHWRTDataSet->psRendersAccArrayFwMemDesc)
+	{
+		RGXUnsetFirmwareAddress(psKMHWRTDataSet->psRendersAccArrayFwMemDesc);
+		DevmemFwUnmapAndFree(psDevInfo, psKMHWRTDataSet->psRendersAccArrayFwMemDesc);
 	}
 
 	/* Decrease freelist refcount */
 	OSLockAcquire(psDevInfo->hLockFreeList);
-for (ui32Loop = 0; ui32Loop < RGXFW_MAX_FREELISTS; ui32Loop++) {
-	PVR_ASSERT(psKMHWRTDataSet->apsFreeLists[ui32Loop]->ui32RefCount > 0);
-	psKMHWRTDataSet->apsFreeLists[ui32Loop]->ui32RefCount--;
+	for (ui32Loop = 0; ui32Loop < RGXFW_MAX_FREELISTS; ui32Loop++)
+	{
+		PVR_ASSERT(psKMHWRTDataSet->apsFreeLists[ui32Loop]->ui32RefCount > 0);
+		psKMHWRTDataSet->apsFreeLists[ui32Loop]->ui32RefCount--;
 	}
 #if !defined(SUPPORT_SHADOW_FREELISTS)
 	dllist_remove_node(&psKMHWRTDataSet->sNodeHWRTData);
 #endif
 	OSLockRelease(psDevInfo->hLockFreeList);
 
-/* Freeing the memory has to happen _after_ removing the HWRTData from
- * the freelist ,otherwise we risk traversing the freelist to find a pointer
- * from a freed data structure
- */
+	/* Freeing the memory has to happen _after_ removing the HWRTData from the freelist
+	 * otherwise we risk traversing the freelist to find a pointer from a freed data structure */
 	RGXUnsetFirmwareAddress(psKMHWRTDataSet->psHWRTDataFwMemDesc);
 	DevmemFwUnmapAndFree(psDevInfo, psKMHWRTDataSet->psHWRTDataFwMemDesc);
 
@@ -1771,8 +1771,8 @@ PVRSRV_ERROR RGXDestroyHWRTDataSet(RGX_KM_HW_RT_DATASET *psKMHWRTDataSet)
 	psDevInfo = psDevNode->pvDevice;
 
 	eError = RGXSetFirmwareAddress(&psHWRTData,
-				psKMHWRTDataSet->psHWRTDataFwMemDesc, 0,
-				RFW_FWADDR_NOREF_FLAG);
+	                               psKMHWRTDataSet->psHWRTDataFwMemDesc, 0,
+	                               RFW_FWADDR_NOREF_FLAG);
 	PVR_RETURN_IF_ERROR(eError);
 
 	/* Cleanup HWRTData */
@@ -1802,20 +1802,18 @@ PVRSRV_ERROR RGXDestroyHWRTDataSet(RGX_KM_HW_RT_DATASET *psKMHWRTDataSet)
 	psCommonCookie->ui32RefCount--;
 
 	/* When ref count for HWRTDataCommonCookie hits ZERO
-	 * we have to destroy the HWRTDataCommon [FW object]
-	 * and the cookie [KM object] afterwards.
-	 */
-if (psCommonCookie->ui32RefCount == 0)
+	 * we have to destroy the HWRTDataCommon [FW object] and the cookie
+	 * [KM object] afterwards. */
+	if (psCommonCookie->ui32RefCount == 0)
 	{
-	RGXUnsetFirmwareAddress(psCommonCookie->psHWRTDataCommonFwMemDesc);
+		RGXUnsetFirmwareAddress(psCommonCookie->psHWRTDataCommonFwMemDesc);
 
 		/* We don't need to flush the SLC before freeing.
-		 * FW RequestCleanUp has already done that for HWRTData,
-		 * so we're fine now.
-		 */
+		 * FW RequestCleanUp has already done that for HWRTData, so we're fine
+		 * now. */
 
 		DevmemFwUnmapAndFree(psDevNode->pvDevice,
-		psCommonCookie->psHWRTDataCommonFwMemDesc);
+		                     psCommonCookie->psHWRTDataCommonFwMemDesc);
 		OSFreeMem(psCommonCookie);
 	}
 

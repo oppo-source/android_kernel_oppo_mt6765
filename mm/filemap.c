@@ -50,6 +50,7 @@
 
 #include <asm/mman.h>
 
+int want_old_faultaround_pte = 1;
 /*
  * Shared mappings implemented 30.11.1994. It's not fully working yet,
  * though.
@@ -2547,7 +2548,7 @@ static struct file *do_async_mmap_readahead(struct vm_fault *vmf,
 	pgoff_t offset = vmf->pgoff;
 
 	/* If we don't want any read-ahead, don't bother */
-	if (vmf->vma->vm_flags & VM_RAND_READ || !ra->ra_pages)
+	if (vmf->vma->vm_flags & VM_RAND_READ)
 		return fpin;
 	if (ra->mmap_miss > 0)
 		ra->mmap_miss--;
@@ -2772,6 +2773,14 @@ repeat:
 		if (vmf->pte)
 			vmf->pte += iter.index - last_pgoff;
 		last_pgoff = iter.index;
+
+		if (want_old_faultaround_pte) {
+			if (iter.index == vmf->pgoff)
+				vmf->flags &= ~FAULT_FLAG_PREFAULT_OLD;
+			else
+				vmf->flags |= FAULT_FLAG_PREFAULT_OLD;
+		}
+
 		if (alloc_set_pte(vmf, NULL, page))
 			goto unlock;
 		unlock_page(page);
@@ -2968,14 +2977,6 @@ filler:
 		unlock_page(page);
 		goto out;
 	}
-
-	/*
-	 * A previous I/O error may have been due to temporary
-	 * failures.
-	 * Clear page error before actual read, PG_error will be
-	 * set again if read page fails.
-	 */
-	ClearPageError(page);
 	goto filler;
 
 out:

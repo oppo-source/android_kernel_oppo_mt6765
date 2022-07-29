@@ -1093,7 +1093,7 @@ static ssize_t mm_stat_show(struct device *dev,
 			zram->limit_pages << PAGE_SHIFT,
 			max_used << PAGE_SHIFT,
 			(u64)atomic64_read(&zram->stats.same_pages),
-			atomic_long_read(&pool_stats.pages_compacted),
+			pool_stats.pages_compacted,
 			(u64)atomic64_read(&zram->stats.huge_pages));
 	up_read(&zram->init_lock);
 
@@ -1386,7 +1386,11 @@ compress_again:
 		atomic64_inc(&zram->stats.writestall);
 		handle = zs_malloc(zram->mem_pool, comp_len,
 				GFP_NOIO | __GFP_HIGHMEM |
+#ifdef VENDOR_EDIT
+                __GFP_MOVABLE | GFP_ATOMIC);
+#else
 				__GFP_MOVABLE);
+#endif
 		if (handle)
 			goto compress_again;
 		return -ENOMEM;
@@ -2044,8 +2048,7 @@ static ssize_t hot_add_show(struct class *class,
 		return ret;
 	return scnprintf(buf, PAGE_SIZE, "%d\n", ret);
 }
-static struct class_attribute class_attr_hot_add =
-	__ATTR(hot_add, 0400, hot_add_show, NULL);
+static CLASS_ATTR_RO(hot_add);
 
 static ssize_t hot_remove_store(struct class *class,
 			struct class_attribute *attr,

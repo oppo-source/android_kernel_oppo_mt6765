@@ -644,6 +644,12 @@ struct ISP_INFO_STRUCT {
 static struct ISP_INFO_STRUCT IspInfo;
 static bool    SuspnedRecord[ISP_DEV_NODE_NUM] = {0};
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+//Drop frame check
+static unsigned int g_virtual_cq_cnt[3] = {0};
+static  spinlock_t  virtual_cqcnt_lock;
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
+
 enum eLOG_TYPE {
 	/* currently, only used at ipl_buf_ctrl. to protect critical section */
 	_LOG_DBG = 0,
@@ -3506,11 +3512,6 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 			sizeof(struct ISP_REG_IO_STRUCT)) == 0) {
 			/* 2nd layer behavoir of copy from user is */
 			/* implemented in ISP_WriteReg(...) */
-			if ((RegIo.Count) * sizeof(struct ISP_REG_STRUCT) > 0xFFFFF000) {
-				LOG_NOTICE("Error : RegIo.Count = %d", RegIo.Count);
-				Ret = -EFAULT;
-				goto EXIT;
-			}
 			Ret = ISP_WriteReg(&RegIo);
 		} else {
 			LOG_NOTICE("copy_from_user failed\n");
@@ -4057,7 +4058,7 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 	case ISP_GET_CUR_ISP_CLOCK:
 	{
 		struct ISP_GET_CLK_INFO getclk;
-		unsigned int clk[2] = {0};
+		unsigned int clk[2];
 
 		ISP_SetPMQOS(E_CLK_CUR, ISP_IRQ_TYPE_INT_CAM_A_ST, clk);
 		getclk.curClk = clk[0];
@@ -4810,6 +4811,27 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 			}
 		}
 		break;
+	#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	case ISP_SET_VIR_CQCNT: {
+		unsigned int _cq_cnt[2] = {0};
+		spin_lock((spinlock_t *)(&virtual_cqcnt_lock));
+		if (copy_from_user(&_cq_cnt, (void *)Param,
+			sizeof(unsigned int)*2) == 0) {
+			LOG_NOTICE("hw_module:%d VirCQ count from user: %d\n",
+					_cq_cnt[0], _cq_cnt[1]);
+
+			if(_cq_cnt[0] <= ISP_IRQ_TYPE_INT_CAM_C_ST) {
+				g_virtual_cq_cnt[_cq_cnt[0]] = _cq_cnt[1];
+			}
+		} else {
+			LOG_NOTICE(
+				"Virtual CQ count copy_from_user failed\n");
+			Ret = -EFAULT;
+		}
+		spin_unlock((spinlock_t *)(&virtual_cqcnt_lock));
+		}
+		break;
+	#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 	default:
 	{
 		LOG_NOTICE("Unknown Cmd(%d)\n", Cmd);
@@ -5148,6 +5170,9 @@ ISP_ioctl_compat(
 	case SV_SET_PM_QOS:
 	case ISP_SET_SEC_DAPC_REG:
 	case ISP_NOTE_CQTHR0_BASE:
+	#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	case ISP_SET_VIR_CQCNT:
+	#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 		return filp->f_op->unlocked_ioctl(filp, cmd, arg);
 	default:
 		return -ENOIOCTLCMD;
@@ -6730,6 +6755,10 @@ static int __init ISP_Init(void)
 	mutex_init(&cq_reset_mutex[0]);
 	mutex_init(&cq_reset_mutex[1]);
 	mutex_init(&cq_reset_mutex[2]);
+
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	spin_lock_init(&(virtual_cqcnt_lock));
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 	/*  */
 	atomic_set(&G_u4DevNodeCt, 0);
 	/*  */
@@ -9951,6 +9980,18 @@ irqreturn_t ISP_Irq_CAM(enum ISP_IRQ_TYPE_ENUM irq_module)
 				'A'+cardinalNum, sof_count[module], cur_v_cnt);
 		}
 
+		#ifdef OPLUS_FEATURE_CAMERA_COMMON
+		if ((ISP_RD32(CAM_REG_DMA_CQ_COUNTER(reg_module)))
+			!= g_virtual_cq_cnt[module]){
+			IrqStatus &= ~SOF_INT_ST;
+			IRQ_LOG_KEEPER(module, m_CurrentPPB, _LOG_INF,
+			    "CAMA PHY cqcnt:%d != VIR cqcnt:%d, IrqStatus:0x%x\n",
+				ISP_RD32(CAM_REG_DMA_CQ_COUNTER(reg_module)),
+				g_virtual_cq_cnt[module],
+				IrqStatus);
+		}
+		#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
+
 		/* During SOF, re-enable that err/warn irq had been marked and
 		 * reset IrqCntInfo
 		 */
@@ -10210,7 +10251,7 @@ irqreturn_t ISP_Irq_CAM(enum ISP_IRQ_TYPE_ENUM irq_module)
 
 			if (sec_on) {
 				IRQ_LOG_KEEPER(module, m_CurrentPPB, _LOG_INF,
-				"CAM_%c P1_SOF_%d_%d(0x%08x_0x%08x,0x%08x_0x%08x,0x%08x,0x%08x,0x%x),int_us:%d,cq:0x%08x,en=0x%x,bpci=0x%x,cq4:0x%08x,cq8:0x%08x,cq12:0x%08x,misc=0x%x\n",
+				"CAM_%c P1_SOF_%d_%d(0x%08x_0x%08x,0x%08x_0x%08x,0x%08x,0x%08x,0x%x),int_us:%d,cq:0x%08x,en=0x%x,bpci=0x%x,cq4:0x%08x,cq8:0x%08x,cq12:0x%08x,rawSel=0x%x,misc=0x%x\n",
 				'A'+cardinalNum, sof_count[module], cur_v_cnt,
 				(unsigned int)(ISP_RD32(
 				CAM_REG_FBC_IMGO_CTL1(reg_module))),
@@ -10232,6 +10273,7 @@ irqreturn_t ISP_Irq_CAM(enum ISP_IRQ_TYPE_ENUM irq_module)
 				ISP_RD32(CAM_REG_CQ_THR8_BASEADDR(reg_module)),
 				ISP_RD32(CAM_REG_CQ_THR12_BASEADDR(
 					reg_module)),
+				ISP_RD32(CAM_REG_CTL_SEL(reg_module)),
 				ISP_RD32(CAM_REG_CTL_MISC(reg_module)));
 			} else {
 				IRQ_LOG_KEEPER(module, m_CurrentPPB, _LOG_INF,

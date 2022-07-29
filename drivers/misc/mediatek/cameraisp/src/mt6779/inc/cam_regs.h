@@ -402,6 +402,10 @@ enum{
 #define CAM_REG_RRZ_IN_IMG(module)              (isp_devs[module].regs + 0x1104)
 #define CAM_REG_RRZ_OUT_IMG(module)             (isp_devs[module].regs + 0x1108)
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#define CAM_REG_DMA_CQ_COUNTER(module)          (isp_devs[module].regs + 0x40AC)
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
+
 #define CAM_REG_IMGO_BASE_ADDR(module)          (isp_devs[module].regs + 0x4720)
 #define CAM_REG_IMGO_XSIZE(module)              (isp_devs[module].regs + 0x472C)
 #define CAM_REG_IMGO_YSIZE(module)              (isp_devs[module].regs + 0x4730)

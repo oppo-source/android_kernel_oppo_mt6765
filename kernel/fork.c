@@ -107,22 +107,32 @@
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/task.h>
-
-#include <mt-plat/mtk_pidmap.h>
-#ifdef CONFIG_MTK_TASK_TURBO
-#include <mt-plat/turbo_common.h>
+#ifdef OPLUS_FEATURE_UIFIRST
+#include <linux/uifirst/uifirst_sched_fork.h>
+#endif /* OPLUS_FEATURE_UIFIRST */
+#ifdef OPLUS_FEATURE_HEALTHINFO
+#ifdef CONFIG_OPPO_JANK_INFO
+#include <linux/oppo_healthinfo/oppo_jank_monitor.h>
 #endif
+#endif /* OPLUS_FEATURE_HEALTHINFO */
 
 /*
  * Minimum number of threads to boot the kernel
  */
 #define MIN_THREADS 20
 
+#if defined(OPLUS_FEATURE_VIRTUAL_RESERVE_MEMORY) && defined(CONFIG_VIRTUAL_RESERVE_MEMORY)
+#include <linux/resmap_account.h>
+#include <linux/vm_anti_fragment.h>
+#endif
 /*
  * Maximum number of threads
  */
 #define MAX_THREADS FUTEX_TID_MASK
 
+#if defined(OPLUS_FEATURE_MEMLEAK_DETECT) && defined(CONFIG_ION) && defined(CONFIG_DUMP_TASKS_MEM)
+extern void update_user_tasklist(struct task_struct *tsk);
+#endif
 /*
  * Protected counters by write_lock_irq(&tasklist_lock)
  */
@@ -547,6 +557,10 @@ static __latent_entropy int dup_mmap(struct mm_struct *mm,
 		if (is_vm_hugetlb_page(tmp))
 			reset_vma_resv_huge_pages(tmp);
 
+#if defined(OPLUS_FEATURE_VIRTUAL_RESERVE_MEMORY) && defined(CONFIG_VIRTUAL_RESERVE_MEMORY)
+		if (BACKUP_CREATE_FLAG(tmp->vm_flags))
+			mm->reserve_vma = tmp;
+#endif
 		/*
 		 * Link in the new vma and copy the page table entries.
 		 */
@@ -579,6 +593,14 @@ static __latent_entropy int dup_mmap(struct mm_struct *mm,
 		if (retval)
 			goto out;
 	}
+
+#if defined(OPLUS_FEATURE_VIRTUAL_RESERVE_MEMORY) && defined(CONFIG_VIRTUAL_RESERVE_MEMORY)
+	retval = dup_reserved_mmap(mm, oldmm, vm_area_cachep);
+	if (retval)
+		goto out;
+    mm->vm_search_two_way = oldmm->vm_search_two_way;
+#endif
+
 	/* a new mm has just been created */
 	retval = arch_dup_mmap(oldmm, mm);
 out:
@@ -988,6 +1010,9 @@ static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p,
 	mm->mmap = NULL;
 	mm->mm_rb = RB_ROOT;
 	mm->vmacache_seqnum = 0;
+#if defined(OPLUS_FEATURE_VIRTUAL_RESERVE_MEMORY) && defined(CONFIG_VIRTUAL_RESERVE_MEMORY)
+	init_reserve_mm(mm);
+#endif
 #ifdef CONFIG_SPECULATIVE_PAGE_FAULT
 	rwlock_init(&mm->mm_rb_lock);
 #endif
@@ -1241,9 +1266,7 @@ static int wait_for_vfork_done(struct task_struct *child,
 	int killed;
 
 	freezer_do_not_count();
-	cgroup_enter_frozen();
 	killed = wait_for_completion_killable(vfork);
-	cgroup_leave_frozen(false);
 	freezer_count();
 
 	if (killed) {
@@ -1269,8 +1292,24 @@ static int wait_for_vfork_done(struct task_struct *child,
  * restoring the old one. . .
  * Eric Biederman 10 January 1998
  */
-static void mm_release(struct task_struct *tsk, struct mm_struct *mm)
+void mm_release(struct task_struct *tsk, struct mm_struct *mm)
 {
+	/* Get rid of any futexes when releasing the mm */
+#ifdef CONFIG_FUTEX
+	if (unlikely(tsk->robust_list)) {
+		exit_robust_list(tsk);
+		tsk->robust_list = NULL;
+	}
+#ifdef CONFIG_COMPAT
+	if (unlikely(tsk->compat_robust_list)) {
+		compat_exit_robust_list(tsk);
+		tsk->compat_robust_list = NULL;
+	}
+#endif
+	if (unlikely(!list_empty(&tsk->pi_state_list)))
+		exit_pi_state_list(tsk);
+#endif
+
 	uprobe_free_utask(tsk);
 
 	/* Get rid of any cached register state */
@@ -1301,18 +1340,6 @@ static void mm_release(struct task_struct *tsk, struct mm_struct *mm)
 	 */
 	if (tsk->vfork_done)
 		complete_vfork_done(tsk);
-}
-
-void exit_mm_release(struct task_struct *tsk, struct mm_struct *mm)
-{
-	futex_exit_release(tsk);
-	mm_release(tsk, mm);
-}
-
-void exec_mm_release(struct task_struct *tsk, struct mm_struct *mm)
-{
-	futex_exec_release(tsk);
-	mm_release(tsk, mm);
 }
 
 /*
@@ -1718,11 +1745,11 @@ static void pidfd_show_fdinfo(struct seq_file *m, struct file *f)
 /*
  * Poll support for process exit notification.
  */
-static __poll_t pidfd_poll(struct file *file, struct poll_table_struct *pts)
+static unsigned int pidfd_poll(struct file *file, struct poll_table_struct *pts)
 {
 	struct task_struct *task;
 	struct pid *pid = file->private_data;
-	__poll_t poll_flags = 0;
+	int poll_flags = 0;
 
 	poll_wait(file, &pid->wait_pidfd, pts);
 
@@ -1734,7 +1761,7 @@ static __poll_t pidfd_poll(struct file *file, struct poll_table_struct *pts)
 	 * group, then poll(2) should block, similar to the wait(2) family.
 	 */
 	if (!task || (task->exit_state && thread_group_empty(task)))
-		poll_flags = EPOLLIN | EPOLLRDNORM;
+		poll_flags = POLLIN | POLLRDNORM;
 	rcu_read_unlock();
 
 	return poll_flags;
@@ -1771,25 +1798,6 @@ static int pidfd_create(struct pid *pid)
 		put_pid(pid);
 
 	return fd;
-}
-
-static void copy_oom_score_adj(u64 clone_flags, struct task_struct *tsk)
-{
-	/* Skip if kernel thread */
-	if (!tsk->mm)
-		return;
-
-	/* Skip if spawning a thread or using vfork */
-	if ((clone_flags & (CLONE_VM | CLONE_THREAD | CLONE_VFORK)) != CLONE_VM)
-		return;
-
-	/* We need to synchronize with __set_oom_adj */
-	mutex_lock(&oom_adj_mutex);
-	set_bit(MMF_MULTIPROCESS, &tsk->mm->flags);
-	/* Update the values in case they were changed after copy_signal */
-	tsk->signal->oom_score_adj = current->signal->oom_score_adj;
-	tsk->signal->oom_score_adj_min = current->signal->oom_score_adj_min;
-	mutex_unlock(&oom_adj_mutex);
 }
 
 /*
@@ -1862,6 +1870,8 @@ static __latent_entropy struct task_struct *copy_process(
 	}
 
 	if (clone_flags & CLONE_PIDFD) {
+		int reserved;
+
 		/*
 		 * - CLONE_PARENT_SETTID is useless for pidfds and also
 		 *   parent_tidptr is used to return pidfds.
@@ -1871,6 +1881,16 @@ static __latent_entropy struct task_struct *copy_process(
 		 */
 		if (clone_flags &
 		    (CLONE_DETACHED | CLONE_PARENT_SETTID | CLONE_THREAD))
+			return ERR_PTR(-EINVAL);
+
+		/*
+		 * Verify that parent_tidptr is sane so we can potentially
+		 * reuse it later.
+		 */
+		if (get_user(reserved, parent_tidptr))
+			return ERR_PTR(-EFAULT);
+
+		if (reserved != 0)
 			return ERR_PTR(-EINVAL);
 	}
 
@@ -2027,9 +2047,17 @@ static __latent_entropy struct task_struct *copy_process(
 	p->sequential_io	= 0;
 	p->sequential_io_avg	= 0;
 #endif
-#ifdef CONFIG_MTK_TASK_TURBO
-	init_turbo_attr(p, current);
+
+#ifdef OPLUS_FEATURE_UIFIRST
+	init_task_ux_info(p);
+#endif /* OPLUS_FEATURE_UIFIRST */
+#ifdef OPLUS_FEATURE_HEALTHINFO
+#ifdef CONFIG_OPPO_JANK_INFO
+	p->jank_trace = 0;
+	memset(&p->oppo_jank_info, 0, sizeof(struct oppo_jank_monitor_info));
 #endif
+#endif /* OPLUS_FEATURE_HEALTHINFO */
+
 	/* Perform scheduler related setup. Assign this task to a CPU. */
 	retval = sched_fork(clone_flags, p);
 	if (retval)
@@ -2101,8 +2129,14 @@ static __latent_entropy struct task_struct *copy_process(
 #ifdef CONFIG_BLOCK
 	p->plug = NULL;
 #endif
-	futex_init_task(p);
-
+#ifdef CONFIG_FUTEX
+	p->robust_list = NULL;
+#ifdef CONFIG_COMPAT
+	p->compat_robust_list = NULL;
+#endif
+	INIT_LIST_HEAD(&p->pi_state_list);
+	p->pi_state_cache = NULL;
+#endif
 	/*
 	 * sigaltstack should be cleared when sharing the same VM
 	 */
@@ -2123,9 +2157,14 @@ static __latent_entropy struct task_struct *copy_process(
 	/* ok, now we should be set up.. */
 	p->pid = pid_nr(pid);
 	if (clone_flags & CLONE_THREAD) {
+		p->exit_signal = -1;
 		p->group_leader = current->group_leader;
 		p->tgid = current->tgid;
 	} else {
+		if (clone_flags & CLONE_PARENT)
+			p->exit_signal = current->group_leader->exit_signal;
+		else
+			p->exit_signal = (clone_flags & CSIGNAL);
 		p->group_leader = p;
 		p->tgid = p->pid;
 	}
@@ -2170,14 +2209,9 @@ static __latent_entropy struct task_struct *copy_process(
 	if (clone_flags & (CLONE_PARENT|CLONE_THREAD)) {
 		p->real_parent = current->real_parent;
 		p->parent_exec_id = current->parent_exec_id;
-		if (clone_flags & CLONE_THREAD)
-			p->exit_signal = -1;
-		else
-			p->exit_signal = current->group_leader->exit_signal;
 	} else {
 		p->real_parent = current;
 		p->parent_exec_id = current->self_exec_id;
-		p->exit_signal = (clone_flags & CSIGNAL);
 	}
 
 	klp_copy_process(p);
@@ -2230,6 +2264,10 @@ static __latent_entropy struct task_struct *copy_process(
 							 p->real_parent->signal->is_child_subreaper;
 			list_add_tail(&p->sibling, &p->real_parent->children);
 			list_add_tail_rcu(&p->tasks, &init_task.tasks);
+#if defined(OPLUS_FEATURE_MEMLEAK_DETECT) && defined(CONFIG_ION) && defined(CONFIG_DUMP_TASKS_MEM)
+			INIT_LIST_HEAD(&p->user_tasks);
+			update_user_tasklist(p);
+#endif
 			attach_pid(p, PIDTYPE_TGID);
 			attach_pid(p, PIDTYPE_PGID);
 			attach_pid(p, PIDTYPE_SID);
@@ -2260,8 +2298,6 @@ static __latent_entropy struct task_struct *copy_process(
 
 	trace_task_newtask(p, clone_flags);
 	uprobe_copy_process(p, clone_flags);
-
-	copy_oom_score_adj(clone_flags, p);
 
 	return p;
 
@@ -2404,6 +2440,9 @@ long _do_fork(unsigned long clone_flags,
 
 	pid = get_task_pid(p, PIDTYPE_PID);
 	nr = pid_vnr(pid);
+#if defined(OPLUS_FEATURE_MEMLEAK_DETECT) && defined(CONFIG_ION) && defined(CONFIG_DUMP_TASKS_MEM)
+	atomic64_set(&p->ions, 0);
+#endif
 
 	if (clone_flags & CLONE_PARENT_SETTID)
 		put_user(nr, parent_tidptr);

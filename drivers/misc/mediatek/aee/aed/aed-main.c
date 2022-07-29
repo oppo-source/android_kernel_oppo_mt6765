@@ -38,10 +38,8 @@
 #include <linux/workqueue.h>
 #include <linux/rwsem.h>
 
-#if IS_ENABLED(CONFIG_MTK_FB_SUPPORT_ASSERTION_LAYER) || IS_ENABLED(CONFIG_MTK_LCM)
+#if IS_ENABLED(CONFIG_MTK_LCM)
 #include <disp_assert_layer.h>
-#elif IS_ENABLED(CONFIG_DRM_MEDIATEK)
-#include <mtk_drm_assert_ext.h>
 #endif
 #include <mt-plat/aee.h>
 
@@ -78,9 +76,6 @@ static DECLARE_RWSEM(ke_rw_ops_sem);
 
 #define MaxStackSize 8100
 #define MaxMapsSize 65536
-
-static int ee_num;
-static int kernelapi_num;
 
 /******************************************************************************
  * DEBUG UTILITIES
@@ -168,11 +163,6 @@ void msg_show(const char *prefix, struct AE_Msg *msg)
 		msg->len);
 }
 
-int aee_get_mode(void)
-{
-	return aee_mode;
-}
-EXPORT_SYMBOL(aee_get_mode);
 
 /******************************************************************************
  * CONSTANT DEFINITIONS
@@ -284,7 +274,7 @@ static ssize_t msg_copy_to_user(const char *prefix, char *msg, char __user *buf,
 
 	len = ((struct AE_Msg *) msg_tmp)->len + sizeof(struct AE_Msg);
 
-	if ((*f_pos < 0) || (*f_pos >= len)) {
+	if (*f_pos >= len) {
 		ret = 0;
 		goto out;
 	}
@@ -452,9 +442,6 @@ static void ke_gen_userbacktrace_msg(void)
 	char *data;
 	int userinfo_len;
 
-	if (aed_dev.kerec.lastlog->userthread_stack.StackLength < 0)
-		return;
-
 	userinfo_len = aed_dev.kerec.lastlog->userthread_stack.StackLength +
 		sizeof(pid_t)+sizeof(int);
 	rep_msg = msg_create(&aed_dev.kerec.msg, MaxStackSize);
@@ -486,9 +473,6 @@ static void ke_gen_usermaps_msg(void)
 	struct AE_Msg *rep_msg;
 	char *data;
 	int userinfo_len;
-
-	if (aed_dev.kerec.lastlog->userthread_maps.Userthread_mapsLength < 0)
-		return;
 
 	userinfo_len =
 		aed_dev.kerec.lastlog->userthread_maps.Userthread_mapsLength +
@@ -944,7 +928,11 @@ static void ee_gen_ind_msg(struct aed_eerec *eerec)
 		return;
 
 	rep_msg->cmdType = AE_IND;
-	rep_msg->cmdId = AE_IND_EXP_RAISED;
+//#ifdef OPLUS_FEATURE_ENABLE_MODEM_DB
+    //rep_msg->cmdId = AE_IND_EXP_RAISED;
+//#else
+    rep_msg->cmdId = AE_IND_FATAL_RAISED;
+//#endif /* OPLUS_FEATURE_ENABLE_MODEM_DB */
 	rep_msg->arg = AE_EE;
 	rep_msg->len = 0;
 	rep_msg->dbOption = eerec->db_opt;
@@ -1057,12 +1045,6 @@ static ssize_t aed_ee_write(struct file *filp, const char __user *buf,
 	/* the request must be an *struct AE_Msg buffer */
 	if (count != sizeof(struct AE_Msg)) {
 		pr_info("%s: ERR, aed_write count=%zx\n", __func__, count);
-		up_write(&ee_rw_ops_sem);
-		return -1;
-	}
-
-	if (!buf) {
-		pr_info("%s: ERR, aed_write buf=NULL\n", __func__);
 		up_write(&ee_rw_ops_sem);
 		return -1;
 	}
@@ -1206,8 +1188,6 @@ static int current_ke_show(struct seq_file *m, void *p)
 	ke_buffer = m->private;
 	if (!ke_buffer)
 		return 0;
-	if (ke_buffer->size < 0)
-		return 0;
 	if ((unsigned long)p >=
 			(unsigned long)ke_buffer->data + ke_buffer->size)
 		return 0;
@@ -1285,12 +1265,6 @@ static ssize_t aed_ke_write(struct file *filp, const char __user *buf,
 	/* the request must be an * AE_Msg buffer */
 	if (count != sizeof(struct AE_Msg)) {
 		pr_info("ERR: aed_write count=%zx\n", count);
-		up_write(&ke_rw_ops_sem);
-		return -1;
-	}
-
-	if (!buf) {
-		pr_info("ERR: aed_write buf=NULL\n");
 		up_write(&ke_rw_ops_sem);
 		return -1;
 	}
@@ -1571,11 +1545,6 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	int pid;
 	struct aee_siginfo aee_si;
 
-	if (!arg && (cmd != AEEIOCTL_DAL_CLEAN)) {
-		pr_info("ERR: %s arg=NULL\n", __func__);
-		return -EINVAL;
-	}
-
 	if (down_interruptible(&aed_dal_sem) < 0)
 		return -ERESTARTSYS;
 
@@ -1645,8 +1614,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 		/* Try to prevent overrun */
 		dal_show->msg[sizeof(dal_show->msg) - 1] = 0;
-#if IS_ENABLED(CONFIG_MTK_FB_SUPPORT_ASSERTION_LAYER) || IS_ENABLED(CONFIG_DRM_MEDIATEK) \
-		|| IS_ENABLED(CONFIG_MTK_LCM)
+#if IS_ENABLED(CONFIG_MTK_LCM)
 		pr_debug("AEE CALL DAL_Printf now\n");
 		DAL_Printf("%s", dal_show->msg);
 #endif
@@ -1662,8 +1630,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		dal_setcolor.foreground = 0x00ff00;	/*green */
 		dal_setcolor.background = 0xff0000;	/*red */
 
-#if IS_ENABLED(CONFIG_MTK_FB_SUPPORT_ASSERTION_LAYER) || IS_ENABLED(CONFIG_DRM_MEDIATEK) \
-		|| IS_ENABLED(CONFIG_MTK_LCM)
+#if IS_ENABLED(CONFIG_MTK_LCM)
 		pr_debug("AEE CALL DAL_SetColor now\n");
 		DAL_SetColor(dal_setcolor.foreground,
 				dal_setcolor.background);
@@ -1684,8 +1651,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			ret = -EFAULT;
 			goto EXIT;
 		}
-#if IS_ENABLED(CONFIG_MTK_FB_SUPPORT_ASSERTION_LAYER) || IS_ENABLED(CONFIG_DRM_MEDIATEK) \
-		|| IS_ENABLED(CONFIG_MTK_LCM)
+#if IS_ENABLED(CONFIG_MTK_LCM)
 		pr_debug("AEE CALL DAL_SetColor now\n");
 		DAL_SetColor(dal_setcolor.foreground,
 				dal_setcolor.background);
@@ -1730,13 +1696,14 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			user_ret = task_pt_regs(task);
 			memcpy(&(tmp->regs), user_ret,
 					sizeof(struct pt_regs));
-			rcu_read_unlock();
 			if (copy_to_user((struct aee_thread_reg __user *)arg,
 					tmp, sizeof(struct aee_thread_reg))) {
 				kfree(tmp);
+				rcu_read_unlock();
 				ret = -EFAULT;
 				goto EXIT;
 			}
+			rcu_read_unlock();
 
 		} else {
 			pr_info("%s: get thread registers ioctl tid invalid\n",
@@ -1874,7 +1841,6 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			}
 
 			get_task_struct(task);
-
 			rcu_read_unlock();
 
 			if (!try_get_task_stack(task)) {
@@ -2286,10 +2252,6 @@ int DumpThreadNativeInfo(struct aee_oops *oops)
 							(MaxStackSize-1);
 	oops->userthread_stack.StackLength = length;
 
-	if (!userstack_start) {
-		pr_info("ERR: %s userstack_start = NULL\n", __func__);
-		return 0;
-	}
 
 	ret = copy_from_user((void *)(oops->userthread_stack.Userthread_Stack),
 			(const void __user *)(userstack_start), length);
@@ -2316,10 +2278,6 @@ int DumpThreadNativeInfo(struct aee_oops *oops)
 		     (MaxStackSize-1)) ? (userstack_end - userstack_start) :
 							(MaxStackSize-1);
 		oops->userthread_stack.StackLength = length;
-		if (!userstack_start) {
-			pr_info("ERR: %s userstack_start=NULL\n", __func__);
-			return 0;
-		}
 		ret = copy_from_user(
 			(void *)(oops->userthread_stack.Userthread_Stack),
 			(const void __user *)(userstack_start), length);
@@ -2345,10 +2303,6 @@ int DumpThreadNativeInfo(struct aee_oops *oops)
 		     (MaxStackSize-1)) ? (userstack_end - userstack_start) :
 			(MaxStackSize-1);
 		oops->userthread_stack.StackLength = length;
-		if (!userstack_start) {
-			pr_info("ERR: %s userstack_start = NULL\n", __func__);
-			return 0;
-		}
 		ret = copy_from_user(
 			(void *)(oops->userthread_stack.Userthread_Stack),
 			(const void __user *)(userstack_start), length);
@@ -2370,12 +2324,8 @@ static void kernel_reportAPI(const enum AE_DEFECT_ATTR attr, const int db_opt,
 
 	if ((aee_mode >= AEE_MODE_CUSTOMER_USER || (aee_mode ==
 		AEE_MODE_CUSTOMER_ENG && attr == AE_DEFECT_WARNING))
-		&& (attr != AE_DEFECT_FATAL)) {
-		if (!aed_get_status() && (kernelapi_num < 5))
-			kernelapi_num++;
-		else
-			return;
-	}
+		&& (attr != AE_DEFECT_FATAL))
+		return;
 	oops = aee_oops_create(attr, AE_KERNEL_PROBLEM_REPORT, module);
 	if (oops) {
 		n += snprintf(oops->backtrace, AEE_BACKTRACE_LENGTH, msg);
@@ -2443,13 +2393,14 @@ static void external_exception(const char *assert_type, const int *log,
 	int n;
 #endif
 
+//#ifdef OPLUS_FEATURE_ENABLE_MODEM_DB
+/*
 	if ((aee_mode >= AEE_MODE_CUSTOMER_USER) &&
-		(aee_force_exp == AEE_FORCE_EXP_NOT_SET)) {
-		if (!aed_get_status() && (ee_num < 5))
-			ee_num++;
-		else
-			return;
-	}
+		(aee_force_exp == AEE_FORCE_EXP_NOT_SET))
+		return;
+*/
+//#endif /* OPLUS_FEATURE_ENABLE_MODEM_DB */
+
 	eerec = kzalloc(sizeof(struct aed_eerec), GFP_ATOMIC);
 	if (!eerec)
 		return;
@@ -2640,6 +2591,110 @@ static struct miscdevice aed_ke_dev = {
 	.fops = &aed_ke_fops,
 };
 
+static int warn_aee(struct notifier_block *self, unsigned long cmd, void *ptr)
+{
+	char msg[SZ_512];
+	char *p_file;
+	char *p_line;
+	char *p_line_end;
+	char *p_opt;
+	char *p_level;
+	char *p_module;
+	char *p_msg;
+	u32 line_num;
+	u64 db_opt = 0;
+
+	memcpy(msg, ptr, SZ_512);
+	msg[SZ_512 - 1] = 0;
+	pr_info("%s: %s", __func__, msg);
+
+	p_file = strchr(msg, '<');
+	p_line = strchr(msg, ':');
+	p_line_end = strchr(msg, '>');
+	p_opt = strstr(msg, "opt=");
+	p_level = strstr(msg, "level=");
+	p_module = strstr(msg, "module=");
+	p_msg = strstr(msg, "msg=");
+
+	if (p_file) {
+		p_file += 1;
+	} else {
+		pr_info("invalid file path");
+		return -EINVAL;
+	}
+
+	if (p_line && p_line_end) {
+		*p_line = 0;
+		p_line += 1;
+		*p_line_end = 0;
+		if (kstrtou32(p_line, 10, &line_num))
+			pr_info("fail to convert line num");
+
+	} else {
+		pr_info("invalid file line");
+		return -EINVAL;
+	}
+
+	if (p_opt) {
+		p_opt += strlen("opt=");
+		if (kstrtou64(p_opt, 16, &db_opt))
+			pr_info("fail to convert db opt");
+	} else {
+		pr_info("invalid db option");
+		return -EINVAL;
+	}
+
+	if (p_level) {
+		*(p_level - 1) = 0;
+		p_level += strlen("level=");
+	} else {
+		pr_info("invalid exception level");
+		return -EINVAL;
+	}
+
+	if (p_module) {
+		*(p_module - 1) = 0;
+		p_module += strlen("module=");
+	} else {
+		pr_info("invalid module name");
+		return -EINVAL;
+	}
+
+	if (p_msg) {
+		*(p_msg - 1) = 0;
+		p_msg += strlen("msg=");
+	} else {
+		pr_info("invalid debug message");
+		return -EINVAL;
+	}
+
+	switch (*p_level) {
+	case 'W':
+	case 'w':
+		/*
+		 * do not use  kernel_reportAPI() directly or aee_disable_api()
+		 * would be affected.
+		 */
+		aee_kernel_warning_api(p_file, line_num, db_opt,
+				p_module, p_msg);
+		break;
+	case 'E':
+	case 'e':
+		aee_kernel_exception_api(p_file, line_num, db_opt,
+				p_module, p_msg);
+		break;
+	default:
+		pr_info("unsupport exception level");
+	}
+	return 0;
+}
+
+static struct notifier_block warn_blk = {
+	.notifier_call = warn_aee,
+};
+static int (*p_register_warn_nt)(struct notifier_block *nb);
+static int (*p_unregister_warn_nt)(struct notifier_block *nb);
+
 /* UTC time sync */
 static struct hrtimer aed_hrtimer;
 
@@ -2689,11 +2744,6 @@ static int __init aed_init(void)
 {
 	int err;
 
-	if (!aee_is_enable()) {
-		pr_info("%s: aee is disable\n", __func__);
-		return 0;
-	}
-
 	err = aed_proc_init();
 	if (err != 0)
 		return err;
@@ -2715,6 +2765,11 @@ static int __init aed_init(void)
 	INIT_WORK(&ee_work, ee_worker);
 
 	aee_register_api(&kernel_api);
+	p_register_warn_nt = (void *)symbol_get(register_warn_notifier);
+	if (p_register_warn_nt)
+		p_register_warn_nt(&warn_blk);
+	else
+		pr_notice("failed to register warn notifier");
 
 	spin_lock_init(&aed_device_lock);
 	err = misc_register(&aed_ee_dev);
@@ -2741,6 +2796,12 @@ static void __exit aed_exit(void)
 
 	ee_destroy_log();
 	ke_destroy_log();
+
+	p_unregister_warn_nt = (void *)symbol_get(unregister_warn_notifier);
+	if (p_unregister_warn_nt)
+		p_unregister_warn_nt(&warn_blk);
+	else
+		pr_notice("failed to unregister warn notifier");
 
 	aed_proc_done();
 	ksysfs_bootinfo_exit();

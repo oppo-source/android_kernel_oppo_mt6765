@@ -27,5 +27,9 @@ obj-$(CONFIG_INPUT_TOUCHSCREEN)	+= touchscreen/
 obj-$(CONFIG_INPUT_MISC)	+= misc/
 
 obj-$(CONFIG_INPUT_APMPOWER)	+= apm-power.o
-
+#ifdef VENDOR_EDIT
+obj-$(CONFIG_MTK_FINGERPRINT_SUPPORT)  += fingerprint/
+obj-$(CONFIG_OPPO_FINGERPRINT)  += oppo_fp_drivers/
+obj-$(CONFIG_OPPO_FINGERPRINT)  += oppo_secure_common/
+#endif /*VENDOR_EDIT*/
 obj-$(CONFIG_RMI4_CORE)		+= rmi4/

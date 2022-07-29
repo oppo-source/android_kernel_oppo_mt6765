@@ -18,7 +18,6 @@
 #include <linux/sched.h>
 #include <linux/sched/clock.h>
 #include <linux/sched/debug.h>
-#include <linux/sched/mm.h>
 #include <linux/sched/rt.h>
 #include <linux/sched/task.h>
 #include <uapi/linux/sched/types.h>
@@ -53,6 +52,8 @@
 #include "aed/aed.h"
 #include <mrdump.h>
 
+#include <linux/oom.h>
+
 #ifndef TASK_STATE_TO_CHAR_STR
 #define TASK_STATE_TO_CHAR_STR "RSDTtZXxKWPNn"
 #endif
@@ -69,7 +70,6 @@ static bool system_server_exist;
 
 static bool Hang_Detect_first;
 static bool hd_detect_enabled;
-static bool hd_zygote_stopped;
 static int hd_timeout = 0x7fffffff;
 static int hang_detect_counter = 0x7fffffff;
 static int dump_bt_done;
@@ -241,11 +241,9 @@ static int monitor_hang_show(struct seq_file *m, void *v)
 {
 	struct name_list *pList = NULL;
 #ifdef CONFIG_MTK_HANG_DETECT_DB
-	SEQ_printf(m, "[Hang_Detect] show hang_detect_raw\n");
-	if (Hang_Info)
-		SEQ_printf(m, "%s", Hang_Info);
-	else
-		SEQ_printf(m, "hang_detect_raw buffer is not ready\n");
+	SEQ_printf(m, "[Hang_Detect] show Hang_info size %d\n ",
+			(int)strlen(Hang_Info));
+	SEQ_printf(m, "%s", Hang_Info);
 #endif
 	raw_spin_lock(&white_list_lock);
 	pList = white_list;
@@ -344,43 +342,8 @@ static ssize_t monitor_hang_read(struct file *filp, char __user *buf,
 static ssize_t monitor_hang_write(struct file *filp, const char __user *buf,
 		size_t count, loff_t *f_pos)
 {
-	char msg[8] = {0};
 
-	if (count >= 2) {
-		pr_info("hang_detect: invalid input\n");
-		return -EINVAL;
-	}
-
-	if (!buf) {
-		pr_info("hang_detect: invalid user buf\n");
-		return -EINVAL;
-	}
-
-	if (copy_from_user(msg, buf, count)) {
-		pr_info("hang_detect: failed to copy from user\n");
-		return -EFAULT;
-	}
-
-	if (strncmp(current->comm, "init", 4))
-		return  -EINVAL;
-
-	if (msg[0] == '0') {
-		hd_detect_enabled = false;
-		hd_zygote_stopped = true;
-		pr_info("hang_detect: disable by stop cmd\n");
-	} else if (msg[0] == '1') {
-		if (hd_zygote_stopped) {
-			hd_detect_enabled = true;
-			hd_zygote_stopped = false;
-			pr_info("hang_detect: enable by start cmd\n");
-		} else {
-			pr_info("hang_detect: zygote running\n");
-		}
-	} else {
-		pr_info("hang_detect: invalid control msg\n");
-	}
-
-	return count;
+	return 0;
 }
 
 static long monitor_hang_ioctl(struct file *file, unsigned int cmd,
@@ -389,7 +352,7 @@ static long monitor_hang_ioctl(struct file *file, unsigned int cmd,
 	int ret = 0;
 	static long long monitor_status;
 	void __user *argp = (void __user *)arg;
-	char name[TASK_COMM_LEN] = {0};
+	char name[TASK_COMM_LEN];
 
 	if (cmd == HANG_KICK) {
 		pr_info("hang_detect HANG_KICK ( %d)\n", (int)arg);
@@ -412,8 +375,12 @@ static long monitor_hang_ioctl(struct file *file, unsigned int cmd,
 #ifdef CONFIG_MTK_HANG_DETECT_DB
 	if (cmd == HANG_SET_REBOOT) {
 		reboot_flag = true;
-		hang_detect_counter = 5;
-		hd_timeout = 5;
+#ifdef CONFIG_MTK_ENG_BUILD
+		hang_detect_counter = 3;
+#else
+		hang_detect_counter = 1;
+#endif
+		hd_timeout = 3;
 		hd_detect_enabled = true;
 		pr_info("hang_detect: %s set reboot command.\n", current->comm);
 		return ret;
@@ -421,7 +388,7 @@ static long monitor_hang_ioctl(struct file *file, unsigned int cmd,
 #endif
 
 	if (cmd == HANG_ADD_WHITE_LIST) {
-		if (copy_from_user(name, argp, TASK_COMM_LEN - 1))
+		if (copy_from_user(name, argp, TASK_COMM_LEN))
 			ret = -EFAULT;
 		ret = add_white_list(name);
 		pr_info("hang_detect: add white list %s status %d.\n",
@@ -430,7 +397,7 @@ static long monitor_hang_ioctl(struct file *file, unsigned int cmd,
 	}
 
 	if (cmd == HANG_DEL_WHITE_LIST) {
-		if (copy_from_user(name, argp, TASK_COMM_LEN - 1))
+		if (copy_from_user(name, argp, TASK_COMM_LEN))
 			ret = -EFAULT;
 		ret = del_white_list(name);
 		pr_info("hang_detect: del white list %s status %d.\n",
@@ -881,7 +848,7 @@ static int DumpThreadNativeMaps_log(pid_t pid, struct task_struct *current_task)
 		return -1;
 	}
 
-	if (!get_task_mm(current_task)) {
+	if (!current_task->mm) {
 		pr_info(" %s,%d:%s: current_task->mm == NULL",
 			__func__, pid, current_task->comm);
 		return -1;
@@ -940,7 +907,6 @@ static int DumpThreadNativeMaps_log(pid_t pid, struct task_struct *current_task)
 		mapcount++;
 	}
 	up_read(&current_task->mm->mmap_sem);
-	mmput(current_task->mm);
 
 	return 0;
 }
@@ -1779,6 +1745,7 @@ static void hang_dump_backtrace(void)
 			!strcmp(p->comm, "mmcqd/1") ||
 			!strcmp(p->comm, "vold") ||
 			!strcmp(p->comm, "vdc") ||
+			!strcmp(p->comm, "vold") ||
 			!strcmp(p->comm, "debuggerd")) {
 			show_bt_by_pid(p->pid);
 			put_task_struct(p);
@@ -1829,6 +1796,59 @@ static void hang_dump_backtrace(void)
 	}
 }
 
+#define CONVERT_ADJ(x) ((x * OOM_SCORE_ADJ_MAX) / -OOM_DISABLE)
+#define REVERT_ADJ(x)  (x * (-OOM_DISABLE + 1) / OOM_SCORE_ADJ_MAX)
+
+static int dump_processes(void)
+{
+    int i, j;
+    int score_adj[37]={0};
+    //long score_adj_pss[37]={0};
+    short oom_score_adj;
+    struct task_struct *tsk;
+
+    for(i = 0, j=-18; i < 37; i++, j++)
+        score_adj[i] = CONVERT_ADJ(j);
+
+    printk("======   hang detect show processes   =====\n");
+#ifdef CONFIG_ZRAM
+    printk(" [pid]  adj    score_adj   rss    rswap      name\n");
+#else
+    printk(" [pid]  adj    score_adj   rss      name\n");
+#endif
+
+    rcu_read_lock();
+    for_each_process(tsk) {
+        struct task_struct *p;
+
+        if (tsk->flags & PF_KTHREAD)
+            continue;
+
+        p = find_lock_task_mm(tsk);
+        if (!p)
+            continue;
+
+        oom_score_adj = p->signal->oom_score_adj;
+
+        printk(
+
+#ifdef CONFIG_ZRAM
+                " [%5d] %5d%11d%8lu%8lu        %s\n", p->pid,
+                REVERT_ADJ(oom_score_adj), oom_score_adj,
+                get_mm_rss(p->mm),
+                get_mm_counter(p->mm, MM_SWAPENTS), p->comm);
+#else /* CONFIG_ZRAM */
+                " [%5d] %5d%11d%8lu        %s\n", p->pid,
+                REVERT_ADJ(oom_score_adj), oom_score_adj,
+                get_mm_rss(p->mm), p->comm);
+#endif
+        task_unlock(p);
+    }
+    rcu_read_unlock();
+
+    return 0;
+}
+
 static void ShowStatus(int flag)
 {
 
@@ -1848,6 +1868,7 @@ static void ShowStatus(int flag)
 		debug_show_all_locks();
 #ifndef MODULE
 		show_free_areas(0, NULL);
+		dump_processes();
 		if (show_task_mem)
 			show_task_mem();
 #endif
@@ -2063,9 +2084,6 @@ static int __init monitor_hang_init(void)
 {
 	int err = 0;
 
-	if (!aee_is_enable())
-		return err;
-
 #ifdef MODULE
 	if (module_fun_init() == 1)
 		return 1;
@@ -2094,9 +2112,6 @@ static int __init monitor_hang_init(void)
 
 static void __exit monitor_hang_exit(void)
 {
-	if (!aee_is_enable())
-		return;
-
 	misc_deregister(&Hang_Monitor_dev);
 #ifdef CONFIG_MTK_HANG_DETECT_DB
 	/* kfree(NULL) is safe */

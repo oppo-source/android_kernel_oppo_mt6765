@@ -20,6 +20,10 @@
 #include "../inc/mt6360_pmu.h"
 #include "../inc/mt6360_pmu_adc.h"
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#include <linux/delay.h>
+#endif
+
 struct mt6360_pmu_adc_info {
 	struct device *dev;
 	struct mt6360_pmu_info *mpi;
@@ -96,6 +100,7 @@ static int mt6360_adc_read_raw(struct iio_dev *iio_dev,
 					 0xf0, chan->channel << 4);
 	if (ret < 0)
 		goto err_adc_init;
+
 	/* enable adc channel we want and adc_en */
 	memset(tmp, 0, sizeof(tmp));
 	tmp[0] |= (1 << 7);
@@ -104,6 +109,14 @@ static int mt6360_adc_read_raw(struct iio_dev *iio_dev,
 					 MT6360_PMU_ADC_CONFIG, 2, tmp);
 	if (ret < 0)
 		goto err_adc_init;
+
+	#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	if(chan->channel == TS_CHANNEL) {
+                //printk(KERN_DBG "ts channel sleep 50ms");
+		msleep(100);
+        }
+	#endif
+
 	start_t = ktime_get();
 	predict_end_t = ktime_add_ms(mpai->last_off_timestamps[chan->channel],
 				     50);

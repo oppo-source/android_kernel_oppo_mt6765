@@ -11,7 +11,7 @@
 
 #include "kd_camera_typedef.h"
 #include "kd_camera_feature.h"
-
+#include "kd_imgsensor.h"
 
 #include "imgsensor_hw.h"
 
@@ -43,10 +43,40 @@ enum IMGSENSOR_RETURN imgsensor_hw_init(struct IMGSENSOR_HW *phw)
 			(phw->pdev[i]->init)(phw->pdev[i]->pinstance);
 	}
 
+	#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	if (pascal_project() == 1) {
+		pcust_pwr_cfg = imgsensor_custom_config_pascald;
+	} else if (pascal_project() == 2) {
+		pcust_pwr_cfg = imgsensor_custom_config_pascal;
+	} else if (pascal_project() == 3) {
+		pcust_pwr_cfg = imgsensor_custom_config_pascale;
+	} else if (pascal_project() == PARKERA_PROJECT) {
+		pcust_pwr_cfg = imgsensor_custom_config_parkera;
+	} else if (pascal_project() == 5) {
+		pcust_pwr_cfg = imgsensor_custom_config_20701_D;
+	} else if (parker_project() == 1) {
+		pcust_pwr_cfg = imgsensor_custom_config_parker;
+	} else if (yogurt_project() == 1) {
+		pcust_pwr_cfg = imgsensor_custom_config_yogurt;
+	} else if (yogurt_project() == 2) {
+		pcust_pwr_cfg = imgsensor_custom_config_yogurt;
+	} else if (yogurt_project() == 3) {
+		pcust_pwr_cfg = imgsensor_custom_config_yogurt;
+	} else if (pascal_project() == 6) {
+		pcust_pwr_cfg = imgsensor_custom_config_parkerb;
+	} else if (yogurta_project() == 1) {
+		pcust_pwr_cfg = imgsensor_custom_config_yogurta;
+	} else {
+		pcust_pwr_cfg = imgsensor_custom_config;
+	}
+	#else
+	pcust_pwr_cfg = imgsensor_custom_config;
+	#endif
+
+
 	for (i = 0; i < IMGSENSOR_SENSOR_IDX_MAX_NUM; i++) {
 		psensor_pwr = &phw->sensor_pwr[i];
 
-		pcust_pwr_cfg = imgsensor_custom_config;
 		while (pcust_pwr_cfg->sensor_idx != i &&
 		       pcust_pwr_cfg->sensor_idx != IMGSENSOR_SENSOR_IDX_NONE)
 			pcust_pwr_cfg++;
@@ -160,6 +190,11 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 					    ppwr_info->pin,
 					    ppwr_info->pin_state_off);
 			}
+				if (pascal_project() == PARKERA_PROJECT
+				&& !strcmp(ppwr_seq->name, "parkera_shinetech_front_ov08d10")
+				&& ppwr_info->pin == IMGSENSOR_HW_PIN_AVDD) {
+					mdelay(5);
+				}
 		}
 	}
 
@@ -205,14 +240,27 @@ enum IMGSENSOR_RETURN imgsensor_hw_power(
 	    pwr_status,
 	    platform_power_sequence,
 	    str_index);
-
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+if (pascal_project() == 5) {
+	imgsensor_hw_power_sequence(phw, sensor_idx, pwr_status, sensor_power_sequence_20701_D, curr_sensor_name);
+} else if (yogurta_project() == 1) {
+	imgsensor_hw_power_sequence(phw, sensor_idx, pwr_status, sensor_power_sequence_yogurta, curr_sensor_name);
+} else {
 	imgsensor_hw_power_sequence(
 	    phw,
 	    sensor_idx,
 	    pwr_status,
 	    sensor_power_sequence,
 	    curr_sensor_name);
-
+}
+#else
+	imgsensor_hw_power_sequence(
+	    phw,
+	    sensor_idx,
+	    pwr_status,
+	    sensor_power_sequence,
+	    curr_sensor_name);
+#endif
 	return IMGSENSOR_RETURN_SUCCESS;
 }
 

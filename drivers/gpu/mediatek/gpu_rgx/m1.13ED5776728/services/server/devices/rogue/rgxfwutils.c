@@ -4604,16 +4604,19 @@ PVRSRV_ERROR RGXScheduleCleanupCommand(PVRSRV_RGXDEV_INFO	*psDevInfo,
 											  0,
 											  ui32PDumpFlags,
 											  &ui32kCCBCommandSlot);
-	if (eError != PVRSRV_OK) {
-		/* If we hit a temporary KCCB exhaustion,
-		 * return a RETRY to caller
-		 */
-		if (eError == PVRSRV_ERROR_KERNEL_CCB_FULL) {
+	if (eError != PVRSRV_OK)
+	{
+		/* If we hit a temporary KCCB exhaustion, return a RETRY to caller */
+		if (eError == PVRSRV_ERROR_KERNEL_CCB_FULL)
+		{
 			eError = PVRSRV_ERROR_RETRY;
-		} else {
+		}
+		else
+		{
 			PVR_DPF((PVR_DBG_ERROR,
-					"In %s() failed to schedule cleanup command %d for %d",
-					__func__, eCleanupType, eDM)); }
+			        "In %s() failed to schedule cleanup command %d for %d",
+			        __func__, eCleanupType, eDM));
+		}
 
 		goto fail_command;
 	}

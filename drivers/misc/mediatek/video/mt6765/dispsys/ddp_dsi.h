@@ -208,8 +208,11 @@ int dsi_enable_irq(enum DISP_MODULE_ENUM module, void *handle,
 	unsigned int enable);
 int ddp_dsi_power_on(enum DISP_MODULE_ENUM module, void *cmdq_handle);
 int dsi_basic_irq_enable(enum DISP_MODULE_ENUM module, void *cmdq);
+#ifndef OPLUS_BUG_STABILITY
 extern int mipi_clk_change(enum DISP_MODULE_ENUM module, int en);
-
+#else
+extern int mipi_clk_change(int module, int en);
+#endif
 extern int mipi_clk_change_by_data_rate(int en, int mipi_data_rate);
 unsigned int _is_power_on_status(enum DISP_MODULE_ENUM module);
 int ddp_dsi_read_lcm_cmdq(enum DISP_MODULE_ENUM module,
@@ -229,10 +232,16 @@ void ddp_dsi_dynfps_get_vfp_info(unsigned int disp_fps,
 	unsigned int *vfp, unsigned int *vfp_for_lp);
 void DSI_dynfps_send_cmd(void *cmdq, unsigned int cmd,
 	unsigned char count, unsigned char *para_list,
-	unsigned char force_update, enum LCM_Send_Cmd_Mode sendmode);
+	unsigned char force_update);
 /*-------------------------------DynFPS end------------------------------*/
 #endif
-
+void DSI_dcs_set_lcm_reg_v4(enum DISP_MODULE_ENUM module,
+	bool hs, struct LCM_setting_table_V3 *para_tbl, unsigned int size,
+	unsigned char force_update);
+UINT32 DSI_dcs_read_lcm_reg_v4(enum DISP_MODULE_ENUM module,
+	UINT8 cmd, UINT8 *user_buffer, UINT8 buffer_size, bool sendhs);
+int ddp_dsi_build_cmdq(enum DISP_MODULE_ENUM module,
+	void *cmdq_trigger_handle, enum CMDQ_STATE state);
 
 #ifdef __cplusplus
 }

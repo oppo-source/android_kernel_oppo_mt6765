@@ -70,5 +70,9 @@
 	RBAT_PULL_UP_R = <(16900)>;
 	RBAT_PULL_UP_VOLT = <(1800)>;
 
+#ifdef CONFIG_MTK_20271
+#include "mt6765_battery_table.dtsi"
+#else
 #include "mt6765_battery_table_ext.dtsi"
+#endif
 };

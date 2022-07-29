@@ -93,7 +93,8 @@ EXPORT_SYMBOL_GPL(hid_register_report);
  * Register a new field for this report.
  */
 
-static struct hid_field *hid_register_field(struct hid_report *report, unsigned usages)
+static struct hid_field *hid_register_field(struct hid_report *report,
+					    unsigned int usages)
 {
 	struct hid_field *field;
 
@@ -104,7 +105,7 @@ static struct hid_field *hid_register_field(struct hid_report *report, unsigned 
 
 	field = kzalloc((sizeof(struct hid_field) +
 			 usages * sizeof(struct hid_usage) +
-			 usages * sizeof(unsigned)), GFP_KERNEL);
+			 usages * sizeof(unsigned int)), GFP_KERNEL);
 	if (!field)
 		return NULL;
 
@@ -919,7 +920,16 @@ static int hid_scan_report(struct hid_device *hid)
 				hid->group = HID_GROUP_RMI;
 		break;
 	}
+	#ifdef OPLUS_BUG_STABILITY
+	//add for BLE-M1 uhid group change HID_GROUP_GENERIC
+	if (0x248a == hid->vendor && 2 == hid->group) {
+		hid_warn(hid, "scan_report change to GENERIC %u\n", hid->group);
+		hid->group = HID_GROUP_GENERIC;
+	}
 
+	/* fall back to generic driver in case specific driver doesn't exist */
+	hid_warn(hid, "report vendor %u,group %u\n", hid->vendor, hid->group);
+	#endif /* OPLUS_BUG_STABILITY */
 	kfree(parser->collection_stack);
 	vfree(parser);
 	return 0;
@@ -1137,9 +1147,6 @@ EXPORT_SYMBOL_GPL(hid_open_report);
 
 static s32 snto32(__u32 value, unsigned n)
 {
-	if (!value || !n)
-		return 0;
-
 	switch (n) {
 	case 8:  return ((__s8)value);
 	case 16: return ((__s16)value);

@@ -37,6 +37,7 @@ static struct i2c_client *g_pstI2CclientG;
  * Below is an example
  ************************************************************/
  #define PAGE_SIZE_ 256
+
 static int iReadRegI2C(u8 *a_pSendData, u16 a_sizeSendData,
 		u8 *a_pRecvData, u16 a_sizeRecvData, u16 i2cId)
 {

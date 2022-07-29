@@ -55,6 +55,10 @@
 
 #include "dbg.h"
 
+#ifdef MTK_EMMC_SUPPORT
+#include <linux/reboot.h>
+#endif
+
 #define CAPACITY_2G             (2 * 1024 * 1024 * 1024ULL)
 
 /* FIX ME: Check if its reference in mtk_sd_misc.h can be removed */
@@ -1687,7 +1691,13 @@ skip_cmd_resp_polling:
 							__func__, host->id,
 							cmd->opcode, *rsp);
 				}
-
+#ifdef MTK_EMMC_SUPPORT
+					if((host->hw->host_function == MSDC_EMMC) &&
+					   ( get_boot_mode() == RECOVERY_BOOT || get_boot_mode() == OPPO_SAU_BOOT ))
+					{
+						emergency_restart();
+					}
+#endif
 				if ((*rsp & R1_OUT_OF_RANGE)
 				 && (host->hw->host_function != MSDC_SDIO)) {
 					pr_notice("[%s]: msdc%d XXX CMD<%d> arg<0x%.8x> resp<0x%.8x>, out of range\n",
@@ -4328,6 +4338,7 @@ static int msdc_ops_get_cd(struct mmc_host *mmc)
 #endif
 		host->card_inserted = (host->hw->cd_level == level) ? 1 : 0;
 	}
+	pr_debug("gpio_get_value==%d, card_inserted==%d, cd_level==%d\n", level, host->card_inserted, host->hw->cd_level);
 
 	if (host->block_bad_card)
 		host->card_inserted = 0;
@@ -4413,6 +4424,7 @@ static int msdc_ops_switch_volt(struct mmc_host *mmc, struct mmc_ios *ios)
 	struct msdc_host *host = mmc_priv(mmc);
 	void __iomem *base = host->base;
 	unsigned int status = 0;
+	u32 value = 0;
 
 	if (host->hw->host_function == MSDC_EMMC)
 		return 0;
@@ -4438,11 +4450,16 @@ static int msdc_ops_switch_volt(struct mmc_host *mmc, struct mmc_ios *ios)
 		/* set as 500T -> 1.25ms for 400KHz or 1.9ms for 260KHz */
 		msdc_set_vol_change_wait_count(VOL_CHG_CNT_DEFAULT_VAL);
 
-		/*  CMD11 will enable SWITCH detect while mmc core layer trriger
+		/*  CMD11 will enable SWITCH detect while mmc core layer trigger
 		 *  switch voltage flow without cmd11 for somecase,so also enable switch
-		 *  detect before switch.Otherwise will hang in this func.
+		 *  detect before switch.Otherwise will hang in this func
+		 *  when SDC_CMD_VOLSWTH is not set.
 		 */
-		MSDC_SET_BIT32(SDC_CMD, SDC_CMD_VOLSWTH);
+		MSDC_GET_FIELD(SDC_CMD, SDC_CMD_VOLSWTH, value);
+		if(value == 0){
+			MSDC_SET_BIT32(SDC_CMD, SDC_CMD_VOLSWTH);
+		}
+
 		/* start to provide clock to device */
 		MSDC_SET_BIT32(MSDC_CFG, MSDC_CFG_BV18SDT);
 		/* Delay 1ms wait HW to finish voltage switch */
@@ -5293,7 +5310,7 @@ static int msdc_suspend(struct device *dev)
 	int ret = 0;
 
 	if (pm_runtime_suspended(dev)) {
-		pr_debug("%s: %s: already runtime suspended\n",
+		pr_err("%s: %s: already runtime suspended\n",
 				mmc_hostname(host->mmc), __func__);
 		goto out;
 	}

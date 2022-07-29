@@ -27,5 +27,6 @@ struct cmdq_sec_tee_context {
 	struct TEEC_SharedMemory shared_mem_ex; /* shared memory */
 	struct TEEC_SharedMemory shared_mem_ex2; /* shared memory */
 };
+int m4u_sec_init(void);
 
 #endif	/* __CMDQ_SEC_GP_H__ */

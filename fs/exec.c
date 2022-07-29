@@ -77,6 +77,10 @@ int suid_dumpable = 0;
 static LIST_HEAD(formats);
 static DEFINE_RWLOCK(binfmt_lock);
 
+#ifdef OPLUS_FEATURE_UIFIRST
+pid_t allocator_server_pid = 0;
+#endif
+
 void __register_binfmt(struct linux_binfmt * fmt, int insert)
 {
 	BUG_ON(!fmt);
@@ -1012,7 +1016,7 @@ static int exec_mmap(struct mm_struct *mm)
 	/* Notify parent that we're no longer interested in the old VM */
 	tsk = current;
 	old_mm = current->mm;
-	exec_mm_release(tsk, old_mm);
+	mm_release(tsk, old_mm);
 
 	if (old_mm) {
 		sync_mm_rss(old_mm);
@@ -1029,23 +1033,10 @@ static int exec_mmap(struct mm_struct *mm)
 		}
 	}
 	task_lock(tsk);
-
-	local_irq_disable();
 	active_mm = tsk->active_mm;
-	tsk->active_mm = mm;
 	tsk->mm = mm;
-	/*
-	 * This prevents preemption while active_mm is being loaded and
-	 * it and mm are being updated, which could cause problems for
-	 * lazy tlb mm refcounting when these are updated by context
-	 * switches. Not all architectures can handle irqs off over
-	 * activate_mm yet.
-	 */
-	if (!IS_ENABLED(CONFIG_ARCH_WANT_IRQS_OFF_ACTIVATE_MM))
-		local_irq_enable();
+	tsk->active_mm = mm;
 	activate_mm(active_mm, mm);
-	if (IS_ENABLED(CONFIG_ARCH_WANT_IRQS_OFF_ACTIVATE_MM))
-		local_irq_enable();
 	tsk->mm->vmacache_seqnum = 0;
 	vmacache_flush(tsk);
 	task_unlock(tsk);
@@ -1384,6 +1375,12 @@ void setup_new_exec(struct linux_binprm * bprm)
 
 	arch_setup_new_exec();
 	perf_event_exec();
+#ifdef OPLUS_FEATURE_UIFIRST
+	if(strstr(bprm->filename, "allocator@4.0-s")){
+		current->static_ux = 2;
+		allocator_server_pid = current->pid;
+	}
+#endif
 	__set_task_comm(current, kbasename(bprm->filename), true);
 
 	/* Set the new mm task size. We have to do that late because it may
@@ -1719,6 +1716,11 @@ static int exec_binprm(struct linux_binprm *bprm)
 	return ret;
 }
 
+#ifdef CONFIG_OPLUS_SECURE_GUARD
+#if defined(CONFIG_OPLUS_EXECVE_BLOCK) || defined(CONFIG_OPLUS_EXECVE_REPORT)
+extern int oplus_exec_block(struct file *file);
+#endif /* CONFIG_OPLUS_EXECVE_BLOCK or CONFIG_OPLUS_EXECVE_REPORT */
+#endif /* CONFIG_OPLUS_SECURE_GUARD */
 /*
  * sys_execve() executes a new program.
  */
@@ -1773,6 +1775,15 @@ static int __do_execve_file(int fd, struct filename *filename,
 	if (IS_ERR(file))
 		goto out_unmark;
 
+#ifdef CONFIG_OPLUS_SECURE_GUARD
+#if defined(CONFIG_OPLUS_EXECVE_BLOCK) || defined(CONFIG_OPLUS_EXECVE_REPORT)
+    retval = oplus_exec_block(file);
+	if (retval){
+		fput(file);
+		goto out_unmark;
+	}
+#endif /* CONFIG_OPLUS_EXECVE_BLOCK or CONFIG_OPLUS_EXECVE_REPORT */
+#endif /* CONFIG_OPLUS_SECURE_GUARD */
 	sched_exec();
 
 	bprm->file = file;

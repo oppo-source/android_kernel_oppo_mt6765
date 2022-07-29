@@ -16,9 +16,14 @@ obj-$(CONFIG_MTK_FLASHLIGHT_MT6336)      += flashlights-mt6336.o
 obj-$(CONFIG_MTK_FLASHLIGHT_MT6370)      += flashlights-mt6370.o
 obj-$(CONFIG_MTK_FLASHLIGHT_MT6360)      += flashlights-mt6360.o
 obj-$(CONFIG_MTK_FLASHLIGHT_AW3644)      += flashlights-aw3644.o
+obj-$(CONFIG_MTK_FLASHLIGHT_PASCAL)      += flashlights_pascal.o
+obj-$(CONFIG_MTK_FLASHLIGHT_PARKERA)       += flashlights_parkera.o
+obj-$(CONFIG_MTK_FLASHLIGHT_YOGURT)      += flashlights_yogurt.o
+obj-$(CONFIG_MTK_FLASHLIGHT_YOGURTA)     += flashlights_yogurta.o
 obj-$(CONFIG_MTK_FLASHLIGHT_SYWT78)      += flashlights-sywt78.o
 obj-$(CONFIG_MTK_FLASHLIGHT_DUMMY)       += flashlights-dummy.o
 obj-$(CONFIG_MTK_FLASHLIGHT_DUMMY_GPIO)  += flashlights-dummy-gpio.o
+obj-$(CONFIG_MTK_FLASHLIGHT_PARKERB)     += flashlights_parkerb.o
 
 ccflags-$(CONFIG_MTK_FLASHLIGHT_DEBUG)     := -DDEBUG
 ccflags-$(CONFIG_MTK_FLASHLIGHT_SYWT78)    += -DCONFIG_MTK_FLASHLIGHT_SYWT78

@@ -477,11 +477,6 @@ static int qla_nvme_post_cmd(struct nvme_fc_local_port *lport,
 	struct nvme_private *priv = fd->private;
 	struct qla_nvme_rport *qla_rport = rport->private;
 
-	if (!priv) {
-		/* nvme association has been torn down */
-		return rval;
-	}
-
 	fcport = qla_rport->fcport;
 
 	vha = fcport->vha;
@@ -676,7 +671,7 @@ int qla_nvme_register_hba(struct scsi_qla_host *vha)
 	struct nvme_fc_port_template *tmpl;
 	struct qla_hw_data *ha;
 	struct nvme_fc_port_info pinfo;
-	int ret = -EINVAL;
+	int ret = EINVAL;
 
 	if (!IS_ENABLED(CONFIG_NVME_FC))
 		return ret;

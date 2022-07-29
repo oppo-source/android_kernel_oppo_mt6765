@@ -123,12 +123,15 @@ struct xhci_hcd_mtk {
 	struct phy **phys;
 	int num_phys;
 	bool lpm_support;
-	bool u2_lpm_disable;
 	/* usb remote wakeup */
 	bool uwk_en;
 	struct regmap *uwk;
 	u32 uwk_reg_base;
 	u32 uwk_vers;
+#ifdef OPLUS_FEATURE_CHG_BASIC
+/* Yichun.Chen	PSW.BSP.CHG  2019-02-02  for host tune test mode */
+	struct dentry *debugfs_root;
+#endif
 };
 
 static inline struct xhci_hcd_mtk *hcd_to_mtk(struct usb_hcd *hcd)

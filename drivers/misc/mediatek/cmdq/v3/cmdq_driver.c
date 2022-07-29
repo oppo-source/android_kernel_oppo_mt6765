@@ -157,7 +157,7 @@ static const struct file_operations cmdqDebugInstructionCountOp = {
 };
 #endif
 
-void cmdq_driver_dump_readback(u32 *ids, u32 *addrs, u32 count, u32 *values)
+void cmdq_driver_dump_readback(u32 *addrs, u32 count, u32 *values)
 {}
 
 static int cmdq_open(struct inode *pInode, struct file *pFile)
@@ -208,9 +208,6 @@ static int cmdq_release(struct inode *pInode, struct file *pFile)
 	 */
 
 	spin_unlock_irqrestore(&pNode->nodeLock, flags);
-
-	/* release by mapping job */
-	mdp_ioctl_free_job_by_node(pNode);
 
 	/* scan through tasks that created by
 	 * this file node and release them
@@ -1347,6 +1344,10 @@ static int __init cmdq_init(void)
 	cmdq_core_register_task_cycle_cb(CMDQ_GROUP_MDP,
 			cmdq_mdp_get_func()->beginTask,
 			cmdq_mdp_get_func()->endTask);
+
+	cmdq_core_register_task_cycle_cb(CMDQ_GROUP_ISP,
+			cmdq_mdp_get_func()->beginISPTask,
+			cmdq_mdp_get_func()->endISPTask);
 
 	status = platform_driver_register(&gCmdqDriver);
 	if (status != 0) {

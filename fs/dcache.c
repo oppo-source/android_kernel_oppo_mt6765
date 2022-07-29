@@ -851,19 +851,17 @@ struct dentry *dget_parent(struct dentry *dentry)
 {
 	int gotref;
 	struct dentry *ret;
-	unsigned seq;
 
 	/*
 	 * Do optimistic parent lookup without any
 	 * locking.
 	 */
 	rcu_read_lock();
-	seq = raw_seqcount_begin(&dentry->d_seq);
 	ret = READ_ONCE(dentry->d_parent);
 	gotref = lockref_get_not_zero(&ret->d_lockref);
 	rcu_read_unlock();
 	if (likely(gotref)) {
-		if (!read_seqcount_retry(&dentry->d_seq, seq))
+		if (likely(ret == READ_ONCE(dentry->d_parent)))
 			return ret;
 		dput(ret);
 	}
@@ -1434,7 +1432,11 @@ static enum d_walk_ret select_collect(void *_data, struct dentry *dentry)
 		goto out;
 
 	if (dentry->d_flags & DCACHE_SHRINK_LIST) {
+	#ifdef VENDOR_EDIT
 		goto out;
+	#else
+		data->found++;
+	#endif /*VENDOR_EDIT*/
 	} else {
 		if (dentry->d_flags & DCACHE_LRU_LIST)
 			d_lru_del(dentry);

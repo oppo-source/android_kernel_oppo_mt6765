@@ -10,15 +10,12 @@ struct mtk_extcon_info {
 	unsigned int c_role; /* current data role */
 	struct workqueue_struct *extcon_wq;
 	struct regulator *vbus;
-	struct gpio_desc *id_gpiod;
 	unsigned int vbus_vol;
 	unsigned int vbus_cur;
-	unsigned int id_irq;
 	bool vbus_on;
 	struct device_connection dev_conn;
 	struct power_supply *usb_psy;
 	struct notifier_block psy_nb;
-	struct delayed_work wq_detcable;
 #ifdef CONFIG_TCPC_CLASS
 	struct tcpc_device *tcpc_dev;
 	struct notifier_block tcpc_nb;
@@ -49,8 +46,3 @@ enum {
 	DUAL_PROP_DR_DEVICE,
 	DUAL_PROP_DR_NONE,
 };
-
-#if defined ADAPT_PSY_V1
-extern void mt_usb_connect_v1(void);
-extern void mt_usb_disconnect_v1(void);
-#endif //ADAPT_PSY_V1

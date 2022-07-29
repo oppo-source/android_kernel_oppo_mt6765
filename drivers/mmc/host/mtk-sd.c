@@ -46,8 +46,10 @@
 #endif
 
 #include "cqhci.h"
-#include "rpmb-mtk.h"
-#include "../../misc/mediatek/include/mt-plat/mtk_boot_common.h"
+
+#ifdef CONFIG_MACH_MT6779
+#include "../../misc/mediatek/base/power/include/mtk_spm_resource_req.h"
+#endif
 
 #define MAX_BD_NUM          1024
 
@@ -323,6 +325,8 @@
 #define CMD_TIMEOUT         (HZ/10 * 5)	/* 100ms x5 */
 #define DAT_TIMEOUT         (HZ    * 5)	/* 1000ms x5 */
 
+#define MSDC_OCR_AVAIL	(MMC_VDD_28_29 | MMC_VDD_29_30 | MMC_VDD_30_31)
+
 #define PAD_DELAY_MAX	32 /* PAD delay cells */
 /*--------------------------------------------------------------------------*/
 /* Descriptor Structure                                                     */
@@ -477,13 +481,6 @@ struct msdc_host {
 	struct cqhci_host *cq_host;
 };
 
-struct tag_bootmode {
-	u32 size;
-	u32 tag;
-	u32 bootmode;
-	u32 boottype;
-};
-
 #ifdef CONFIG_MACH_MT8173
 spinlock_t msdc_top_lock;
 static bool msdc_top_lock_inited;
@@ -572,66 +569,6 @@ static const struct mtk_mmc_compatible mt6779_compat = {
 	.support_64g = true,
 };
 
-static const struct mtk_mmc_compatible mt6768_compat = {
-	.clk_div_bits = 12,
-	.hs400_tune = false,
-	.pad_tune_reg = MSDC_PAD_TUNE0,
-	.async_fifo = true,
-	.data_tune = true,
-	.busy_check = true,
-	.stop_clk_fix = true,
-	.enhance_rx = true,
-	.support_64g = true,
-};
-
-static const struct mtk_mmc_compatible mt6781_compat = {
-	.clk_div_bits = 12,
-	.hs400_tune = false,
-	.pad_tune_reg = MSDC_PAD_TUNE0,
-	.async_fifo = true,
-	.data_tune = true,
-	.busy_check = true,
-	.stop_clk_fix = true,
-	.enhance_rx = true,
-	.support_64g = true,
-};
-
-static const struct mtk_mmc_compatible mt6877_compat = {
-	.clk_div_bits = 12,
-	.hs400_tune = false,
-	.pad_tune_reg = MSDC_PAD_TUNE0,
-	.async_fifo = true,
-	.data_tune = true,
-	.busy_check = true,
-	.stop_clk_fix = true,
-	.enhance_rx = true,
-	.support_64g = true,
-};
-
-static const struct mtk_mmc_compatible mt8666_compat = {
-	.clk_div_bits = 12,
-	.hs400_tune = false,
-	.pad_tune_reg = MSDC_PAD_TUNE0,
-	.async_fifo = true,
-	.data_tune = true,
-	.busy_check = true,
-	.stop_clk_fix = true,
-	.enhance_rx = true,
-	.support_64g = true,
-};
-
-static const struct mtk_mmc_compatible mt6833_compat = {
-	.clk_div_bits = 12,
-	.hs400_tune = false,
-	.pad_tune_reg = MSDC_PAD_TUNE0,
-	.async_fifo = true,
-	.data_tune = true,
-	.busy_check = true,
-	.stop_clk_fix = true,
-	.enhance_rx = true,
-	.support_64g = true,
-};
-
 static const struct of_device_id msdc_of_ids[] = {
 	{ .compatible = "mediatek,mt8135-mmc", .data = &mt8135_compat},
 	{ .compatible = "mediatek,mt8173-mmc", .data = &mt8173_compat},
@@ -640,11 +577,6 @@ static const struct of_device_id msdc_of_ids[] = {
 	{ .compatible = "mediatek,mt2712-mmc", .data = &mt2712_compat},
 	{ .compatible = "mediatek,mt7622-mmc", .data = &mt7622_compat},
 	{ .compatible = "mediatek,mt6779-mmc", .data = &mt6779_compat},
-	{ .compatible = "mediatek,mt6768-mmc", .data = &mt6768_compat},
-	{ .compatible = "mediatek,mt6781-mmc", .data = &mt6781_compat},
-	{ .compatible = "mediatek,mt6877-mmc", .data = &mt6877_compat},
-	{ .compatible = "mediatek,mt8666-mmc", .data = &mt8666_compat},
-	{ .compatible = "mediatek,mt6833-mmc", .data = &mt6833_compat},
 	{}
 };
 MODULE_DEVICE_TABLE(of, msdc_of_ids);
@@ -817,11 +749,8 @@ static u64 msdc_timeout_cal(struct msdc_host *host, u64 ns, u64 clks)
 	if (host->mmc->actual_clock == 0) {
 		timeout = 0;
 	} else {
-		clk_ns  = 1000000000UL;
-		do_div(clk_ns, host->mmc->actual_clock);
-		timeout = (ns + clk_ns - 1);
-		do_div(timeout, clk_ns);
-		timeout += clks;
+		clk_ns  = 1000000000UL / host->mmc->actual_clock;
+		timeout = (ns + clk_ns - 1) / clk_ns + clks;
 		/* in 1048576 sclk cycle unit */
 		timeout = DIV_ROUND_UP(timeout, (0x1 << 20));
 		if (host->dev_comp->clk_div_bits == 8)
@@ -1163,20 +1092,20 @@ static void msdc_track_cmd_data(struct msdc_host *host,
 				struct mmc_command *cmd, struct mmc_data *data)
 {
 	if (host->error)
-		dev_dbg(host->dev, "%s: cmd=%d arg=%08X; host->error=0x%08X\n",
+		dev_warn(host->dev, "%s: cmd=%d arg=%08X; host->error=0x%08X\n",
 			__func__, cmd->opcode, cmd->arg, host->error);
 }
 
 static void msdc_request_done(struct msdc_host *host, struct mmc_request *mrq)
 {
 	unsigned long flags;
+	bool ret;
 
-	/*
-	 * No need check the return value of cancel_delayed_work, as only ONE
-	 * path will go here!
-	 */
-	cancel_delayed_work(&host->req_timeout);
-
+	ret = cancel_delayed_work(&host->req_timeout);
+	if (!ret && in_interrupt()) {
+		/* delay work already running */
+		dev_warn(host->dev, "%s delay work already running\n", __func__);
+	}
 	spin_lock_irqsave(&host->lock, flags);
 	host->mrq = NULL;
 	spin_unlock_irqrestore(&host->lock, flags);
@@ -1194,7 +1123,7 @@ static bool msdc_cmd_done(struct msdc_host *host, int events,
 	bool done = false;
 	bool sbc_error;
 	unsigned long flags;
-	u32 *rsp;
+	u32 *rsp = cmd->resp;
 
 	if (mrq->sbc && cmd == mrq->cmd &&
 	    (events & (MSDC_INT_ACMDRDY | MSDC_INT_ACMDCRCERR
@@ -1215,7 +1144,6 @@ static bool msdc_cmd_done(struct msdc_host *host, int events,
 
 	if (done)
 		return true;
-	rsp = cmd->resp;
 
 	sdr_clr_bits(host->base + MSDC_INTEN, cmd_ints_mask);
 
@@ -1254,7 +1182,7 @@ static bool msdc_cmd_done(struct msdc_host *host, int events,
 	}
 	if (cmd->error && cmd->opcode != MMC_SEND_TUNING_BLOCK &&
 	    cmd->opcode != MMC_SEND_TUNING_BLOCK_HS200)
-		dev_dbg(host->dev,
+		dev_warn(host->dev,
 				"%s: cmd=%d arg=%08X; rsp %08X; cmd_error=%d\n",
 				__func__, cmd->opcode, cmd->arg, rsp[0],
 				cmd->error);
@@ -1424,6 +1352,7 @@ static bool msdc_data_xfer_done(struct msdc_host *host, u32 events,
 
 	if (done)
 		return true;
+
 	stop = data->stop;
 
 	if (check_data || (stop && stop->error)) {
@@ -1502,7 +1431,7 @@ static int msdc_ops_switch_volt(struct mmc_host *mmc, struct mmc_ios *ios)
 
 		ret = mmc_regulator_set_vqmmc(mmc, ios);
 		if (ret) {
-			dev_dbg(host->dev, "Regulator set error %d (%d)\n",
+			dev_warn(host->dev, "Regulator set error %d (%d)\n",
 				ret, ios->signal_voltage);
 		} else {
 			/* Apply different pinctrl settings for different signal voltage */
@@ -2168,12 +2097,12 @@ skip_fall:
 		if (!cmd_err)
 			internal_delay |= (1 << i);
 	}
-	dev_dbg(host->dev, "Final internal delay: 0x%x\n", internal_delay);
+	dev_info(host->dev, "Final internal delay: 0x%x\n", internal_delay);
 	internal_delay_phase = get_best_delay(host, internal_delay);
 	sdr_set_field(host->base + tune_reg, MSDC_PAD_TUNE_CMDRRDLY,
 		      internal_delay_phase.final_phase);
 skip_internal:
-	dev_dbg(host->dev, "Final cmd pad delay: %x\n", final_delay);
+	dev_info(host->dev, "Final cmd pad delay: %x\n", final_delay);
 	return final_delay == 0xff ? -EIO : 0;
 }
 
@@ -2572,34 +2501,6 @@ static void msdc_of_property_parse(struct platform_device *pdev,
 #endif
 }
 
-static int check_boot_type(struct platform_device *pdev)
-{
-	struct tag_bootmode *tags = NULL;
-	struct device_node *node = NULL;
-	unsigned long size = 0;
-	int ret = BOOTDEV_UFS;
-
-	node = of_find_node_by_path("/chosen");
-	if (!node)
-		node = of_find_node_by_path("/chosen@0");
-
-	if (node) {
-		tags = (struct tag_bootmode *)of_get_property(node,
-				"atag,boot", (int *)&size);
-	} else
-		dev_info(&pdev->dev, "of_chosen not found\n");
-
-	if (tags) {
-		ret = tags->boottype;
-		if ((ret > 2) || (ret < 0))
-			ret = BOOTDEV_SDMMC;
-	} else {
-		dev_info(&pdev->dev, "atag,boot is not found\n");
-	}
-
-	return ret;
-}
-
 static int msdc_drv_probe(struct platform_device *pdev)
 {
 	struct mmc_host *mmc;
@@ -2609,8 +2510,6 @@ static int msdc_drv_probe(struct platform_device *pdev)
 	struct arm_smccc_res smccc_res;
 #endif
 	int ret;
-	int boot_type = 0;
-	int host_index = -1;
 
 #ifdef CONFIG_MACH_MT8173
 	if (msdc_top_lock_inited == false) {
@@ -2621,17 +2520,6 @@ static int msdc_drv_probe(struct platform_device *pdev)
 	if (!pdev->dev.of_node) {
 		dev_err(&pdev->dev, "No DT found\n");
 		return -EINVAL;
-	}
-
-	/* Add check_boot_type check and return ENODEV if not eMMC boot */
-	if (device_property_read_u32(&pdev->dev, "host-index", &host_index) < 0) {
-		dev_info(&pdev->dev, "index property is missing \n");
-		host_index = -1;
-	}
-	boot_type = check_boot_type(pdev);
-	if ((boot_type != BOOTDEV_SDMMC) && (host_index == 0)) {
-		dev_info(&pdev->dev, "no eMMC boot\n");
-		return -ENODEV;
 	}
 
 	/* Allocate MMC host for this device */
@@ -2743,6 +2631,8 @@ static int msdc_drv_probe(struct platform_device *pdev)
 	host->src_clk_freq = clk_get_rate(host->src_clk);
 	/* Set host parameters to mmc */
 	mmc->ops = &mt_msdc_ops;
+	mmc->ocr_avail = MSDC_OCR_AVAIL;
+	mmc->ocr_avail_mmc = MSDC_OCR_AVAIL;
 	if (host->dev_comp->clk_div_bits == 8)
 		mmc->f_min = DIV_ROUND_UP(host->src_clk_freq, 4 * 255);
 	else
@@ -2816,7 +2706,7 @@ static int msdc_drv_probe(struct platform_device *pdev)
 	msdc_init_hw(host);
 
 	ret = devm_request_irq(&pdev->dev, host->irq, msdc_irq,
-		IRQF_TRIGGER_NONE | IRQF_ONESHOT, pdev->name, host);
+		IRQF_TRIGGER_LOW | IRQF_ONESHOT, pdev->name, host);
 	if (ret)
 		goto release;
 
@@ -2828,10 +2718,6 @@ static int msdc_drv_probe(struct platform_device *pdev)
 
 	if (ret)
 		goto end;
-
-#if IS_ENABLED(CONFIG_RPMB)
-	ret = mmc_rpmb_register(mmc);
-#endif
 
 	return 0;
 end:
@@ -2976,6 +2862,12 @@ static int msdc_runtime_suspend(struct device *dev)
 
 	msdc_save_reg(host);
 	msdc_gate_clock(mmc);
+
+#ifdef CONFIG_MACH_MT6779
+	spm_resource_req(SPM_RESOURCE_USER_MSDC, SPM_RESOURCE_RELEASE);
+	/* pr_warn("msdc runtime suspend.\n"); */
+#endif
+
 	return 0;
 }
 
@@ -2984,6 +2876,11 @@ static int msdc_runtime_resume(struct device *dev)
 	struct mmc_host *mmc = dev_get_drvdata(dev);
 	struct msdc_host *host = mmc_priv(mmc);
 	struct arm_smccc_res smccc_res;
+
+#ifdef CONFIG_MACH_MT6779
+	spm_resource_req(SPM_RESOURCE_USER_MSDC, SPM_RESOURCE_ALL);
+	/* pr_warn("msdc runtime resume.\n"); */
+#endif
 
 	msdc_ungate_clock(mmc);
 	msdc_restore_reg(host);

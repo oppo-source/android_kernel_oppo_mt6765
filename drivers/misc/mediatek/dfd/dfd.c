@@ -16,6 +16,7 @@
 #include "dfd.h"
 
 static struct dfd_drv *drv;
+static void __iomem *toprgu_base;
 
 /* return -1 for error indication */
 int dfd_setup(int version)
@@ -78,7 +79,7 @@ static int __init fdt_get_chosen(unsigned long node, const char *uname,
 
 static int __init dfd_init(void)
 {
-	struct device_node *dev_node, *infra_node;
+	struct device_node *dev_node, *infra_node, *tmp;
 	unsigned long node;
 	const void *prop;
 	unsigned int val;
@@ -98,6 +99,15 @@ static int __init dfd_init(void)
 			pr_info("%s: Latch offset not found.\n", __func__);
 			return -ENODATA;
 		}
+
+		tmp = of_find_compatible_node(NULL, NULL, "mediatek,toprgu");
+		toprgu_base = of_iomap(tmp, 0);
+		if (!toprgu_base)
+			pr_info("RGU base not found.\n");
+		else
+			get_dfd_base(toprgu_base, val);
+
+		pr_info("get topdbg base\n");
 
 		if (of_property_read_u32(dev_node, "mediatek,enabled", &val))
 			drv->enabled = 0;

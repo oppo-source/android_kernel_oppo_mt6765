@@ -10,13 +10,9 @@
 
 #include "spm_v2/mtk_spm_sleep.h"
 
-#elif defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6771)
+#elif defined(CONFIG_MACH_MT6763)
 
 #include "spm_v4/mtk_spm_sleep.h"
-
-#elif defined(CONFIG_MACH_MT6768)
-
-#include "spm_v1/mtk_spm_sleep.h"
 
 #else
 

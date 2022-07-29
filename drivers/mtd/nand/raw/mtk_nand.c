@@ -1384,14 +1384,14 @@ static int mtk_nfc_nand_chip_init(struct device *dev, struct mtk_nfc *nfc,
 
 	mtk_nfc_hw_init(nfc);
 
-	ret = nand_scan(nand, nsels);
+	ret = nand_scan(mtd, nsels);
 	if (ret)
 		return ret;
 
 	ret = mtd_device_parse_register(mtd, part_types, NULL, NULL, 0);
 	if (ret) {
 		dev_err(dev, "mtd parse partition error\n");
-		nand_cleanup(nand);
+		nand_release(mtd);
 		return ret;
 	}
 
@@ -1557,7 +1557,7 @@ static int mtk_nfc_remove(struct platform_device *pdev)
 	while (!list_empty(&nfc->chips)) {
 		chip = list_first_entry(&nfc->chips, struct mtk_nfc_nand_chip,
 					node);
-		nand_release(&chip->nand);
+		nand_release(nand_to_mtd(&chip->nand));
 		list_del(&chip->node);
 	}
 

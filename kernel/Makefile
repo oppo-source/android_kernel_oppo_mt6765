@@ -16,6 +16,10 @@ obj-y     = fork.o exec_domain.o panic.o \
 obj-$(CONFIG_MODULES) += kmod.o
 obj-$(CONFIG_MULTIUSER) += groups.o
 
+#ifdef CONFIG_OPLUS_FEATURE_PANIC_FLUSH
+obj-y += panic_flush.o
+#endif
+
 ifdef CONFIG_FUNCTION_TRACER
 # Do not trace internal ftrace files
 CFLAGS_REMOVE_irq_work.o = $(CC_FLAGS_FTRACE)
@@ -49,6 +53,12 @@ obj-y += irq/
 obj-y += rcu/
 obj-y += livepatch/
 obj-y += dma/
+
+
+#ifdef CONFIG_OPLUS_SECURE_GUARD
+obj-$(CONFIG_OPLUS_SECURE_GUARD) += keventupload/
+#endif /* CONFIG_OPLUS_SECURE_GUARD */
+
 
 obj-$(CONFIG_CHECKPOINT_RESTORE) += kcmp.o
 obj-$(CONFIG_FREEZER) += freezer.o
@@ -99,6 +109,7 @@ obj-$(CONFIG_TASK_DELAY_ACCT) += delayacct.o
 obj-$(CONFIG_TASKSTATS) += taskstats.o tsacct.o
 obj-$(CONFIG_TRACEPOINTS) += tracepoint.o
 obj-$(CONFIG_LATENCYTOP) += latencytop.o
+obj-$(CONFIG_ELFCORE) += elfcore.o
 obj-$(CONFIG_FUNCTION_TRACER) += trace/
 obj-$(CONFIG_TRACING) += trace/
 obj-$(CONFIG_TRACE_CLOCK) += trace/
@@ -122,6 +133,10 @@ obj-$(CONFIG_TORTURE_TEST) += torture.o
 obj-$(CONFIG_HAS_IOMEM) += iomem.o
 obj-$(CONFIG_ZONE_DEVICE) += memremap.o
 obj-$(CONFIG_RSEQ) += rseq.o
+
+#ifdef OPLUS_FEATURE_UIFIRST
+obj-y += uifirst/
+#endif /* OPLUS_FEATURE_UIFIRST */
 
 $(obj)/configs.o: $(obj)/config_data.h
 

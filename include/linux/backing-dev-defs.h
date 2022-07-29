@@ -210,6 +210,11 @@ struct backing_dev_info {
 enum {
 	BLK_RW_ASYNC	= 0,
 	BLK_RW_SYNC	= 1,
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_OPLUS_FEATURE_UXIO_FIRST)
+	BLK_RW_UX	= 2,
+	BLK_RW_FG	= 3,
+	BLK_RW_BG	= 4,
+#endif
 };
 
 void clear_wb_congested(struct bdi_writeback_congested *congested, int sync);

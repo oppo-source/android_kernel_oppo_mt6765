@@ -63,6 +63,7 @@
 #include "disp_partial.h"
 #include "ddp_dsi.h"
 
+#include "../../../../oplus/oplus_display_private_api.h"
 /* For abnormal check */
 static struct task_struct *primary_display_check_task;
 /* used for blocking check task  */
@@ -78,6 +79,7 @@ static unsigned int esd_check_mode;
 static unsigned int esd_check_enable;
 unsigned int esd_checking;
 static int te_irq;
+extern unsigned int oplus_backlight_backup;
 
 #if defined(CONFIG_MTK_DUAL_DISPLAY_SUPPORT) && \
 	(CONFIG_MTK_DUAL_DISPLAY_SUPPORT == 2)
@@ -608,6 +610,12 @@ static int primary_display_check_recovery_worker_kthread(void *data)
 			DISPINFO("[ESD]check thread waked up accidently\n");
 			continue;
 		}
+		/* add for backlight of no esd recovery */
+		if (0 == oplus_backlight_backup) {
+			DISPINFO("[ESD]check thread waked up accidently because backlight off\n");
+			continue;
+		}
+		/* end */
 
 		_primary_path_switch_dst_lock();
 

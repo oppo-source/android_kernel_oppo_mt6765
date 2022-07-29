@@ -24,7 +24,7 @@
 static DEFINE_SPINLOCK(imgsensor_drv_lock);
 
 static struct imgsensor_info_struct imgsensor_info = {
-	.sensor_id = OV13B10_SENSOR_ID,
+	.sensor_id = ROID_OV13B10_SENSOR_ID,
 
 	.checksum_value = 0x3acb7e3a,
 

@@ -52,11 +52,33 @@ static enum IMGSENSOR_RETURN mclk_init(void *pinstance)
 	    i++) {
 		for (j = MCLK_STATE_DISABLE; j < MCLK_STATE_MAX_NUM; j++) {
 			if (mclk_pinctrl_list[j].ppinctrl_names) {
-				ret_snprintf = snprintf(str_pinctrl_name,
+				#ifdef OPLUS_FEATURE_CAMERA_COMMON
+				if ((pascal_project() == 2) && (i == 2)) {//i = 2,main2 sensor;pascal_project() = 2 PASCAL
+					snprintf(str_pinctrl_name,
+					sizeof(str_pinctrl_name),
+					"cam%d_mclk_p%s",
+					i,
+					mclk_pinctrl_list[j].ppinctrl_names);
+				} else if((pascal_project() == 3) && (i == 3)) {//i = 3,sub2 sensor;pascal_project() = 3 PASCALE
+					snprintf(str_pinctrl_name,
+					sizeof(str_pinctrl_name),
+					"cam%d_mclk_pe%s",
+					i,
+					mclk_pinctrl_list[j].ppinctrl_names);
+				} else {
+					snprintf(str_pinctrl_name,
 					sizeof(str_pinctrl_name),
 					"cam%d_mclk_%s",
 					i,
 					mclk_pinctrl_list[j].ppinctrl_names);
+				}
+				#else
+					snprintf(str_pinctrl_name,
+					sizeof(str_pinctrl_name),
+					"cam%d_mclk_%s",
+					i,
+					mclk_pinctrl_list[j].ppinctrl_names);
+				#endif
 				if (ret_snprintf < 0) {
 					pr_info(
 					"snprintf alloc error!, ret = %d", ret);

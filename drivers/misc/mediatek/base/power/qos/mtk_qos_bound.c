@@ -12,13 +12,11 @@
 #include <sspm_define.h>
 #include <sspm_reservedmem.h>
 
-#ifndef CONFIG_MACH_MT6893 /* temp , wait dramc */
 #ifdef CONFIG_MTK_DRAMC
 #include <mtk_dramc.h>
 #else
 __weak int dram_steps_freq(unsigned int step) { return 0; }
 #endif
-#endif /* CONFIG_MACH_MT6893  */
 
 static int qos_bound_enabled;
 static int qos_bound_stress_enabled;
@@ -42,7 +40,6 @@ void qos_bound_enable(int enable)
 	qos_ipi_d.u.qos_bound_enable.enable = enable;
 	bound = (struct qos_bound *)
 		sspm_sbuf_get(qos_ipi_to_sspm_command(&qos_ipi_d, 2));
-	smp_mb(); /* init bound before flag enabled */
 #endif
 	qos_bound_enabled = enable;
 }
@@ -78,12 +75,10 @@ unsigned int get_qos_bound_count(void)
 {
 	return qos_bound_count;
 }
-EXPORT_SYMBOL(get_qos_bound_count);
 unsigned int *get_qos_bound_buf(void)
 {
 	return qos_bound_buf;
 }
-EXPORT_SYMBOL(get_qos_bound_buf);
 
 void qos_bound_init(void)
 {
@@ -94,18 +89,10 @@ struct qos_bound *get_qos_bound(void)
 {
 	return bound;
 }
-EXPORT_SYMBOL(get_qos_bound);
 
 int get_qos_bound_bw_threshold(int state)
 {
-	int val = 0;
-
-#ifndef CONFIG_MACH_MT6893 /* temp , wait dramc */
-	val = dram_steps_freq(0) * QOS_BOUND_EMI_CH * 2;
-#else
-    /* temp , wait dramc */
-	val = 4266 * QOS_BOUND_EMI_CH * 2;
-#endif /* CONFIG_MACH_MT6893  */
+	int val = dram_steps_freq(0) * 4;
 
 	if (state == QOS_BOUND_BW_FULL)
 		return val * QOS_BOUND_BW_FULL_PCT / 100;
@@ -114,7 +101,6 @@ int get_qos_bound_bw_threshold(int state)
 
 	return 0;
 }
-EXPORT_SYMBOL(get_qos_bound_bw_threshold);
 
 unsigned short get_qos_bound_idx(void)
 {
@@ -123,19 +109,18 @@ unsigned short get_qos_bound_idx(void)
 
 	return bound->idx;
 }
-EXPORT_SYMBOL(get_qos_bound_idx);
 
 int register_qos_notifier(struct notifier_block *nb)
 {
 	return blocking_notifier_chain_register(&qos_bound_chain_head, nb);
 }
-EXPORT_SYMBOL(register_qos_notifier);
+EXPORT_SYMBOL_GPL(register_qos_notifier);
 
 int unregister_qos_notifier(struct notifier_block *nb)
 {
 	return blocking_notifier_chain_unregister(&qos_bound_chain_head, nb);
 }
-EXPORT_SYMBOL(unregister_qos_notifier);
+EXPORT_SYMBOL_GPL(unregister_qos_notifier);
 
 int qos_notifier_call_chain(unsigned long val, void *v)
 {

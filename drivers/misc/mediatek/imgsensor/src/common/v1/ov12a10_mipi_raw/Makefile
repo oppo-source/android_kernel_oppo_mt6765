@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 
 #add start by hongfei.zhang@mediatek.com
 obj-y += ov12a10mipiraw_Sensor.o

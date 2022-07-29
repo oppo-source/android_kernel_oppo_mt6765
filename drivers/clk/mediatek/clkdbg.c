@@ -459,7 +459,7 @@ static const char *get_provider_name(struct device_node *node, u32 *cells)
 {
 	const char *name;
 	const char *p;
-	u32 cc = 0;
+	u32 cc;
 
 	if (of_property_read_u32(node, "#clock-cells", &cc) != 0)
 		cc = 0;
@@ -1198,8 +1198,6 @@ static struct generic_pm_domain **get_all_genpd(void)
 
 #if CLKDBG_PM_DOMAIN_API_4_9 || CLKDBG_PM_DOMAIN_API_4_19
 	pdev = platform_device_alloc("traverse", 0);
-	if (!pdev)
-		return NULL;
 #endif
 
 	for (num_pds = 0; num_pds < maxpd; num_pds++) {
@@ -2184,7 +2182,7 @@ static ssize_t clkdbg_write(
 
 	last_cmd[len] = '\0';
 
-	if (len >= 1 && last_cmd[len - 1UL] == '\n')
+	if (last_cmd[len - 1UL] == '\n')
 		last_cmd[len - 1UL] = '\0';
 
 	return (ssize_t)len;

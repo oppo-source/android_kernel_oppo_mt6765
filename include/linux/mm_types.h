@@ -512,6 +512,16 @@ struct mm_struct {
 #endif
 		struct work_struct async_put_work;
 
+#if defined(OPLUS_FEATURE_VIRTUAL_RESERVE_MEMORY) && defined(CONFIG_VIRTUAL_RESERVE_MEMORY)
+		struct vm_area_struct *reserve_vma;
+		struct vm_area_struct *reserve_mmap;
+		struct rb_root reserve_mm_rb;
+		unsigned long reserve_highest_vm_end;
+		int reserve_map_count;
+		int do_reserve_mmap;
+		bool vm_search_two_way;
+#endif
+
 #if IS_ENABLED(CONFIG_HMM)
 		/* HMM needs to track a few things per mm */
 		struct hmm *hmm;

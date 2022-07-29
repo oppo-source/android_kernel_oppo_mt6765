@@ -5,6 +5,7 @@
 
 #include "flashlight-core.h"
 
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
 #if defined(mt6739)
 const struct flashlight_device_id flashlight_id[] = {
 	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
@@ -103,4 +104,41 @@ const struct flashlight_device_id flashlight_id[] = {
 
 const int flashlight_device_num =
 	sizeof(flashlight_id) / sizeof(struct flashlight_device_id);
+#else /*OPLUS_FEATURE_CAMERA_COMMON*/
+#if defined(mt6765)
+const struct flashlight_device_id flashlight_id_single[] = {
+	{0, 0, 0, "flashlights_yogurt", 0, 1},
+	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
+	{0, 0, 0, "flashlights_pascal", -1, 1},
+};
+
+const struct flashlight_device_id flashlight_id_parkera[] = {
+	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
+	{0, 0, 0, "flashlights-parkera", 0, 1},
+};
+
+const struct flashlight_device_id flashlight_id_parkerb[] = {
+	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
+	{0, 0, 0, "flashlights-parkerb", 0, 1},
+};
+
+const struct flashlight_device_id flashlight_id_yogurta[] = {
+	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
+	{0, 0, 0, "flashlights_yogurta", 0, 1},
+};
+
+const struct flashlight_device_id flashlight_id_dual[] = {
+};
+#else
+const struct flashlight_device_id flashlight_id_dual[] = {
+	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
+	{0, 0, 0, "flashlights-mt6360", 0, 0},
+	{0, 1, 0, "flashlights-mt6360", 1, 0},
+};
+const struct flashlight_device_id flashlight_id_single[] = {
+	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
+	{0, 0, 0, "flashlights-mt6360", 0, 1},
+};
+#endif /*mt6765*/
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 

@@ -38,7 +38,7 @@ enum{
 	IMGSENSOR_MODE_CUSTOM3,
 	IMGSENSOR_MODE_CUSTOM4,
 	IMGSENSOR_MODE_CUSTOM5,
-} IMGSENSOR_MODE;
+};
 
 struct imgsensor_mode_struct {
 	kal_uint32 pclk;
@@ -56,7 +56,7 @@ struct imgsensor_mode_struct {
 	/*	 following for GetDefaultFramerateByScenario()	*/
 	kal_uint16 max_framerate;
 
-} imgsensor_mode_struct;
+};
 
 /* SENSOR PRIVATE STRUCT FOR VARIABLES*/
 struct imgsensor_struct {
@@ -83,7 +83,7 @@ struct imgsensor_struct {
 	kal_bool  ihdr_en;				//ihdr enable or disable
 
 	kal_uint8 i2c_write_id; //record current sensor's i2c write id
-} imgsensor_struct;
+};
 
 /* SENSOR PRIVATE STRUCT FOR CONSTANT*/
 struct imgsensor_info_struct {
@@ -134,7 +134,7 @@ struct imgsensor_info_struct {
 	kal_uint8  mipi_lane_num;		//mipi lane num
 	kal_uint8  i2c_addr_table[5];
 	kal_uint32  i2c_speed;     //i2c speed
-} imgsensor_info_struct;
+};
 
 
 extern int iReadRegI2C(u8 *a_pSendData, u16 a_sizeSendData, u8 *a_pRecvData,

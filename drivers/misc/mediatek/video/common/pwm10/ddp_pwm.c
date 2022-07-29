@@ -20,16 +20,14 @@
 	defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6763) || \
 	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
-	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779) || \
-	defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT6768)
+	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779)
 #include <ddp_clkmgr.h>
 #endif
 #endif
 #include <ddp_pwm_mux.h>
 /* #include <mach/mt_gpio.h> */
 #include <disp_dts_gpio.h> /* DTS GPIO */
-#if defined(LED_READY) || defined(CONFIG_MACH_MT6768) || \
-	defined(CONFIG_MACH_MT6771)
+#if defined(LED_READY)
 #include <mtk_leds_drv.h>
 #include <mtk_leds_sw.h>
 #else
@@ -99,8 +97,12 @@ static atomic_t g_pwm_is_change_state[PWM_TOTAL_MODULE_NUM] = {
 #ifndef CONFIG_FPGA_EARLY_PORTING
 static atomic_t g_pwm_backlight[PWM_TOTAL_MODULE_NUM] = { ATOMIC_INIT(-1) };
 static atomic_t g_pwm_en[PWM_TOTAL_MODULE_NUM] = { ATOMIC_INIT(-1) };
+#ifndef OPLUS_BUG_STABILITY
 static atomic_t g_pwm_max_backlight[PWM_TOTAL_MODULE_NUM] = {
 	ATOMIC_INIT(1023) };
+#else
+static atomic_t g_pwm_max_backlight[PWM_TOTAL_MODULE_NUM] = { ATOMIC_INIT(2047) };
+#endif/*OPLUS_BUG_STABILITY*/
 static atomic_t g_pwm_is_power_on[PWM_TOTAL_MODULE_NUM] = { ATOMIC_INIT(0) };
 static atomic_t g_pwm_value_before_power_off[PWM_TOTAL_MODULE_NUM] = {
 	ATOMIC_INIT(0) };
@@ -567,6 +569,10 @@ int disp_pwm_set_backlight_cmdq(enum disp_pwm_id_t id,
 	int abs_diff;
 	int max_level_1024;
 
+	#ifdef VENDOR_EDIT
+	return 0;
+	#endif
+
 	if ((DISP_PWM_ALL & id) == 0) {
 		PWM_ERR("[ERROR] invalid id = 0x%x", id);
 		return -EFAULT;
@@ -638,10 +644,10 @@ static int ddp_pwm_power_on(enum DISP_MODULE_ENUM module, void *handle)
 
 #if defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
-	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT6768)
+	defined(CONFIG_MACH_MT6761)
 	/* pwm ccf api */
 	ddp_clk_prepare_enable(ddp_get_module_clk_id(module));
-#elif defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6771)
+#elif defined(CONFIG_MACH_MT6763)
 	ddp_clk_prepare_enable(ddp_get_module_clk_id(module));
 	ddp_clk_prepare_enable(TOP_MUX_DISP_PWM);
 #elif defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779)
@@ -696,10 +702,10 @@ static int ddp_pwm_power_off(enum DISP_MODULE_ENUM module, void *handle)
 
 #if defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
-	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT6768)
+	defined(CONFIG_MACH_MT6761)
 	/* pwm ccf api */
 	ddp_clk_disable_unprepare(ddp_get_module_clk_id(module));
-#elif defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6771)
+#elif defined(CONFIG_MACH_MT6763)
 	ddp_clk_disable_unprepare(ddp_get_module_clk_id(module));
 	ddp_clk_disable_unprepare(TOP_MUX_DISP_PWM);
 #elif defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779)
@@ -777,8 +783,7 @@ bool disp_pwm_is_osc(void)
 	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739) || \
 	defined(CONFIG_MACH_MT6758) || defined(CONFIG_MACH_MT6765) || \
 	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT3967) || \
-	defined(CONFIG_MACH_MT6779) || defined(CONFIG_MACH_MT6768) || \
-	defined(CONFIG_MACH_MT6771)
+	defined(CONFIG_MACH_MT6779)
 
 	is_osc = disp_pwm_mux_is_osc();
 #endif

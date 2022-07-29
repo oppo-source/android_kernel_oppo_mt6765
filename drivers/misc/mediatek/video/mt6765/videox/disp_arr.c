@@ -56,8 +56,7 @@ int primary_display_get_max_refresh_rate(void)
 	int ret = -1;
 
 	/* _primary_path_lock(__func__); */
-	if ((pgc && pgc->plcm && pgc->plcm->params) &&
-		(pgc->plcm->params->max_refresh_rate != 0))
+	if (pgc->plcm->params->max_refresh_rate != 0)
 		ret = pgc->plcm->params->max_refresh_rate;
 	else
 		ret = 60;
@@ -71,8 +70,7 @@ int primary_display_get_min_refresh_rate(void)
 	int ret = -1;
 
 	/* _primary_path_lock(__func__); */
-	if ((pgc && pgc->plcm && pgc->plcm->params) &&
-		(pgc->plcm->params->min_refresh_rate != 0))
+	if (pgc->plcm->params->min_refresh_rate != 0)
 		ret = pgc->plcm->params->min_refresh_rate;
 	else
 		ret = 60;

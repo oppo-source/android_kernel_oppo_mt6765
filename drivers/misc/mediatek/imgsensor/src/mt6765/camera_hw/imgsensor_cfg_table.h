@@ -12,9 +12,12 @@
 
 #define IMGSENSOR_DEV_NAME "kd_camera_hw"
 
-
 #define IMGSENSOR_HW_POWER_INFO_MAX	12
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#define IMGSENSOR_HW_SENSOR_MAX_NUM	32
+#else
 #define IMGSENSOR_HW_SENSOR_MAX_NUM	8
+#endif
 
 enum IMGSENSOR_HW_PIN {
 	IMGSENSOR_HW_PIN_NONE = 0,
@@ -24,6 +27,9 @@ enum IMGSENSOR_HW_PIN {
 	IMGSENSOR_HW_PIN_DVDD,
 	IMGSENSOR_HW_PIN_DOVDD,
 	IMGSENSOR_HW_PIN_AFVDD,
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	IMGSENSOR_HW_PIN_MIPI_SWITCH_SEL,
+#endif
 #ifdef MIPI_SWITCH
 	IMGSENSOR_HW_PIN_MIPI_SWITCH_EN,
 	IMGSENSOR_HW_PIN_MIPI_SWITCH_SEL,
@@ -56,6 +62,9 @@ enum IMGSENSOR_HW_PIN_STATE {
 #define	AVDD   IMGSENSOR_HW_PIN_AVDD
 #define	DVDD   IMGSENSOR_HW_PIN_DVDD
 #define	DOVDD  IMGSENSOR_HW_PIN_DOVDD
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#define	MIPISEL  IMGSENSOR_HW_PIN_MIPI_SWITCH_SEL
+#endif
 #define	AFVDD  IMGSENSOR_HW_PIN_AFVDD
 #define	VDD_None  IMGSENSOR_HW_PIN_NONE
 
@@ -89,15 +98,18 @@ enum IMGSENSOR_HW_ID {
 #define IMGSENSOR_I2C_DRV_NAME_0  "kd_camera_hw"
 #define IMGSENSOR_I2C_DRV_NAME_1  "kd_camera_hw_bus2"
 #define IMGSENSOR_I2C_DRV_NAME_2  "kd_camera_hw_bus3"
+#define IMGSENSOR_I2C_DRV_NAME_3  "kd_camera_hw_bus4"
 
 #define IMGSENSOR_I2C_OF_DRV_NAME_0 "mediatek,camera_main"
 #define IMGSENSOR_I2C_OF_DRV_NAME_1 "mediatek,camera_sub"
 #define IMGSENSOR_I2C_OF_DRV_NAME_2 "mediatek,camera_main_two"
+#define IMGSENSOR_I2C_OF_DRV_NAME_3 "mediatek,camera_sub_two"
 
 enum IMGSENSOR_I2C_DEV {
 	IMGSENSOR_I2C_DEV_0,
 	IMGSENSOR_I2C_DEV_1,
 	IMGSENSOR_I2C_DEV_2,
+	IMGSENSOR_I2C_DEV_3,
 	IMGSENSOR_I2C_DEV_MAX_NUM,
 };
 
@@ -144,6 +156,21 @@ extern struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence[];
 extern struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[];
 extern enum IMGSENSOR_RETURN
 	(*hw_open[IMGSENSOR_HW_ID_MAX_NUM])(struct IMGSENSOR_HW_DEVICE **);
+
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+extern struct IMGSENSOR_HW_CFG        imgsensor_custom_config_pascald[];
+extern struct IMGSENSOR_HW_CFG        imgsensor_custom_config_pascal[];
+extern struct IMGSENSOR_HW_CFG        imgsensor_custom_config_pascale[];
+int pascal_project(void);
+extern struct IMGSENSOR_HW_CFG        imgsensor_custom_config_parkera[];
+extern struct IMGSENSOR_HW_CFG       imgsensor_custom_config_yogurt[];
+extern struct IMGSENSOR_HW_CFG       imgsensor_custom_config_parker[];
+/*Parker-B*/
+extern struct IMGSENSOR_HW_CFG        imgsensor_custom_config_parkerb[];
+int yogurt_project(void);
+int yogurta_project(void);
+int parker_project(void);
+#endif //OPLUS_FEATURE_CAMERA_COMMON
 
 #endif
 

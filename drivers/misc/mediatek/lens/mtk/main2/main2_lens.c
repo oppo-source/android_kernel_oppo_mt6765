@@ -20,6 +20,13 @@
 #ifdef CONFIG_COMPAT
 #include <linux/compat.h>
 #endif
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+#define OPLUS_FEATURE_CAMERA_COMMON
+#endif
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#include<soc/oppo/oppo_project.h>
+#include <linux/regulator/consumer.h>
+#endif
 
 /* kernel standard */
 #include <linux/regulator/consumer.h>
@@ -50,8 +57,12 @@
 #endif
 
 #if I2C_CONFIG_SETTING == 1
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#define LENS_I2C_BUSNUM 4
+#else
 #define LENS_I2C_BUSNUM 0
-#define I2C_REGISTER_ID 0x28
+#endif
+#define I2C_REGISTER_ID            0x28
 #endif
 
 #define PLATFORM_DRIVER_NAME "lens_actuator_main2_af"
@@ -83,8 +94,7 @@ static struct stAF_OisPosInfo OisPosInfo;
 /* ------------------------- */
 
 static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
-	{1, AFDRV_DW9718TAF, DW9718TAF_SetI2Cclient, DW9718TAF_Ioctl,
-	 DW9718TAF_Release, DW9718TAF_GetFileName, NULL},
+	{1, AFDRV_DW9718TAF, DW9718TAF_SetI2Cclient, DW9718TAF_Ioctl, DW9718TAF_Release, DW9718TAF_GetFileName, NULL},
 	{1, AFDRV_LC898212XDAF_F, LC898212XDAF_F_SetI2Cclient,
 	 LC898212XDAF_F_Ioctl, LC898212XDAF_F_Release,
 	 LC898212XDAF_F_GetFileName, NULL},
@@ -120,15 +130,18 @@ static struct cdev *g_pAF_CharDrv;
 static struct class *actuator_class;
 static struct device *lens_device;
 
+#if 0
 static struct regulator *vcamaf_ldo;
 static struct pinctrl *vcamaf_pio;
 static struct pinctrl_state *vcamaf_pio_on;
 static struct pinctrl_state *vcamaf_pio_off;
+#endif
 
 #define CAMAF_PMIC     "camaf_m2_pmic"
 #define CAMAF_GPIO_ON  "camaf_m2_gpio_on"
 #define CAMAF_GPIO_OFF "camaf_m2_gpio_off"
 
+#if 0
 static void camaf_power_init(void)
 {
 	int ret;
@@ -211,15 +224,20 @@ static void camaf_power_off(void)
 		LOG_INF("pinctrl disable (%d)\n", ret);
 	}
 }
+#endif
 
 #ifdef CONFIG_MACH_MT6765
 static int DrvPwrDn1 = 1;
 #endif
 
-
 void MAIN2AF_PowerDown(void)
 {
 	if (g_pstAF_I2Cclient != NULL) {
+		#ifdef OPLUS_FEATURE_CAMERA_COMMON
+		#ifdef CONFIG_MTK_LENS_DW9718TAF_SUPPORT
+		DW9718TAF_SetI2Cclient(g_pstAF_I2Cclient, &g_AF_SpinLock, &g_s4AF_Opened);
+		#endif
+		#endif
 #if defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT6775)
 		LC898217AF_PowerDown(g_pstAF_I2Cclient,
 					&g_s4AF_Opened);
@@ -265,7 +283,7 @@ static long AF_SetMotorName(__user struct stAF_MotorName *pstMotorName)
 		if (g_stAF_DrvList[i].uEnable != 1)
 			break;
 
-		LOG_INF("Search Motor Name : %s\n", g_stAF_DrvList[i].uDrvName);
+		LOG_INF("MAIN2AF Search Motor Name : %s\n", g_stAF_DrvList[i].uDrvName);
 		if (strcmp(stMotorName.uMotorName,
 			   g_stAF_DrvList[i].uDrvName) == 0) {
 			LOG_INF("Motor Name : %s\n", stMotorName.uMotorName);
@@ -510,7 +528,7 @@ static long AF_Ioctl_Compat(struct file *a_pstFile, unsigned int a_u4Command,
 /* CAM_RESET */
 static int AF_Open(struct inode *a_pstInode, struct file *a_pstFile)
 {
-	LOG_INF("Start\n");
+	LOG_INF("MAIN2AF Start\n");
 
 	spin_lock(&g_AF_SpinLock);
 	if (g_s4AF_Opened) {
@@ -521,12 +539,18 @@ static int AF_Open(struct inode *a_pstInode, struct file *a_pstFile)
 	g_s4AF_Opened = 1;
 	spin_unlock(&g_AF_SpinLock);
 
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+	/*Feiping.Li@	Cam.Drv, 20200623, modify for pre11 upgrade -- 19551 still using sensor power seque */
 	camaf_power_init();
 	camaf_power_on();
+#endif
 
 	/* OIS/EIS Timer & Workqueue */
 	/* init work queue */
 	INIT_WORK(&ois_work, ois_pos_polling);
+
+	if (ois_workqueue == NULL)
+		ois_workqueue = create_singlethread_workqueue("ois_polling");
 
 	/* init timer */
 	hrtimer_init(&ois_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
@@ -535,7 +559,7 @@ static int AF_Open(struct inode *a_pstInode, struct file *a_pstFile)
 	g_EnableTimer = 0;
 	/* ------------------------- */
 
-	LOG_INF("End\n");
+	LOG_INF("MAIN2AF End\n");
 
 	return 0;
 }
@@ -558,7 +582,10 @@ static int AF_Release(struct inode *a_pstInode, struct file *a_pstFile)
 		spin_unlock(&g_AF_SpinLock);
 	}
 
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+/*Feiping.Li@	Cam.Drv, 20200623, modify for pre11 upgrade -- 19551 still using sensor power seque */
 	camaf_power_off();
+#endif
 
 	/* OIS/EIS Timer & Workqueue */
 	/* Cancel Timer */

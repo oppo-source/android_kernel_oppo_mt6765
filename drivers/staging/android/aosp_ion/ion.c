@@ -369,16 +369,16 @@ static void *ion_dma_buf_kmap(struct dma_buf *dmabuf, unsigned long offset)
 	void *vaddr;
 
 	if (!buffer->heap->ops->map_kernel) {
-		pr_err("%s: map kernel is not implemented by this heap.\n",
-		       __func__);
-		return ERR_PTR(-ENOTTY);
+			pr_err("%s: map kernel is not implemented by this heap.\n",
+				   __func__);
+			return ERR_PTR(-ENOTTY);
 	}
 	mutex_lock(&buffer->lock);
-	vaddr = ion_buffer_kmap_get(buffer);
+    vaddr = ion_buffer_kmap_get(buffer);
 	mutex_unlock(&buffer->lock);
 
 	if (IS_ERR(vaddr))
-		return vaddr;
+			return vaddr;
 
 	return vaddr + offset * PAGE_SIZE;
 }
@@ -386,13 +386,14 @@ static void *ion_dma_buf_kmap(struct dma_buf *dmabuf, unsigned long offset)
 static void ion_dma_buf_kunmap(struct dma_buf *dmabuf, unsigned long offset,
 			       void *ptr)
 {
-	struct ion_buffer *buffer = dmabuf->priv;
+    struct ion_buffer *buffer = dmabuf->priv;
 
 	if (buffer->heap->ops->map_kernel) {
-		mutex_lock(&buffer->lock);
-		ion_buffer_kmap_put(buffer);
-		mutex_unlock(&buffer->lock);
+			mutex_lock(&buffer->lock);
+			ion_buffer_kmap_put(buffer);
+			mutex_unlock(&buffer->lock);
 	}
+
 }
 
 static int ion_dma_buf_begin_cpu_access(struct dma_buf *dmabuf,

@@ -11,9 +11,8 @@
 #include <dt-bindings/clock/mt6765-clk.h>
 #include <dt-bindings/iio/mt635x-auxadc.h>
 #include <dt-bindings/gce/mt6765-gce.h>
-#include <dt-bindings/soc/mediatek,boot-mode.h>
-#include <dt-bindings/phy/phy.h>
 #include <generated/autoconf.h>
+#include <dt-bindings/soc/mediatek,boot-mode.h>
 
 /dts-v1/;
 
@@ -643,16 +642,15 @@
 
 	infracfg_ao: infracfg_ao@10001000 {
 		compatible = "mediatek,common-infracfg_ao",
-			     "mediatek,infracfg_ao",
 			     "mediatek,mt6765-infracfg", "syscon";
 		reg = <0 0x10001000 0 0x1000>;
 		interrupts = <GIC_SPI 147 IRQ_TYPE_EDGE_RISING>;
 		#clock-cells = <1>;
 	};
 
-	mcdi@00110100 {
+	mcdi@0010fc00 {
 		compatible = "mediatek,mt6765-mcdi";
-		reg = <0 0x00110100 0 0x800>;
+		reg = <0 0x0010fc00 0 0x800>;
 	};
 
 	scpsys: scpsys@10001000 {
@@ -935,7 +933,6 @@
 		interrupts = <GIC_SPI 192 IRQ_TYPE_LEVEL_HIGH>;
 		core_1 = "enable";
 		scp_sramSize = <0x00040000>;
-		scp_mpuRegionId = <27>;
 		scp_feature_tbl = <0 47>,   /* vow */
 				  <1 356>,  /* dsp */
 				  <2 62>,   /* sensor */
@@ -1072,9 +1069,9 @@
 			compatible = "mediatek,mt6765-dvfsrc-met";
 		};
 
-		qos@00110b80 {
+		qos@00110780 {
 			compatible = "mediatek,mt6765-qos";
-			reg = <0 0x00110b80 0 0x80>;
+			reg = <0 0x00110780 0 0x80>;
 		};
 	};
 
@@ -1447,10 +1444,10 @@
 		reg = <0 0x10227000 0 0x1000>;
 	};
 
-	dvfsp@00110c00 {
+	dvfsp@00110800 {
 		compatible = "mediatek,mt6765-dvfsp";
-		reg = <0 0x00110c00 0 0x1400>,
-		      <0 0x00110c00 0 0x1400>;
+		reg = <0 0x00110800 0 0x1400>,
+		      <0 0x00110800 0 0x1400>;
 		state = <1>;
 		change_flag = <0>;
 		little-rise-time = <1000>;
@@ -2456,30 +2453,12 @@
 		clock-names = "usb0",
 			"usb0_clk_top_sel",
 			"usb0_clk_univpll3_d4";
-		pericfg= <&pericfg>;
-		interrupt-names = "mc";
-		phys = <&u2port0 PHY_TYPE_USB2>;
-		dr_mode = "otg";
-		usb-role-switch;
+		charger = <&mt6370_chg>;
 	};
 
-	u2phy0: usb-phy@11210000 {
-		compatible = "mediatek,generic-tphy-v1";
-		reg = <0 0x11cc0000 0 0x0800>;
-		#address-cells = <2>;
-		#size-cells = <2>;
-		ranges;
-		status = "okay";
-		u2port0: usb-phy@11210000 {
-			reg = <0 0x11cc0800 0 0x100>;
-			clocks = <&clk26m>;
-			clock-names = "ref";
-			#phy-cells = <1>;
-			nvmem-cells = <&u2_phy_data>;
-			nvmem-cell-names = "intr_cal";
-			nvmem-cell-masks = <0x1f>;
-			status = "okay";
-		};
+	usb_sif@11210000 {
+		compatible = "mediatek,usb_sif";
+		reg = <0 0x11210000 0 0x10000>;
 	};
 
 	msdc0:msdc@11230000 {
@@ -2644,9 +2623,6 @@
 		};
 		thermal_efuse: segment@190 {
 			reg = <0x190 0xc>;
-		};
-		u2_phy_data: u2_phy_data@1ac {
-			reg = <0x1ac 0x4>;
 		};
 		efuse_ly: ly@210 {
 			reg = <0x210 0x4>;
@@ -3520,16 +3496,6 @@
 	pd_adapter: pd_adapter {
 		compatible = "mediatek,pd_adapter";
 		adapter_name = "pd_adapter";
-	};
-
-	extcon_usb: extcon_usb {
-		compatible = "mediatek,extcon-usb";
-		charger = <&mt6370_chg>;
-		vbus-supply = <&otg_vbus>;
-		vbus-voltage = <5000000>;
-		vbus-current = <1800000>;
-		dev-conn = <&usb>;
-		mediatek,bypss-typec-sink = <1>;
 	};
 
 	rt9465_slave_chr: rt9465_slave_chr {

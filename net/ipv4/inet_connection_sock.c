@@ -285,12 +285,51 @@ static inline int sk_reuseport_match(struct inet_bind_bucket *tb,
 				    ipv6_only_sock(sk), true, false);
 }
 
-void inet_csk_update_fastreuse(struct inet_bind_bucket *tb,
-			       struct sock *sk)
+/* Obtain a reference to a local port for the given sock,
+ * if snum is zero it means select any available local port.
+ * We try to allocate an odd port (and leave even ports for connect())
+ */
+int inet_csk_get_port(struct sock *sk, unsigned short snum)
 {
-	kuid_t uid = sock_i_uid(sk);
 	bool reuse = sk->sk_reuse && sk->sk_state != TCP_LISTEN;
+	struct inet_hashinfo *hinfo = sk->sk_prot->h.hashinfo;
+	int ret = 1, port = snum;
+	struct inet_bind_hashbucket *head;
+	struct net *net = sock_net(sk);
+	struct inet_bind_bucket *tb = NULL;
+	kuid_t uid = sock_i_uid(sk);
 
+	if (!port) {
+		head = inet_csk_find_open_port(sk, &tb, &port);
+		if (!head)
+			return ret;
+		if (!tb)
+			goto tb_not_found;
+		goto success;
+	}
+	head = &hinfo->bhash[inet_bhashfn(net, port,
+					  hinfo->bhash_size)];
+	spin_lock_bh(&head->lock);
+	inet_bind_bucket_for_each(tb, &head->chain)
+		if (net_eq(ib_net(tb), net) && tb->port == port)
+			goto tb_found;
+tb_not_found:
+	tb = inet_bind_bucket_create(hinfo->bind_bucket_cachep,
+				     net, head, port);
+	if (!tb)
+		goto fail_unlock;
+tb_found:
+	if (!hlist_empty(&tb->owners)) {
+		if (sk->sk_reuse == SK_FORCE_REUSE)
+			goto success;
+
+		if ((tb->fastreuse > 0 && reuse) ||
+		    sk_reuseport_match(tb, sk))
+			goto success;
+		if (inet_csk_bind_conflict(sk, tb, true, true))
+			goto fail_unlock;
+	}
+success:
 	if (hlist_empty(&tb->owners)) {
 		tb->fastreuse = reuse;
 		if (sk->sk_reuseport) {
@@ -334,54 +373,6 @@ void inet_csk_update_fastreuse(struct inet_bind_bucket *tb,
 			tb->fastreuseport = 0;
 		}
 	}
-}
-
-/* Obtain a reference to a local port for the given sock,
- * if snum is zero it means select any available local port.
- * We try to allocate an odd port (and leave even ports for connect())
- */
-int inet_csk_get_port(struct sock *sk, unsigned short snum)
-{
-	bool reuse = sk->sk_reuse && sk->sk_state != TCP_LISTEN;
-	struct inet_hashinfo *hinfo = sk->sk_prot->h.hashinfo;
-	int ret = 1, port = snum;
-	struct inet_bind_hashbucket *head;
-	struct net *net = sock_net(sk);
-	struct inet_bind_bucket *tb = NULL;
-
-	if (!port) {
-		head = inet_csk_find_open_port(sk, &tb, &port);
-		if (!head)
-			return ret;
-		if (!tb)
-			goto tb_not_found;
-		goto success;
-	}
-	head = &hinfo->bhash[inet_bhashfn(net, port,
-					  hinfo->bhash_size)];
-	spin_lock_bh(&head->lock);
-	inet_bind_bucket_for_each(tb, &head->chain)
-		if (net_eq(ib_net(tb), net) && tb->port == port)
-			goto tb_found;
-tb_not_found:
-	tb = inet_bind_bucket_create(hinfo->bind_bucket_cachep,
-				     net, head, port);
-	if (!tb)
-		goto fail_unlock;
-tb_found:
-	if (!hlist_empty(&tb->owners)) {
-		if (sk->sk_reuse == SK_FORCE_REUSE)
-			goto success;
-
-		if ((tb->fastreuse > 0 && reuse) ||
-		    sk_reuseport_match(tb, sk))
-			goto success;
-		if (inet_csk_bind_conflict(sk, tb, true, true))
-			goto fail_unlock;
-	}
-success:
-	inet_csk_update_fastreuse(tb, sk);
-
 	if (!inet_csk(sk)->icsk_bind_hash)
 		inet_bind_hash(sk, tb, port);
 	WARN_ON(inet_csk(sk)->icsk_bind_hash != tb);
@@ -698,15 +689,12 @@ static bool reqsk_queue_unlink(struct request_sock_queue *queue,
 	return found;
 }
 
-bool inet_csk_reqsk_queue_drop(struct sock *sk, struct request_sock *req)
+void inet_csk_reqsk_queue_drop(struct sock *sk, struct request_sock *req)
 {
-	bool unlinked = reqsk_queue_unlink(&inet_csk(sk)->icsk_accept_queue, req);
-
-	if (unlinked) {
+	if (reqsk_queue_unlink(&inet_csk(sk)->icsk_accept_queue, req)) {
 		reqsk_queue_removed(&inet_csk(sk)->icsk_accept_queue, req);
 		reqsk_put(req);
 	}
-	return unlinked;
 }
 EXPORT_SYMBOL(inet_csk_reqsk_queue_drop);
 
@@ -1128,6 +1116,14 @@ struct dst_entry *inet_csk_update_pmtu(struct sock *sk, u32 mtu)
 	}
 	dst->ops->update_pmtu(dst, sk, NULL, mtu, true);
 
+//	#ifdef OPLUS_FEATURE_WIFI_MTUDETECT
+	//Add for [1066205] when receives ICMP_FRAG_NEEDED, reduces the mtu of net_device.
+	pr_err("%s: current_mtu = %d , frag_mtu = %d mtu = %d\n", __func__, dst->dev->mtu, dst_mtu(dst),mtu);
+	//do not use dst_mtu here, because dst_mtu should be changed by update_pmtu after inet_csk_rebuild_route
+	if (dst->dev->mtu > mtu && mtu > IPV6_MIN_MTU) {
+		dst->dev->mtu = mtu;
+	}
+//	#endif /* OPLUS_FEATURE_WIFI_MTUDETECT */
 	dst = __sk_dst_check(sk, 0);
 	if (!dst)
 		dst = inet_csk_rebuild_route(sk, &inet->cork.fl);

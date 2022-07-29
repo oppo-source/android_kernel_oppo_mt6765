@@ -18,11 +18,15 @@
 #include <linux/pm_runtime.h>
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
-#include <linux/proc_fs.h>
-#include <linux/seq_file.h>
 
 #include "xhci.h"
 #include "xhci-mtk.h"
+
+#ifdef OPLUS_FEATURE_CHG_BASIC
+/* Yichun.Chen  PSW.BSP.CHG  2019-02-02  for host tune test mode */
+#include <linux/debugfs.h>
+#include <linux/uaccess.h>
+#endif
 
 /* ip_pw_ctrl0 register */
 #define CTRL0_IP_SW_RST	BIT(0)
@@ -70,87 +74,49 @@
 #define SSC_IP_SLEEP_EN	BIT(4)
 #define SSC_SPM_INT_EN		BIT(1)
 
-/*testmode*/
-#define HOST_CMD_STOP				0x0
+#ifdef OPLUS_FEATURE_CHG_BASIC
+/* Yichun.Chen  PSW.BSP.CHG  2019-02-02  for host tune test mode */
+/* test mode */
 #define HOST_CMD_TEST_J             0x1
 #define HOST_CMD_TEST_K             0x2
 #define HOST_CMD_TEST_SE0_NAK       0x3
 #define HOST_CMD_TEST_PACKET        0x4
 #define PMSC_PORT_TEST_CTRL_OFFSET  28
 
-/*procfs node*/
-#define PROC_FILES_NUM 1
-static struct proc_dir_entry *proc_files[PROC_FILES_NUM] = {
-	NULL};
+static ssize_t xhci_mtk_test_mode_write(struct file *file,
+		const char __user *ubuf, size_t count, loff_t *ppos)
 
-enum ssusb_uwk_vers {
-	SSUSB_UWK_V1 = 1,
-	SSUSB_UWK_V2,
-};
-
-static int xhci_testmode_show(struct seq_file *s, void *unused)
-{
-	struct xhci_hcd_mtk *mtk = s->private;
-	struct xhci_hcd	*xhci = hcd_to_xhci(mtk->hcd);
-
-	switch (xhci->test_mode) {
-	case HOST_CMD_STOP:
-		seq_puts(s, "0\n");
-		break;
-	case HOST_CMD_TEST_J:
-		seq_puts(s, "test J\n");
-		break;
-	case HOST_CMD_TEST_K:
-		seq_puts(s, "test K\n");
-		break;
-	case HOST_CMD_TEST_SE0_NAK:
-		seq_puts(s, "test SE0 NAK\n");
-		break;
-	case HOST_CMD_TEST_PACKET:
-		seq_puts(s, "test packet\n");
-		break;
-	default:
-		break;
-	}
-
-	return 0;
-}
-
-static int xhci_testmode_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, xhci_testmode_show, PDE_DATA(inode));
-}
-
-static ssize_t xhci_testmode_write(struct file *file,  const char __user *ubuf,
-			       size_t count, loff_t *ppos)
 {
 	struct seq_file *s = file->private_data;
 	struct xhci_hcd_mtk *mtk = s->private;
-	struct xhci_hcd	*xhci = hcd_to_xhci(mtk->hcd);
+	struct xhci_hcd *xhci = hcd_to_xhci(mtk->hcd);
 	int ports = HCS_MAX_PORTS(xhci->hcs_params1);
-	char buf[32];
-	unsigned long flags;
-	u8 testmode = HOST_CMD_STOP;
+	char buf[20];
+	u8 test = 0;
 	u32 temp;
 	u32 __iomem *addr;
 	int i;
 
-	if (copy_from_user(&buf, ubuf, min_t(size_t, sizeof(buf) - 1, count)))
+	memset(buf, 0x00, sizeof(buf));
+
+	if (copy_from_user(buf, ubuf,
+			min_t(size_t, sizeof(buf) - 1, count)))
 		return -EFAULT;
 
 	if (!strncmp(buf, "test packet", 10))
-		testmode = HOST_CMD_TEST_PACKET;
-	else if (!strncmp(buf, "test K", 6))
-		testmode = HOST_CMD_TEST_K;
-	else if (!strncmp(buf, "test J", 6))
-		testmode = HOST_CMD_TEST_J;
-	else if (!strncmp(buf, "test SE0 NAK", 12))
-		testmode = HOST_CMD_TEST_SE0_NAK;
+		test = HOST_CMD_TEST_PACKET;
 
-	if (testmode >= HOST_CMD_STOP && testmode <= HOST_CMD_TEST_PACKET) {
-		xhci_info(xhci, "set test mode %d\n", testmode);
+	if (!strncmp(buf, "test K", 6))
+		test = HOST_CMD_TEST_K;
 
-		spin_lock_irqsave(&xhci->lock, flags);
+	if (!strncmp(buf, "test J", 6))
+		test = HOST_CMD_TEST_J;
+
+	if (!strncmp(buf, "test SE0 NAK", 12))
+		test = HOST_CMD_TEST_SE0_NAK;
+
+	if (test) {
+		xhci_info(xhci, "set test mode %d\n", test);
 
 		/* set the Run/Stop in USBCMD to 0 */
 		addr = &xhci->op_regs->command;
@@ -167,49 +133,76 @@ static ssize_t xhci_testmode_write(struct file *file,  const char __user *ubuf,
 				NUM_PORT_REGS * (i & 0xff);
 			temp = readl(addr);
 			temp &= ~(0xf << PMSC_PORT_TEST_CTRL_OFFSET);
-			temp |= (testmode << PMSC_PORT_TEST_CTRL_OFFSET);
+			temp |= (test << PMSC_PORT_TEST_CTRL_OFFSET);
 			writel(temp, addr);
 		}
-
-		xhci->test_mode = testmode;
-		spin_unlock_irqrestore(&xhci->lock, flags);
 	} else {
-		pr_info("%s: invalid value\n", __func__);
-		return -EINVAL;
+		xhci_info(xhci, "test mode command error\n");
 	}
 
 	return count;
 }
 
-static const struct file_operations testmode_fops = {
-	.open			= xhci_testmode_open,
-	.write			= xhci_testmode_write,
-	.read			= seq_read,
-	.llseek			= seq_lseek,
-	.release		= single_release,
+static int xhci_mtk_test_mode_show(struct seq_file *s, void *unused)
+{
+	seq_puts(s, "xhci_mtk test mode\n");
+	return 0;
+}
+
+
+static int xhci_mtk_test_mode_open(struct inode *inode,
+					struct file *file)
+{
+	return single_open(file, xhci_mtk_test_mode_show,
+					   inode->i_private);
+}
+
+static const struct file_operations xhci_mtk_test_mode_fops = {
+	.open = xhci_mtk_test_mode_open,
+	.write = xhci_mtk_test_mode_write,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
 };
 
-static void xhci_mtk_dbg_init(struct xhci_hcd_mtk *mtk)
+static int xhci_mtk_dbg_init(struct xhci_hcd_mtk *mtk)
 {
-	u8 idx = 0;
+	int ret = 0;
+	struct dentry *root;
+	struct dentry *file;
 
-	proc_mkdir("mtk_usb", NULL);
-
-	proc_files[idx] = proc_create_data("mtk_usb/testmode", 0644, NULL, &testmode_fops, mtk);
-	if (!proc_files[idx])
-		pr_info("%s: fail to create testmode node in procfs\n", __func__);
-	idx++;
-}
-
-static void xhci_mtk_dbg_exit(struct xhci_hcd_mtk *mtk)
-{
-	u8 idx = 0;
-
-	for (; idx < PROC_FILES_NUM; idx++) {
-		if (proc_files[idx])
-			proc_remove(proc_files[idx]);
+	root = debugfs_create_dir("xhci_mtk_dbg", NULL);
+	if (IS_ERR_OR_NULL(root)) {
+		ret = PTR_ERR(root);
+		goto err0;
 	}
+
+	file = debugfs_create_file("testmode", 0644, root,
+						mtk, &xhci_mtk_test_mode_fops);
+	if (IS_ERR_OR_NULL(file)) {
+		ret = PTR_ERR(file);
+		goto err0;
+	}
+
+	mtk->debugfs_root = root;
+
+	return 0;
+err0:
+	return ret;
 }
+
+static int xhci_mtk_dbg_exit(struct xhci_hcd_mtk *mtk)
+{
+	debugfs_remove_recursive(mtk->debugfs_root);
+	return 0;
+}
+#endif
+
+
+enum ssusb_uwk_vers {
+	SSUSB_UWK_V1 = 1,
+	SSUSB_UWK_V2,
+};
 
 static int xhci_mtk_host_enable(struct xhci_hcd_mtk *mtk)
 {
@@ -520,15 +513,6 @@ static void xhci_mtk_quirks(struct device *dev, struct xhci_hcd *xhci)
 	xhci->quirks |= XHCI_SPURIOUS_SUCCESS;
 	if (mtk->lpm_support)
 		xhci->quirks |= XHCI_LPM_SUPPORT;
-	if (mtk->u2_lpm_disable)
-		xhci->quirks |= XHCI_HW_LPM_DISABLE;
-
-	/*
-	 * MTK xHCI 0.96: PSA is 1 by default even if doesn't support stream,
-	 * and it's 3 when support it.
-	 */
-	if (xhci->hci_version < 0x100 && HCC_MAX_PSA(xhci->hcc_params) == 4)
-		xhci->quirks |= XHCI_BROKEN_STREAMS;
 }
 
 /* called during probe() after chip reset completes */
@@ -594,7 +578,6 @@ static int xhci_mtk_probe(struct platform_device *pdev)
 		return ret;
 
 	mtk->lpm_support = of_property_read_bool(node, "usb3-lpm-capable");
-	mtk->u2_lpm_disable = of_property_read_bool(node, "usb2-lpm-disable");
 	/* optional property, ignore the error if it does not exist */
 	of_property_read_u32(node, "mediatek,u3p-dis-msk",
 			     &mtk->u3p_dis_msk);
@@ -686,16 +669,16 @@ static int xhci_mtk_probe(struct platform_device *pdev)
 	if (ret)
 		goto put_usb3_hcd;
 
-	if (HCC_MAX_PSA(xhci->hcc_params) >= 4 &&
-	    !(xhci->quirks & XHCI_BROKEN_STREAMS))
+	if (HCC_MAX_PSA(xhci->hcc_params) >= 4)
 		xhci->shared_hcd->can_do_streams = 1;
 
 	ret = usb_add_hcd(xhci->shared_hcd, irq, IRQF_SHARED);
 	if (ret)
 		goto dealloc_usb2_hcd;
-
+#ifdef OPLUS_FEATURE_CHG_BASIC
+/* Yichun.Chen	PSW.BSP.CHG  2019-02-02  for host tune test mode */
 	xhci_mtk_dbg_init(mtk);
-
+#endif
 	return 0;
 
 dealloc_usb2_hcd:
@@ -738,14 +721,16 @@ static int xhci_mtk_remove(struct platform_device *dev)
 	usb_remove_hcd(shared_hcd);
 	xhci->shared_hcd = NULL;
 	device_init_wakeup(&dev->dev, false);
-
+#ifdef OPLUS_FEATURE_CHG_BASIC
+/* Yichun.Chen	PSW.BSP.CHG  2019-02-02  for host tune test mode */
+	xhci_mtk_dbg_exit(mtk);
+#endif
 	usb_remove_hcd(hcd);
 	usb_put_hcd(shared_hcd);
 	usb_put_hcd(hcd);
 	xhci_mtk_sch_exit(mtk);
 	xhci_mtk_clks_disable(mtk);
 	xhci_mtk_ldos_disable(mtk);
-	xhci_mtk_dbg_exit(mtk);
 
 	return 0;
 }

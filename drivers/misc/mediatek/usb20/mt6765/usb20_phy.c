@@ -16,7 +16,6 @@
 #include <musb_core.h>
 #include "usb20.h"
 #include <linux/nvmem-consumer.h>
-#include <linux/phy/phy.h>
 
 #ifdef CONFIG_OF
 #include <linux/of_address.h>
@@ -26,6 +25,10 @@
 #endif
 
 #include <mt-plat/mtk_boot_common.h>
+
+#ifdef OPLUS_FEATURE_CHG_BASIC
+#include <soc/oplus/system/oplus_project.h>
+#endif /*OPLUS_FEATURE_CHG_BASIC*/
 
 #define FRA (48)
 #define PARA (28)
@@ -147,6 +150,11 @@ void usb_phy_tuning(void)
 					u2_enhance<<SHFT_RG_USB20_PHY_REV6);
 		}
 	}
+#ifdef OPLUS_FEATURE_CHG_BASIC
+        DBG(0, "usb_phy_tuning  inited:%d u2_vrt_ref:%d, u2_term_ref:%d, u2_enhance:%d \n",
+		inited, u2_vrt_ref, u2_term_ref, u2_enhance);
+	return;
+#endif
 }
 
 #ifdef CONFIG_MTK_USB2JTAG_SUPPORT
@@ -482,22 +490,121 @@ void usb_phy_switch_to_usb(void)
 }
 #endif
 
+static void get_phy_eye_para(int mode, s32 *vrt_ref, s32 *term_ref, s32 *enhance)
+{
+	s32 u2_vrt_ref, u2_term_ref, u2_enhance;
+	static struct device_node *of_node;
+
+	of_node = of_find_compatible_node(NULL, NULL, "mediatek,phy_eye");
+	if (!of_node)
+		return;
+	u2_vrt_ref = u2_term_ref = u2_enhance = -1;
+	switch (mode) {
+	case PHY_DEV_ACTIVE:
+		if(!of_property_read_u32(of_node, "device_vrt_ref", (u32 *) &u2_vrt_ref) &&
+			!of_property_read_u32(of_node,"device_term_ref", (u32 *) &u2_term_ref) &&
+			!of_property_read_u32(of_node,"device_rev6_ref", (u32 *) &u2_enhance)) {
+			if (is_project(21254) || is_project(21253)) {
+					u2_vrt_ref = 7;
+					u2_term_ref = 4;
+					u2_enhance = 3;
+			}
+			*vrt_ref = u2_vrt_ref;
+			*term_ref = u2_term_ref;
+			*enhance = u2_enhance;
+		}
+		break;
+	case PHY_HOST_ACTIVE:
+		if(!of_property_read_u32(of_node, "host_vrt_ref", (u32 *) &u2_vrt_ref) &&
+			!of_property_read_u32(of_node,"host_term_ref", (u32 *) &u2_term_ref) &&
+			!of_property_read_u32(of_node,"host_rev6_ref", (u32 *) &u2_enhance)) {
+			if (is_project(21254) || is_project(21253)) {
+				u2_vrt_ref = 7;
+				u2_term_ref = 2;
+				u2_enhance = 3;
+			}
+			*vrt_ref = u2_vrt_ref;
+			*term_ref = u2_term_ref;
+			*enhance = u2_enhance;
+		}
+		break;
+	default:
+		DBG(0, "no get phy in mode:%d\n", mode);
+		break;
+	}
+
+	DBG(0, "get_phy_eye_para  mode:%d u2_vrt_ref:%d, u2_term_ref:%d, u2_enhance:%d \n",
+		mode, u2_vrt_ref, u2_term_ref, u2_enhance);
+	return;
+}
+
 void set_usb_phy_mode(int mode)
 {
+	s32 u2_vrt_ref = 7, u2_term_ref = 7, u2_enhance = 3;
+
+	get_phy_eye_para(mode, &u2_vrt_ref, &u2_term_ref, &u2_enhance);
 	switch (mode) {
-	case PHY_MODE_USB_DEVICE:
+	case PHY_DEV_ACTIVE:
 	/* VBUSVALID=1, AVALID=1, BVALID=1, SESSEND=0, IDDIG=1, IDPULLUP=1 */
 		USBPHY_CLR32(0x6C, (0x10<<0));
 		USBPHY_SET32(0x6C, (0x2F<<0));
 		USBPHY_SET32(0x6C, (0x3F<<8));
+#ifdef OPLUS_FEATURE_CHG_BASIC
+		if (is_project(OPPO_206A1)) {
+			USBPHY_CLR32(OFFSET_RG_USB20_VRT_VREF_SEL, VAL_MAX_WIDTH_3 << SHFT_RG_USB20_VRT_VREF_SEL);
+			USBPHY_SET32(OFFSET_RG_USB20_VRT_VREF_SEL, 5 << SHFT_RG_USB20_VRT_VREF_SEL);
+			USBPHY_CLR32(OFFSET_RG_USB20_TERM_VREF_SEL, VAL_MAX_WIDTH_3 << SHFT_RG_USB20_TERM_VREF_SEL);
+			USBPHY_SET32(OFFSET_RG_USB20_TERM_VREF_SEL, 5 << SHFT_RG_USB20_TERM_VREF_SEL);
+			USBPHY_CLR32(OFFSET_RG_USB20_PHY_REV6, VAL_MAX_WIDTH_2 <<SHFT_RG_USB20_PHY_REV6);
+			USBPHY_SET32(OFFSET_RG_USB20_PHY_REV6, 2 <<SHFT_RG_USB20_PHY_REV6);
+		}
+		if (is_project(20701)) {
+			USBPHY_CLR32(OFFSET_RG_USB20_VRT_VREF_SEL, VAL_MAX_WIDTH_3 << SHFT_RG_USB20_VRT_VREF_SEL);
+			USBPHY_SET32(OFFSET_RG_USB20_VRT_VREF_SEL, 6 << SHFT_RG_USB20_VRT_VREF_SEL);
+			USBPHY_CLR32(OFFSET_RG_USB20_TERM_VREF_SEL, VAL_MAX_WIDTH_3 << SHFT_RG_USB20_TERM_VREF_SEL);
+			USBPHY_SET32(OFFSET_RG_USB20_TERM_VREF_SEL, 5 << SHFT_RG_USB20_TERM_VREF_SEL);
+			USBPHY_CLR32(OFFSET_RG_USB20_PHY_REV6, VAL_MAX_WIDTH_2 <<SHFT_RG_USB20_PHY_REV6);
+			USBPHY_SET32(OFFSET_RG_USB20_PHY_REV6, 2 <<SHFT_RG_USB20_PHY_REV6);
+		}
+#endif /* OPLUS_FEATURE_CHG_BASIC */
+		USBPHY_CLR32(OFFSET_RG_USB20_VRT_VREF_SEL, VAL_MAX_WIDTH_3 << SHFT_RG_USB20_VRT_VREF_SEL);
+		USBPHY_SET32(OFFSET_RG_USB20_VRT_VREF_SEL, u2_vrt_ref << SHFT_RG_USB20_VRT_VREF_SEL);
+		USBPHY_CLR32(OFFSET_RG_USB20_TERM_VREF_SEL, VAL_MAX_WIDTH_3 << SHFT_RG_USB20_TERM_VREF_SEL);
+		USBPHY_SET32(OFFSET_RG_USB20_TERM_VREF_SEL, u2_term_ref << SHFT_RG_USB20_TERM_VREF_SEL);
+		USBPHY_CLR32(OFFSET_RG_USB20_PHY_REV6, VAL_MAX_WIDTH_2 <<SHFT_RG_USB20_PHY_REV6);
+		USBPHY_SET32(OFFSET_RG_USB20_PHY_REV6, u2_enhance <<SHFT_RG_USB20_PHY_REV6);
 		break;
-	case PHY_MODE_USB_HOST:
+	case PHY_HOST_ACTIVE:
 	/* VBUSVALID=1, AVALID=1, BVALID=1, SESSEND=0, IDDIG=0, IDPULLUP=1 */
 		USBPHY_CLR32(0x6c, (0x12<<0));
 		USBPHY_SET32(0x6c, (0x2d<<0));
 		USBPHY_SET32(0x6c, (0x3f<<8));
+#ifdef OPLUS_FEATURE_CHG_BASIC
+		if (is_project(OPPO_206A1)) {
+			USBPHY_CLR32(OFFSET_RG_USB20_VRT_VREF_SEL, VAL_MAX_WIDTH_3 << SHFT_RG_USB20_VRT_VREF_SEL);
+			USBPHY_SET32(OFFSET_RG_USB20_VRT_VREF_SEL, 5 << SHFT_RG_USB20_VRT_VREF_SEL);
+			USBPHY_CLR32(OFFSET_RG_USB20_TERM_VREF_SEL, VAL_MAX_WIDTH_3 << SHFT_RG_USB20_TERM_VREF_SEL);
+			USBPHY_SET32(OFFSET_RG_USB20_TERM_VREF_SEL, 5 << SHFT_RG_USB20_TERM_VREF_SEL);
+			USBPHY_CLR32(OFFSET_RG_USB20_PHY_REV6, VAL_MAX_WIDTH_2 <<SHFT_RG_USB20_PHY_REV6);
+			USBPHY_SET32(OFFSET_RG_USB20_PHY_REV6, 2 <<SHFT_RG_USB20_PHY_REV6);
+		}
+		if (is_project(20701)) {
+			USBPHY_CLR32(OFFSET_RG_USB20_VRT_VREF_SEL, VAL_MAX_WIDTH_3 << SHFT_RG_USB20_VRT_VREF_SEL);
+			USBPHY_SET32(OFFSET_RG_USB20_VRT_VREF_SEL, 6 << SHFT_RG_USB20_VRT_VREF_SEL);
+			USBPHY_CLR32(OFFSET_RG_USB20_TERM_VREF_SEL, VAL_MAX_WIDTH_3 << SHFT_RG_USB20_TERM_VREF_SEL);
+			USBPHY_SET32(OFFSET_RG_USB20_TERM_VREF_SEL, 5 << SHFT_RG_USB20_TERM_VREF_SEL);
+			USBPHY_CLR32(OFFSET_RG_USB20_PHY_REV6, VAL_MAX_WIDTH_2 <<SHFT_RG_USB20_PHY_REV6);
+			USBPHY_SET32(OFFSET_RG_USB20_PHY_REV6, 2 <<SHFT_RG_USB20_PHY_REV6);
+		}
+#endif /* OPLUS_FEATURE_CHG_BASIC */
+		USBPHY_CLR32(OFFSET_RG_USB20_VRT_VREF_SEL, VAL_MAX_WIDTH_3 << SHFT_RG_USB20_VRT_VREF_SEL);
+		USBPHY_SET32(OFFSET_RG_USB20_VRT_VREF_SEL, u2_vrt_ref << SHFT_RG_USB20_VRT_VREF_SEL);
+		USBPHY_CLR32(OFFSET_RG_USB20_TERM_VREF_SEL, VAL_MAX_WIDTH_3 << SHFT_RG_USB20_TERM_VREF_SEL);
+		USBPHY_SET32(OFFSET_RG_USB20_TERM_VREF_SEL, u2_term_ref << SHFT_RG_USB20_TERM_VREF_SEL);
+		USBPHY_CLR32(OFFSET_RG_USB20_PHY_REV6, VAL_MAX_WIDTH_2 <<SHFT_RG_USB20_PHY_REV6);
+		USBPHY_SET32(OFFSET_RG_USB20_PHY_REV6, u2_enhance <<SHFT_RG_USB20_PHY_REV6);
 		break;
-	case PHY_MODE_INVALID:
+	case PHY_IDLE_MODE:
 	/* VBUSVALID=0, AVALID=0, BVALID=0, SESSEND=1, IDDIG=0, IDPULLUP=1 */
 		USBPHY_SET32(0x6c, (0x11<<0));
 		USBPHY_CLR32(0x6c, (0x2e<<0));
@@ -506,7 +613,20 @@ void set_usb_phy_mode(int mode)
 	default:
 		DBG(0, "mode error %d\n", mode);
 	}
-	DBG(0, "force PHY to mode %d, 0x6c=%x\n", mode, USBPHY_READ32(0x6c));
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	if (is_project(21254) || is_project(21253)) {
+		/* disc threshold to max, RG_USB20_DISCTH[7:4], dft:1000, MAX:1111 */
+		USBPHY_SET32(0x18, (0xf << 4));
+	}
+
+	DBG(0, "force PHY to mode %d, 0x6c=%x, VRT_VREF(%x) = %x, TERM_VREF(%x) = %x, PHY_REV6(%x) = %x, PHYACR6(0x18) = %x \n",\
+		mode, USBPHY_READ32(0x6c), \
+		OFFSET_RG_USB20_VRT_VREF_SEL,USBPHY_READ32(OFFSET_RG_USB20_VRT_VREF_SEL), \
+		OFFSET_RG_USB20_TERM_VREF_SEL,  USBPHY_READ32(OFFSET_RG_USB20_TERM_VREF_SEL), \
+		OFFSET_RG_USB20_PHY_REV6, USBPHY_READ32(OFFSET_RG_USB20_PHY_REV6), \
+		USBPHY_READ32(0x18));
+#endif
+	return;
 }
 
 void usb_rev6_setting(int value)
@@ -656,7 +776,7 @@ static void usb_phy_savecurrent_internal(void)
 
 	udelay(1);
 
-	set_usb_phy_mode(PHY_MODE_INVALID);
+	set_usb_phy_mode(PHY_IDLE_MODE);
 }
 
 void usb_phy_savecurrent(void)
@@ -777,7 +897,7 @@ void usb_phy_recover(struct musb *musb)
 	udelay(800);
 
 	/* force enter device mode */
-	set_usb_phy_mode(PHY_MODE_USB_DEVICE);
+	set_usb_phy_mode(PHY_DEV_ACTIVE);
 
 	hs_slew_rate_cal();
 

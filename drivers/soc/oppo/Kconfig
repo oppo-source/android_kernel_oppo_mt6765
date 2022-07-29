@@ -1,0 +1,29 @@
+#ifdef VENDOR_EDIT
+config OPPO_ARCH_FILE
+    bool "for build directory oppo"
+    ---help---
+    say Y to buid in
+
+#ifdef OPLUS_FEATURE_NFC_CONSOFT
+config OPPO_NFC
+  bool "config oppo nfc chipset"
+  select OPPO_ARCH_FILE
+  help
+	define this config to get nfc chipset version from dts.
+#endif /* OPLUS_FEATURE_NFC_CONSOFT
+#source "drivers/soc/oppo/oppo_devinfo/Kconfig"
+source "drivers/soc/oppo/oppo_als_cali_value/Kconfig"
+#source "drivers/soc/oppo/oppo_hypnus/Kconfig"
+#//Wen.Luo@BSP
+#source "drivers/soc/oppo/oppo_shutdown_detect/Kconfig"
+
+#source "drivers/soc/oppo/oppo_phoenix/Kconfig"
+#endif /* VENDOR_EDIT */
+
+#ifdef VENDOR_EDIT
+#source "drivers/soc/oppo/oppo_key_handle/Kconfig"
+#endif /* VENDOR_EDIT */
+
+#ifdef OPLUS_FEATURE_NFC_CONSOFT
+source "drivers/soc/oppo/oppo_nfc/Kconfig"
+#endif /* OPLUS_FEATURE_NFC_CONSOFT */

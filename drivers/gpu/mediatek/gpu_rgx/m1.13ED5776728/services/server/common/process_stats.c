@@ -1860,33 +1860,34 @@ PVRSRVStatsIncrMemAllocStatAndTrack(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 
 	/* Alloc untracked memory for the new hash table entry */
 	psNewTrackingHashEntry = (_PVR_STATS_TRACKING_HASH_ENTRY *)OSAllocMemNoStats(sizeof(*psNewTrackingHashEntry));
-	if (psNewTrackingHashEntry == NULL)
+	if (psNewTrackingHashEntry)
 	{
-		PVR_DPF((PVR_DBG_ERROR,
-				"*** %s : @ line %d Failed to alloc memory for psNewTrackingHashEntry!",
-				__func__, __LINE__));
-		return;
+		/* Fill-in the size of the allocation and PID of the allocating process */
+		psNewTrackingHashEntry->uiSizeInBytes = uiBytes;
+		psNewTrackingHashEntry->uiPid = uiPid;
+		OSLockAcquire(gpsSizeTrackingHashTableLock);
+		/* Insert address of the new struct into the hash table */
+		bRes = HASH_Insert(gpsSizeTrackingHashTable, uiCpuVAddr, (uintptr_t)psNewTrackingHashEntry);
+		OSLockRelease(gpsSizeTrackingHashTableLock);
 	}
 
-	/* Fill-in the size of the allocation and PID of the allocating process */
-	psNewTrackingHashEntry->uiSizeInBytes = uiBytes;
-	psNewTrackingHashEntry->uiPid = uiPid;
-	OSLockAcquire(gpsSizeTrackingHashTableLock);
-	/* Insert address of the new struct into the hash table */
-	bRes = HASH_Insert(gpsSizeTrackingHashTable, uiCpuVAddr, (uintptr_t)psNewTrackingHashEntry);
-	OSLockRelease(gpsSizeTrackingHashTableLock);
-	if (bRes)
+	if (psNewTrackingHashEntry)
 	{
-		PVRSRVStatsIncrMemAllocStat(eAllocType, uiBytes, uiPid);
+		if (bRes)
+		{
+			PVRSRVStatsIncrMemAllocStat(eAllocType, uiBytes, uiPid);
+		}
+		else
+		{
+			PVR_DPF((PVR_DBG_ERROR, "*** %s : @ line %d HASH_Insert() failed!",
+					 __func__, __LINE__));
+		}
 	}
 	else
 	{
-		PVR_DPF((PVR_DBG_ERROR, "*** %s : @ line %d HASH_Insert() failed!",
+		PVR_DPF((PVR_DBG_ERROR,
+				 "*** %s : @ line %d Failed to alloc memory for psNewTrackingHashEntry!",
 				 __func__, __LINE__));
-		/* Free the memory allocated for psNewTrackingHashEntry, as we
-		 * failed to insert it into the Hash table.
-		 */
-		OSFreeMemNoStats(psNewTrackingHashEntry);
 	}
 }
 
@@ -2221,6 +2222,68 @@ int RawProcessStatsPrintElements(OSDI_IMPL_ENTRY *psEntry, void *pvData)
 
 	return 0;
 } /* RawProcessStatsPrintElements */
+
+#ifdef VENDOR_EDIT
+size_t get_gl_mem_by_pid(pid_t pid)
+{
+	PVRSRV_PROCESS_STATS *psProcessStats;
+	unsigned long pid_gpu = 0;
+
+	OSLockAcquire(g_psLinkedListLock);
+
+	psProcessStats = g_psLiveList;
+
+	while (psProcessStats != NULL)
+	{
+		if (psProcessStats->pid == pid)
+		{
+			pid_gpu = psProcessStats->i32StatValue[PVRSRV_PROCESS_STAT_TYPE_KMALLOC]
+							 + psProcessStats->i32StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_PAGES_PT_UMA]
+							 + psProcessStats->i32StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_PAGES_PT_LMA]
+							 + psProcessStats->i32StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_LMA_PAGES]
+							 + psProcessStats->i32StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_UMA_PAGES];
+			break;
+		}
+
+		psProcessStats = psProcessStats->psNext;
+	}
+	OSLockRelease(g_psLinkedListLock);
+	return pid_gpu/1024;
+}
+EXPORT_SYMBOL(get_gl_mem_by_pid);
+#endif
+#endif
+
+#if defined(CONFIG_DUMP_TASKS_MEM)
+/* add /proc/memory_monitor*/
+unsigned long get_gpumem_by_pid(pid_t pid, int gpu_mem_type)
+{
+	unsigned long pid_gpu = 0;
+#if defined(PVRSRV_ENABLE_MEMTRACK_STATS_FILE)
+	PVRSRV_PROCESS_STATS *psProcessStats;
+	OSLockAcquire(g_psLinkedListLock);
+
+	psProcessStats = g_psLiveList;
+
+	while (psProcessStats != NULL)
+	{
+		if (psProcessStats->pid == pid)
+		{
+			pid_gpu = psProcessStats->i32StatValue[PVRSRV_PROCESS_STAT_TYPE_KMALLOC]
+							 + psProcessStats->i32StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_PAGES_PT_UMA]
+							 + psProcessStats->i32StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_PAGES_PT_LMA]
+							 + psProcessStats->i32StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_LMA_PAGES]
+							 + psProcessStats->i32StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_UMA_PAGES];
+			break;
+		}
+
+		psProcessStats = psProcessStats->psNext;
+	}
+	OSLockRelease(g_psLinkedListLock);
+#endif
+	return pid_gpu/1024;
+}
+EXPORT_SYMBOL(get_gpumem_by_pid);
 #endif
 
 void

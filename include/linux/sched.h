@@ -29,7 +29,16 @@
 #include <linux/mm_event.h>
 #include <linux/task_io_accounting.h>
 #include <linux/rseq.h>
+#ifdef OPLUS_FEATURE_HEALTHINFO
+#ifdef CONFIG_OPPO_JANK_INFO
+#include <linux/oppo_healthinfo/oppo_jank_monitor.h>
+#endif
+#endif /* OPLUS_FEATURE_HEALTHINFO */
 #include <linux/android_kabi.h>
+
+#ifdef CONFIG_OPLUS_FEATURE_AUDIO_OPT
+#include <linux/uifirst/uifirst_sched_status.h>
+#endif
 
 /* task_struct member predeclarations (sorted alphabetically): */
 struct audit_context;
@@ -205,6 +214,29 @@ struct task_group;
 
 #endif
 
+#ifdef OPLUS_FEATURE_UIFIRST
+extern int sysctl_uifirst_enabled;
+extern int sysctl_launcher_boost_enabled;
+#endif /* OPLUS_FEATURE_UIFIRST */
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+extern int sysctl_slide_boost_enabled;
+extern int sysctl_boost_task_threshold;
+#ifdef CONFIG_CAMERA_OPT
+extern int sysctl_camera_opt_enabled;
+#endif
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
+
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+enum task_event {
+	PUT_PREV_TASK   = 0,
+	PICK_NEXT_TASK  = 1,
+	TASK_WAKE       = 2,
+	TASK_MIGRATE    = 3,
+	TASK_UPDATE     = 4,
+	IRQ_UPDATE	= 5,
+};
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
+
 /* Task command name length: */
 #define TASK_COMM_LEN			16
 
@@ -327,13 +359,6 @@ struct sched_info {
 /* Increase resolution of cpu_capacity calculations */
 # define SCHED_CAPACITY_SHIFT		SCHED_FIXEDPOINT_SHIFT
 # define SCHED_CAPACITY_SCALE		(1L << SCHED_CAPACITY_SHIFT)
-
-static inline unsigned int scale_from_percent(unsigned int pct)
-{
-	WARN_ON(pct > 100);
-
-	return ((SCHED_FIXEDPOINT_SCALE * pct) / 100);
-}
 
 struct load_weight {
 	unsigned long			weight;
@@ -651,6 +676,48 @@ struct wake_q_node {
 	struct wake_q_node *next;
 };
 
+#if defined(OPLUS_FEATURE_PROCESS_RECLAIM) && defined(CONFIG_PROCESS_RECLAIM_ENHANCE)
+union reclaim_limit {
+	unsigned long stop_jiffies;
+	unsigned long stop_scan_addr;
+};
+#endif
+
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+#define RAVG_HIST_SIZE_MAX 5
+
+/* ravg represents frequency scaled cpu-demand of tasks */
+struct ravg {
+	/*
+	 * 'mark_start' marks the beginning of an event (task waking up, task
+	 * starting to execute, task being preempted) within a window
+	 *
+	 * 'sum' represents how runnable a task has been within current
+	 * window. It incorporates both running time and wait time and is
+	 * frequency scaled.
+	 *
+	 * 'sum_history' keeps track of history of 'sum' seen over previous
+	 * RAVG_HIST_SIZE windows. Windows where task was entirely sleeping are
+	 * ignored.
+	 *
+	 * 'demand' represents maximum sum seen over previous
+	 * sysctl_sched_ravg_hist_size windows. 'demand' could drive frequency
+	 * demand for tasks.
+	 *
+	 * 'curr_window' represents task's contribution to cpu busy time
+	 * statistics (rq->curr_runnable_sum) in current window
+	 *
+	 * 'prev_window' represents task's contribution to cpu busy time
+	 * statistics (rq->prev_runnable_sum) in previous window
+	 */
+	u64 mark_start;
+	u32 sum, demand;
+	u32 sum_history[RAVG_HIST_SIZE_MAX];
+	u32 curr_window, prev_window;
+	u16 active_windows;
+};
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
+
 struct task_struct {
 #ifdef CONFIG_THREAD_INFO_IN_TASK
 	/*
@@ -714,7 +781,6 @@ struct task_struct {
 	int				boost;
 	u64				boost_period;
 	u64				boost_expires;
-	u64				last_enqueued_ts;
 
 #ifdef CONFIG_CGROUP_SCHED
 	struct task_group		*sched_task_group;
@@ -943,6 +1009,9 @@ struct task_struct {
 #ifdef CONFIG_DETECT_HUNG_TASK
 	unsigned long			last_switch_count;
 	unsigned long			last_switch_time;
+#ifdef CONFIG_OPLUS_FEATURE_HUNG_TASK_ENHANCE
+	bool hang_detection_enabled;
+#endif /* CONFIG_OPLUS_FEATURE_HUNG_TASK_ENHANCE */
 #endif
 	/* Filesystem information: */
 	struct fs_struct		*fs;
@@ -1197,6 +1266,10 @@ struct task_struct {
 	int				latency_record_count;
 	struct latency_record		latency_record[LT_SAVECOUNT];
 #endif
+#if defined(OPLUS_FEATURE_MEMLEAK_DETECT) && defined(CONFIG_ION) && defined(CONFIG_DUMP_TASKS_MEM)
+	struct list_head user_tasks;
+	atomic64_t ions;
+#endif
 	/*
 	 * Time slack values; these are used to round up poll() and
 	 * select() etc timeout values. These are in nanoseconds.
@@ -1259,6 +1332,10 @@ struct task_struct {
 	int				kcov_sequence;
 #endif
 
+#ifdef CONFIG_OPLUS_FEATURE_AUDIO_OPT
+	struct task_info oplus_task_info;
+#endif
+
 #ifdef CONFIG_MEMCG
 	struct mem_cgroup		*memcg_in_oom;
 	gfp_t				memcg_oom_gfp_mask;
@@ -1274,7 +1351,9 @@ struct task_struct {
 #ifdef CONFIG_BLK_CGROUP
 	struct request_queue		*throttle_queue;
 #endif
-
+#if defined(OPLUS_FEATURE_PROCESS_RECLAIM) && defined(CONFIG_PROCESS_RECLAIM_ENHANCE)
+	union reclaim_limit reclaim;
+#endif
 #ifdef CONFIG_UPROBES
 	struct uprobe_task		*utask;
 #endif
@@ -1303,36 +1382,49 @@ struct task_struct {
 	/* Used by LSM modules for access restriction: */
 	void				*security;
 #endif
-	/* task is frozen/stopped (used by the cgroup freezer) */
-	ANDROID_KABI_USE(1, unsigned frozen:1);
-
-	/* 095444fad7e3 ("futex: Replace PF_EXITPIDONE with a state") */
-	ANDROID_KABI_USE(2, unsigned int futex_state);
-
+#ifdef OPLUS_FEATURE_UIFIRST
+	int static_ux;
+	atomic64_t dynamic_ux;
+	struct list_head ux_entry;
+	int ux_depth;
+	u64 enqueue_time;
+	u64 dynamic_ux_start;
+#ifdef CONFIG_CAMERA_OPT
+	int camera_opt;
+#endif
+#endif /* OPLUS_FEATURE_UIFIRST */
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+	struct ravg ravg;
 	/*
-	 * f9b0c6c556db ("futex: Add mutex around futex exit")
-	 * A struct mutex takes 32 bytes, or 4 64bit entries, so pick off
-	 * 4 of the reserved members, and replace them with a struct mutex.
-	 * Do the GENKSYMS hack to work around the CRC issues
+	 * 'init_load_pct' represents the initial task load assigned to children
+	 * of this task
 	 */
-#ifdef __GENKSYMS__
+	u32 init_load_pct;
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+	u64 last_wake_ts;
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
+#ifdef OPLUS_FEATURE_HEALTHINFO
+#ifdef CONFIG_OPPO_JANK_INFO
+	int jank_trace;
+	struct oppo_jank_monitor_info oppo_jank_info;
+	unsigned in_mutex:1;
+	unsigned in_downread:1;
+	unsigned in_downwrite:1;
+	unsigned in_futex:1;
+	unsigned in_binder:1;
+	unsigned in_epoll:1;
+#endif
+#endif /* OPLUS_FEATURE_HEALTHINFO */
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 	ANDROID_KABI_RESERVE(3);
 	ANDROID_KABI_RESERVE(4);
 	ANDROID_KABI_RESERVE(5);
 	ANDROID_KABI_RESERVE(6);
-#else
-	struct mutex			futex_exit_mutex;
-#endif
-
 	ANDROID_KABI_RESERVE(7);
 	ANDROID_KABI_RESERVE(8);
-#ifdef CONFIG_MTK_TASK_TURBO
-	unsigned short turbo:1;
-	unsigned short render:1;
-	unsigned short inherit_cnt:14;
-	short nice_backup;
-	atomic_t inherit_types;
-#endif
 
 	/*
 	 * New fields for task_struct should be added above here, so that
@@ -1510,6 +1602,7 @@ extern struct pid *cad_pid;
  */
 #define PF_IDLE			0x00000002	/* I am an IDLE thread */
 #define PF_EXITING		0x00000004	/* Getting shut down */
+#define PF_EXITPIDONE		0x00000008	/* PI exit done on shut down */
 #define PF_VCPU			0x00000010	/* I'm a virtual CPU */
 #define PF_WQ_WORKER		0x00000020	/* I'm a workqueue worker */
 #define PF_FORKNOEXEC		0x00000040	/* Forked but didn't exec */
@@ -1537,6 +1630,11 @@ extern struct pid *cad_pid;
 #define PF_MUTEX_TESTER		0x20000000	/* Thread belongs to the rt mutex tester */
 #define PF_FREEZER_SKIP		0x40000000	/* Freezer should not count it as freezable */
 #define PF_SUSPEND_TASK		0x80000000      /* This thread called freeze_processes() and should not be frozen */
+#if defined(OPLUS_FEATURE_PROCESS_RECLAIM) && defined(CONFIG_PROCESS_RECLAIM_ENHANCE)
+#define PF_RECLAIM_SHRINK	0x02000000	/* Flag the task is memory compresser */
+
+#define current_is_reclaimer() (current->flags & PF_RECLAIM_SHRINK)
+#endif
 
 /*
  * Only the _current_ task can read/write to tsk->flags, but other
@@ -1745,11 +1843,36 @@ extern void kick_process(struct task_struct *tsk);
 static inline void kick_process(struct task_struct *tsk) { }
 #endif
 
+#ifdef CONFIG_CAMERA_OPT
+extern void set_camera_opt(struct task_struct *tsk);
+#endif
 extern void __set_task_comm(struct task_struct *tsk, const char *from, bool exec);
+
+#ifdef CONFIG_OPLUS_ION_BOOSTPOOL
+extern pid_t alloc_svc_tgid;
+#endif /* CONFIG_OPLUS_ION_BOOSTPOOL */
+
+#ifdef OPLUS_FEATURE_UIFIRST
+extern int  allocator_server_pid;
+#endif
 
 static inline void set_task_comm(struct task_struct *tsk, const char *from)
 {
 	__set_task_comm(tsk, from, false);
+
+#ifdef OPLUS_FEATURE_UIFIRST
+        if ((tsk->tgid == allocator_server_pid && allocator_server_pid != 0)){
+                tsk->static_ux = 2;
+        }
+#endif
+
+#ifdef CONFIG_CAMERA_OPT
+	set_camera_opt(tsk);
+#endif
+#ifdef CONFIG_OPLUS_ION_BOOSTPOOL
+	if (!strncmp(from, "allocator@4.0-s", TASK_COMM_LEN))
+		alloc_svc_tgid = tsk->tgid;
+#endif /* CONFIG_OPLUS_ION_BOOSTPOOL */
 }
 
 extern char *__get_task_comm(char *to, size_t len, struct task_struct *tsk);
@@ -2029,6 +2152,8 @@ static inline void rseq_execve(struct task_struct *t)
 }
 
 #endif
+
+extern unsigned long capacity_curr_of(int cpu);
 
 #ifdef CONFIG_DEBUG_RSEQ
 

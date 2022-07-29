@@ -1,7 +1,8 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2021 MediaTek Inc.
-*/
+ * Copyright (C) 2019 MediaTek Inc.
+ *
+ */
 
 #include <linux/file.h>
 #include <linux/fs.h>
@@ -10,7 +11,12 @@
 #include <linux/sync_file.h>
 #include <linux/debugfs.h>
 #include <linux/miscdevice.h>
+#include <linux/atomic.h>
+
 //#include "sync_debug.h"
+
+static atomic_t fd_counter;
+#define fd_max 500
 
 #define CREATE_TRACE_POINTS
 //#include "sync_trace.h"
@@ -48,7 +54,7 @@
 struct mdp_sync_create_fence_data {
 	__u32	value;
 	char	name[32];
-	__s32	dma_fence; /* fd of new fence */
+	__s32	fence; /* fd of new fence */
 };
 
 #define MDP_SYNC_IOC_MAGIC	'W'
@@ -82,14 +88,14 @@ struct sync_timeline {
 	struct list_head	sync_timeline_list;
 };
 
-static inline struct sync_timeline *fence_parent(struct dma_fence *dma_fence)
+static inline struct sync_timeline *fence_parent(struct dma_fence *fence)
 {
-	return container_of(dma_fence->lock, struct sync_timeline, lock);
+	return container_of(fence->lock, struct sync_timeline, lock);
 }
 
 /**
  * struct sync_pt - sync_pt object
- * @base: base dma_fence object
+ * @base: base fence object
  * @link: link on the sync timeline's list
  * @node: node in the sync timeline's tree
  */
@@ -99,13 +105,13 @@ struct sync_pt {
 	struct rb_node node;
 };
 
-static const struct dma_fence_ops timeline_dma_fence_ops;
+static const struct dma_fence_ops timeline_fence_ops;
 
-static inline struct sync_pt *fence_to_sync_pt(struct dma_fence *dma_fence)
+static inline struct sync_pt *fence_to_sync_pt(struct dma_fence *fence)
 {
-	if (dma_fence->ops != &timeline_dma_fence_ops)
+	if (fence->ops != &timeline_fence_ops)
 		return NULL;
-	return container_of(dma_fence, struct sync_pt, base);
+	return container_of(fence, struct sync_pt, base);
 }
 
 /**
@@ -155,62 +161,66 @@ static void sync_timeline_put(struct sync_timeline *obj)
 	kref_put(&obj->kref, sync_timeline_free);
 }
 
-static const char *timeline_fence_get_driver_name(struct dma_fence *dma_fence)
+static const char *timeline_fence_get_driver_name(struct dma_fence *fence)
 {
 	return "mdp_sync";
 }
 
-static const char *timeline_fence_get_timeline_name(struct dma_fence *dma_fence)
+static const char *timeline_fence_get_timeline_name(struct dma_fence *fence)
 {
-	struct sync_timeline *parent = fence_parent(dma_fence);
+	struct sync_timeline *parent = fence_parent(fence);
 
 	return parent->name;
 }
 
-static void timeline_fence_release(struct dma_fence *dma_fence)
+static void timeline_fence_release(struct dma_fence *fence)
 {
-	struct sync_pt *pt = fence_to_sync_pt(dma_fence);
-	struct sync_timeline *parent = fence_parent(dma_fence);
-	unsigned long flags;
+	struct sync_pt *pt = fence_to_sync_pt(fence);
+	struct sync_timeline *parent = fence_parent(fence);
 
-	spin_lock_irqsave(dma_fence->lock, flags);
 	if (pt && !list_empty(&pt->link)) {
-		list_del(&pt->link);
-		rb_erase(&pt->node, &parent->pt_tree);
+		unsigned long flags;
+
+		spin_lock_irqsave(fence->lock, flags);
+		if (!list_empty(&pt->link)) {
+			list_del(&pt->link);
+			rb_erase(&pt->node, &parent->pt_tree);
+		}
+		spin_unlock_irqrestore(fence->lock, flags);
 	}
-	spin_unlock_irqrestore(dma_fence->lock, flags);
 
 	sync_timeline_put(parent);
-	dma_fence_free(dma_fence);
+	dma_fence_free(fence);
+	atomic_dec(&fd_counter);
 }
 
-static bool timeline_fence_signaled(struct dma_fence *dma_fence)
+static bool timeline_fence_signaled(struct dma_fence *fence)
 {
-	struct sync_timeline *parent = fence_parent(dma_fence);
+	struct sync_timeline *parent = fence_parent(fence);
 
-	return !__dma_fence_is_later(dma_fence->seqno, parent->value);
+	return !__dma_fence_is_later(fence->seqno, parent->value);
 }
 
-static bool timeline_fence_enable_signaling(struct dma_fence *dma_fence)
+static bool timeline_fence_enable_signaling(struct dma_fence *fence)
 {
 	return true;
 }
 
-static void timeline_fence_value_str(struct dma_fence *dma_fence,
+static void timeline_fence_value_str(struct dma_fence *fence,
 				    char *str, int size)
 {
-	snprintf(str, size, "%d", dma_fence->seqno);
+	snprintf(str, size, "%d", fence->seqno);
 }
 
-static void timeline_fence_timeline_value_str(struct dma_fence *dma_fence,
+static void timeline_fence_timeline_value_str(struct dma_fence *fence,
 					     char *str, int size)
 {
-	struct sync_timeline *parent = fence_parent(dma_fence);
+	struct sync_timeline *parent = fence_parent(fence);
 
 	snprintf(str, size, "%d", parent->value);
 }
 
-static const struct dma_fence_ops timeline_dma_fence_ops = {
+static const struct dma_fence_ops timeline_fence_ops = {
 	.get_driver_name = timeline_fence_get_driver_name,
 	.get_timeline_name = timeline_fence_get_timeline_name,
 	.enable_signaling = timeline_fence_enable_signaling,
@@ -246,14 +256,14 @@ static void sync_timeline_signal(struct sync_timeline *obj, unsigned int inc)
 		list_del_init(&pt->link);
 		rb_erase(&pt->node, &obj->pt_tree);
 
-	/*
-	 * A signal callback may release the last reference to this
-	 * dma_fence, causing it to be freed. That operation has to be
-	 * last to avoid a use after free inside this loop, and must
-	 * be after we remove the dma_fence from the timeline in order to
-	 * prevent deadlocking on timeline->lock inside
-	 * timeline_fence_release().
-	 */
+		/*
+		 * A signal callback may release the last reference to this
+		 * fence, causing it to be freed. That operation has to be
+		 * last to avoid a use after free inside this loop, and must
+		 * be after we remove the fence from the timeline in order to
+		 * prevent deadlocking on timeline->lock inside
+		 * timeline_fence_release().
+		 */
 		dma_fence_signal_locked(&pt->base);
 	}
 
@@ -262,8 +272,8 @@ static void sync_timeline_signal(struct sync_timeline *obj, unsigned int inc)
 
 /**
  * sync_pt_create() - creates a sync pt
- * @parent:	dma_fence's parent sync_timeline
- * @inc:	value of the dma_fence
+ * @parent:	fence's parent sync_timeline
+ * @inc:	value of the fence
  *
  * Creates a new sync_pt as a child of @parent.  @size bytes will be
  * allocated allowing for implementation specific data to be kept after
@@ -277,11 +287,14 @@ static struct sync_pt *sync_pt_create(struct sync_timeline *obj,
 
 	pt = kzalloc(sizeof(*pt), GFP_KERNEL);
 	if (!pt)
-		return NULL;
+		return ERR_PTR(-ENOMEM);
 
 	sync_timeline_get(obj);
-	dma_fence_init(&pt->base, &timeline_dma_fence_ops, &obj->lock,
+	dma_fence_init(&pt->base, &timeline_fence_ops, &obj->lock,
 		   obj->context, value);
+
+	atomic_inc(&fd_counter);
+
 	INIT_LIST_HEAD(&pt->link);
 
 	spin_lock_irq(&obj->lock);
@@ -302,9 +315,8 @@ static struct sync_pt *sync_pt_create(struct sync_timeline *obj,
 				p = &parent->rb_left;
 			} else {
 				if (dma_fence_get_rcu(&other->base)) {
-					sync_timeline_put(obj);
-					kfree(pt);
-					pt = other;
+					dma_fence_put(&pt->base);
+					pt = ERR_PTR(-EEXIST);
 					goto unlock;
 				}
 				p = &parent->rb_left;
@@ -350,18 +362,8 @@ static int mdp_sync_open(struct inode *inode, struct file *file)
 static int mdp_sync_release(struct inode *inode, struct file *file)
 {
 	struct sync_timeline *obj = file->private_data;
-	struct sync_pt *pt, *next;
 
-	spin_lock_irq(&obj->lock);
-
-	list_for_each_entry_safe(pt, next, &obj->pt_list, link) {
-		dma_fence_set_error(&pt->base, -ENOENT);
-		dma_fence_signal_locked(&pt->base);
-	}
-
-	spin_unlock_irq(&obj->lock);
-
-	//smp_wmb();/*memory barrier*/
+	smp_wmb();/*memory barrier*/
 
 	sync_timeline_put(obj);
 	return 0;
@@ -370,11 +372,16 @@ static int mdp_sync_release(struct inode *inode, struct file *file)
 static long mdp_sync_ioctl_create_fence(struct sync_timeline *obj,
 				       unsigned long arg)
 {
-	int fd = get_unused_fd_flags(O_CLOEXEC);
+	int fd = 0;
 	int err;
 	struct sync_pt *pt;
 	struct sync_file *sync_file;
 	struct mdp_sync_create_fence_data data;
+
+	if (atomic_read(&fd_counter) > fd_max)
+		pr_notice("[CMDQ][MDP] user create too much fence %d\n", fd_counter);
+
+	fd = get_unused_fd_flags(O_CLOEXEC);
 
 	if (fd < 0)
 		return fd;
@@ -385,8 +392,8 @@ static long mdp_sync_ioctl_create_fence(struct sync_timeline *obj,
 	}
 
 	pt = sync_pt_create(obj, data.value);
-	if (!pt) {
-		err = -ENOMEM;
+	if (IS_ERR(pt)) {
+		err = PTR_ERR(pt);
 		goto err;
 	}
 
@@ -397,7 +404,7 @@ static long mdp_sync_ioctl_create_fence(struct sync_timeline *obj,
 		goto err;
 	}
 
-	data.dma_fence = fd;
+	data.fence = fd;
 	if (copy_to_user((void __user *)arg, &data, sizeof(data))) {
 		fput(sync_file->file);
 		err = -EFAULT;

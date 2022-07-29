@@ -5748,14 +5748,12 @@ void subsys_if_on(void)
 	}
 	if ((sta & ISP_PWR_STA_MASK) && (sta_s & ISP_PWR_STA_MASK)) {
 		pr_notice("suspend warning: SYS_ISP is on!!!\n");
-		check_img_clk_sts();
 		for (i = 0; i < img_num; i++)
 			dump_cg_state(img_clks[i]);
 		ret++;
 	}
 	if ((sta & IPE_PWR_STA_MASK) && (sta_s & IPE_PWR_STA_MASK)) {
 		pr_notice("suspend warning: SYS_IPE is on!!!\n");
-		check_ipe_clk_sts();
 		for (i = 0; i < ipe_num; i++)
 			dump_cg_state(ipe_clks[i]);
 		ret++;
@@ -5770,7 +5768,6 @@ void subsys_if_on(void)
 	}
 	if ((sta & VEN_PWR_STA_MASK) && (sta_s & VEN_PWR_STA_MASK)) {
 		pr_notice("suspend warning: SYS_VEN is on!!!\n");
-		check_ven_clk_sts();
 		for (i = 0; i < venc_num; i++)
 			dump_cg_state(venc_clks[i]);
 		ret++;

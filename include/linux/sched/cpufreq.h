@@ -11,6 +11,10 @@
 #define SCHED_CPUFREQ_IOWAIT	(1U << 0)
 #define SCHED_CPUFREQ_MIGRATION	(1U << 1)
 
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+#define SCHED_CPUFREQ_BOOST (1U << 9)
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
+
 #ifdef CONFIG_CPU_FREQ
 struct cpufreq_policy;
 

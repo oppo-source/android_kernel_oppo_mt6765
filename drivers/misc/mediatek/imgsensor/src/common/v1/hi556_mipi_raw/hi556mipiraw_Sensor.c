@@ -25,7 +25,7 @@ static DEFINE_SPINLOCK(imgsensor_drv_lock);
 #define per_frame 1
 
 static struct imgsensor_info_struct imgsensor_info = {
-	.sensor_id = HI556_SENSOR_ID,
+	.sensor_id = ROID_HI556_SENSOR_ID,
 	.checksum_value = 0x55e2a82f,
 	.pre = {
 		.pclk = 176000000,

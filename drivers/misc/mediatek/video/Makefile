@@ -41,7 +41,6 @@ else
 	obj-$(CONFIG_MACH_MT6757) += common/
 	obj-$(CONFIG_MACH_KIBOPLUS) += common/
 	obj-$(CONFIG_MACH_ELBRUS) += common/
-	obj-$(CONFIG_MACH_MT6768) += common/
 	obj-$(CONFIG_MACH_MT8167) += common/
 	obj-$(CONFIG_MACH_MT6799) += common/
 	obj-$(CONFIG_MACH_MT6759) += common/
@@ -51,5 +50,4 @@ else
 	obj-$(CONFIG_MACH_MT6761) += common/
 	obj-$(CONFIG_MACH_MT3967) += common/
 	obj-$(CONFIG_MACH_MT6779) += common/
-	obj-$(CONFIG_MACH_MT6771) += common/
 endif

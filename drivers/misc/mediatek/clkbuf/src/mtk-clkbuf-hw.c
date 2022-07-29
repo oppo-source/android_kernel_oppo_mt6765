@@ -608,7 +608,7 @@ static void _pmic_clk_buf_ctrl(enum CLK_BUF_TYPE *status)
 	if (!_clk_buf_get_init_sta())
 		return;
 
-	for (i = 0; i < CLK_BUF_INVALID; i++)
+	for (i = 0; i < XO_NUMBER; i++)
 		_clk_buf_ctrl_internal(i, status[i] % 2);
 
 	pr_info("%s clk_buf_swctrl=[%u %u %u %u 0 0 %u]\n",
@@ -749,7 +749,7 @@ static ssize_t _clk_buf_show_status_info_internal(char *buf)
 	len += _clk_buf_dump_misc_log(buf);
 	len += _clk_buf_dump_dws_log(buf);
 
-	for (i = 0; i < CLK_BUF_INVALID; i++) {
+	for (i = 0; i < XO_NUMBER; i++) {
 		if (CLK_BUF_STATUS[i] == CLOCK_BUFFER_DISABLE)
 			continue;
 
@@ -924,7 +924,7 @@ static ssize_t clk_buf_debug_store(struct kobject *kobj,
 	if ((sscanf(buf, "%31s %10s", cmd, xo_user) != 2))
 		return -EPERM;
 
-	for (i = 0; i < CLK_BUF_INVALID; i++)
+	for (i = 0; i < XO_NUMBER; i++)
 		if (!strcmp(xo_user, XO_NAME[i])) {
 			if (_clk_buf_debug_internal(cmd, i) < 0)
 				goto ERROR_CMD;
@@ -1047,7 +1047,7 @@ static ssize_t clk_buf_capid_show(struct kobject *kobj,
 	if (check_pmic_clkbuf_op())
 		pmic_op->pmic_clk_buf_get_cap_id(&cap_id);
 	pr_info("default cap id(%#x), cap id(%#x)\n", default_cap_id, cap_id);
-	len += snprintf(buf, PAGE_SIZE, "default cap id(%#x), cap id(%#x)\n",
+	len = snprintf(buf, PAGE_SIZE, "default cap id(%#x), cap id(%#x)\n",
 		default_cap_id, cap_id);
 	return len;
 }
@@ -1356,7 +1356,7 @@ static void _clk_buf_xo_init(void)
 		CLK_BUF_STATUS[XO_NFC] = CLOCK_BUFFER_DISABLE;
 
 	/* save setting after init done */
-	for (i = 0; i < CLK_BUF_INVALID; i++) {
+	for (i = 0; i < XO_NUMBER; i++) {
 		if (CLK_BUF_STATUS[i] != CLOCK_BUFFER_DISABLE)
 			clkbuf_read(XO_HW_SEL, i, &xo_mode_init[i]);
 		else {

@@ -1,0 +1,44 @@
+&i2c5 {
+	sgm4151x@6B {
+		compatible = "sgm,sgm4151x";
+		reg = <0x6B>;
+		charger_name = "secondary_chg";
+		status = "okay";
+		interrupt-parent = <&pio>;
+		interrupts = <11 IRQ_TYPE_EDGE_FALLING 11 0>;
+		sgm,charging-disabled;
+		sgm,sgm4151x,enable-term;
+
+		sgm,sgm4151x,charge-voltage = <4400>;
+		sgm,sgm4151x,charge-current = <3000>;
+		sgm,sgm4151x,input-current-limit = <3000>;
+		sgm,sgm4151x,input-voltage-limit = <4500>;
+		sgm,sgm4151x,vbatlow-volt = <3500>;
+		sgm,sgm4151x,term-current = <1000>;
+		pinctrl-names = "default", "subchg_enable", "subchg_disable";
+		pinctrl-0 = <&subcharger_pins_default>;
+		pinctrl-1 = <&subchg_enable>;
+		pinctrl-2 = <&subchg_disable>;
+	};
+};
+&pio {
+	subcharger_pins_default: eint0default {
+	};
+
+	subchg_enable: subchg_enable {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO177__FUNC_GPIO177>;
+			slew-rate = <1>;//0:input direction 1:output direction
+			output-low;
+		};
+	};
+
+	subchg_disable: subchg_disable {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO177__FUNC_GPIO177>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+};
+

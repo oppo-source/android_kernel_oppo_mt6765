@@ -270,6 +270,13 @@ int f2fs_update_extension_list(struct f2fs_sb_info *sbi, const char *name,
 	return 0;
 }
 
+#ifdef CONFIG_OPLUS_FEATURE_OF2FS
+static bool is_log_file(const char *filename)
+{
+	return is_extension_exist(filename, "log");
+}
+#endif
+
 static void set_compress_inode(struct f2fs_sb_info *sbi, struct inode *inode,
 						const unsigned char *name)
 {
@@ -333,6 +340,10 @@ static int f2fs_create(struct inode *dir, struct dentry *dentry, umode_t mode,
 	if (!test_opt(sbi, DISABLE_EXT_IDENTIFY))
 		set_file_temperature(sbi, inode, dentry->d_name.name);
 
+#ifdef CONFIG_OPLUS_FEATURE_OF2FS
+	if (is_log_file(dentry->d_name.name))
+		set_inode_flag(inode, FI_LOG_FILE);
+#endif
 	set_compress_inode(sbi, inode, dentry->d_name.name);
 
 	inode->i_op = &f2fs_file_inode_operations;
@@ -483,9 +494,10 @@ static struct dentry *f2fs_lookup(struct inode *dir, struct dentry *dentry,
 	int err = 0;
 	unsigned int root_ino = F2FS_ROOT_INO(F2FS_I_SB(dir));
 	struct f2fs_filename fname;
-
-	/* Comment out since this has use-after-free issue */
-	/* trace_f2fs_lookup_start(dir, dentry, flags); */
+#ifdef CONFIG_OPLUS_FEATURE_OF2FS
+	struct f2fs_sb_info *sbi = F2FS_I_SB(dir);
+#endif
+	trace_f2fs_lookup_start(dir, dentry, flags);
 
 	if (dentry->d_name.len > F2FS_NAME_LEN) {
 		err = -ENAMETOOLONG;
@@ -506,7 +518,6 @@ static struct dentry *f2fs_lookup(struct inode *dir, struct dentry *dentry,
 			err = PTR_ERR(page);
 			goto out;
 		}
-		err = -ENOENT;
 		goto out_splice;
 	}
 
@@ -538,6 +549,13 @@ static struct dentry *f2fs_lookup(struct inode *dir, struct dentry *dentry,
 		err = -EPERM;
 		goto out_iput;
 	}
+#ifdef CONFIG_OPLUS_FEATURE_OF2FS
+  	if (is_log_file(dentry->d_name.name))
+		set_inode_flag(inode, FI_LOG_FILE);
+	if (!test_opt(sbi, DISABLE_EXT_IDENTIFY) && !file_is_cold(inode))
+		set_file_temperature(sbi, inode, dentry->d_name.name);
+#endif
+
 out_splice:
 #ifdef CONFIG_UNICODE
 	if (!inode && IS_CASEFOLDED(dir)) {
@@ -546,21 +564,18 @@ out_splice:
 		 * well.  For now, prevent the negative dentry
 		 * from being cached.
 		 */
-		/* Comment out since this has use-after-free issue */
-		/* trace_f2fs_lookup_end(dir, dentry, ino, err); */
+		trace_f2fs_lookup_end(dir, dentry, ino, err);
 		return NULL;
 	}
 #endif
 	new = d_splice_alias(inode, dentry);
 	err = PTR_ERR_OR_ZERO(new);
-	/* Comment out since this has use-after-free issue */
-	/* trace_f2fs_lookup_end(dir, dentry, ino, !new ? -ENOENT : err); */
+	trace_f2fs_lookup_end(dir, dentry, ino, err);
 	return new;
 out_iput:
 	iput(inode);
 out:
-	/* Comment out since this has use-after-free issue */
-	/* trace_f2fs_lookup_end(dir, dentry, ino, err); */
+	trace_f2fs_lookup_end(dir, dentry, ino, err);
 	return ERR_PTR(err);
 }
 
@@ -570,10 +585,9 @@ static int f2fs_unlink(struct inode *dir, struct dentry *dentry)
 	struct inode *inode = d_inode(dentry);
 	struct f2fs_dir_entry *de;
 	struct page *page;
-	int err;
+	int err = -ENOENT;
 
-	/* Comment out since this has use-after-free issue */
-	/* trace_f2fs_unlink_enter(dir, dentry); */
+	trace_f2fs_unlink_enter(dir, dentry);
 
 	if (unlikely(f2fs_cp_error(sbi)))
 		return -EIO;
@@ -617,8 +631,7 @@ static int f2fs_unlink(struct inode *dir, struct dentry *dentry)
 	if (IS_DIRSYNC(dir))
 		f2fs_sync_fs(sbi->sb, 1);
 fail:
-	/* Comment out since this has use-after-free issue */
-	/* trace_f2fs_unlink_exit(inode, err); */
+	trace_f2fs_unlink_exit(inode, err);
 	return err;
 }
 
@@ -854,11 +867,7 @@ static int __f2fs_tmpfile(struct inode *dir, struct dentry *dentry,
 
 	if (whiteout) {
 		f2fs_i_links_write(inode, false);
-
-		spin_lock(&inode->i_lock);
 		inode->i_state |= I_LINKABLE;
-		spin_unlock(&inode->i_lock);
-
 		*whiteout = inode;
 	} else {
 		d_tmpfile(dentry, inode);
@@ -1044,11 +1053,7 @@ static int f2fs_rename(struct inode *old_dir, struct dentry *old_dentry,
 		err = f2fs_add_link(old_dentry, whiteout);
 		if (err)
 			goto put_out_dir;
-
-		spin_lock(&whiteout->i_lock);
 		whiteout->i_state &= ~I_LINKABLE;
-		spin_unlock(&whiteout->i_lock);
-
 		iput(whiteout);
 	}
 
@@ -1303,7 +1308,9 @@ const struct inode_operations f2fs_encrypted_symlink_inode_operations = {
 	.get_link       = f2fs_encrypted_get_link,
 	.getattr	= f2fs_getattr,
 	.setattr	= f2fs_setattr,
+#ifdef CONFIG_F2FS_FS_XATTR
 	.listxattr	= f2fs_listxattr,
+#endif
 };
 
 const struct inode_operations f2fs_dir_inode_operations = {
@@ -1321,7 +1328,9 @@ const struct inode_operations f2fs_dir_inode_operations = {
 	.setattr	= f2fs_setattr,
 	.get_acl	= f2fs_get_acl,
 	.set_acl	= f2fs_set_acl,
+#ifdef CONFIG_F2FS_FS_XATTR
 	.listxattr	= f2fs_listxattr,
+#endif
 	.fiemap		= f2fs_fiemap,
 };
 
@@ -1329,7 +1338,9 @@ const struct inode_operations f2fs_symlink_inode_operations = {
 	.get_link       = f2fs_get_link,
 	.getattr	= f2fs_getattr,
 	.setattr	= f2fs_setattr,
+#ifdef CONFIG_F2FS_FS_XATTR
 	.listxattr	= f2fs_listxattr,
+#endif
 };
 
 const struct inode_operations f2fs_special_inode_operations = {
@@ -1337,5 +1348,7 @@ const struct inode_operations f2fs_special_inode_operations = {
 	.setattr        = f2fs_setattr,
 	.get_acl	= f2fs_get_acl,
 	.set_acl	= f2fs_set_acl,
+#ifdef CONFIG_F2FS_FS_XATTR
 	.listxattr	= f2fs_listxattr,
+#endif
 };

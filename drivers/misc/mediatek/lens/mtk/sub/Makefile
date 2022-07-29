@@ -25,6 +25,8 @@ subdir-ccflags-y += -I$(MTK_CUSTOM_PATH)/lens/mtk/sub/inc
 
 ifeq ($(CONFIG_MACH_MT6779), y)
   ccflags-y += -I$(srctree)/drivers/misc/mediatek/timer/timesync/
+else ifeq ($(CONFIG_MACH_MT6765), y)
+  ccflags-y += -I$(srctree)/drivers/misc/mediatek/timer/timesync/
 endif
 
 obj-$(CONFIG_MTK_LENS)    += subaf.o

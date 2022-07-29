@@ -11,6 +11,14 @@
 #include <mtk_spm_internal.h>
 #include <mtk_power_gs_api.h>
 
+#ifdef OPLUS_FEATURE_POWERINFO_STANDBY
+#include "../../../../../../base/power/owakelock/oppo_wakelock_profiler_mtk.h"
+#include "mtk_spm_suspend_internal.h"
+#include "pcm_def.h"
+static int wakeup_state;
+#endif/*OPLUS_FEATURE_POWERINFO_STANDBY*/
+
+
 #define WORLD_CLK_CNTCV_L        (0x10017008)
 #define WORLD_CLK_CNTCV_H        (0x1001700C)
 static u32 pcm_timer_ramp_max_sec_loop = 1;
@@ -54,6 +62,43 @@ char *wakesrc_str[32] = {
 	[30] = " R12_CPU_WFI",
 	[31] = " R12_MCUSYS_IDLE_TO_EMI_ALL",
 };
+
+#ifdef OPLUS_FEATURE_POWERINFO_STANDBY
+const u32 R13_CLK_STABLE[32] = {
+ 	[0] = R13_SRCCLKENI0,                 
+ 	[1] = R13_SRCCLKENI1,                 
+ 	[2] = R13_MD_SRCCLKENA_0,             
+ 	[3] = R13_MD_APSRC_REQ_0,             
+ 	[4] = R13_CONN_DDR_EN,                
+ 	[5] = R13_MD_SRCCLKENA_1,             
+ 	[6] = R13_SSPM_SRCCLKENA,             
+ 	[7] = R13_SSPM_APSRC_REQ,             
+ 	[8] = R13_MD1_STATE,                  
+ 	[9] = R13_EMI_CLK_OFF_2_ACK,          
+ 	[10] = R13_MM_STATE,                   
+ 	[11] = R13_SSPM_STATE,                
+ 	[12] = R13_MD_DDR_EN_0,                
+ 	[13] = R13_CONN_STATE,                 
+ 	[14] = R13_CONN_SRCCLKENA,             
+ 	[15] = R13_CONN_APSRC_REQ,             
+ 	[16] = R13_BIT16,                      
+ 	[17] = R13_BIT17,                      
+ 	[18] = R13_SCP_STATE,                  
+ 	[19] = R13_CSYSPWRUPREQ,               
+ 	[20] = R13_PWRAP_SLEEP_ACK,            
+ 	[21] = R13_EMI_CLK_OFF_ACK_ALL,        
+ 	[22] = R13_AUDIO_DSP_STATE,            
+ 	[23] = R13_SW_DMDRAMCSHU_ACK_ALL,      
+ 	[24] = R13_CONN_SRCCLKENB,             
+ 	[25] = R13_SC_DR_SRAM_LOAD_ACK_ALL,    
+ 	[26] = R13_INFRA_AUX_IDLE,             
+ 	[27] = R13_DVFS_STATE,                 
+ 	[28] = R13_SC_DR_SRAM_PLL_LOAD_ACK_ALL,
+ 	[29] = R13_SC_DR_SRAM_RESTORE_ACK_ALL, 
+ 	[30] = R13_MD_VRF18_REQ_0,             
+ 	[31] = R13_DDR_EN_STATE, 
+};
+#endif/*OPLUS_FEATURE_POWERINFO_STANDBY*/
 
 /**************************************
  * Function and API
@@ -205,6 +250,91 @@ void rekick_vcorefs_scenario(void)
 {
 /* FIXME: */
 }
+
+#ifdef OPLUS_FEATURE_POWERINFO_STANDBY
+static void mt6779_suspend_CLK_check(const struct wake_status *wakesta,const u64 deep_sleep_time)
+{
+	#define LOG_BUF_SIZE		        256
+	#define IS_BLOCKED_OVER_TIMES		10
+	char log_buf[LOG_BUF_SIZE] = { 0 };
+	int log_size = 0;
+	u32 is_no_blocked = 0;
+	//static u32 is_blocked_cnt;
+	is_no_blocked = wakesta->debug_flag & 0x2;
+	/*
+	if(!is_no_blocked)
+		is_blocked_cnt++;
+	else
+		is_blocked_cnt=0;
+	*/
+	/* Check if ever enter deepest System LPM */
+	if (is_no_blocked){ //ok:debug_flag = 0xd0fff3ff   NG:debug_flag = 0xd0eef300
+		clk_state_statics(wakesta->debug_flag,wakesta->timer_out,deep_sleep_time,"static_clk_sleep_count");
+		return;
+	}
+	/* Check if System LPM ever is blocked over 10 times,and ap suspend time less than 1s */
+	//if ((is_blocked_cnt < IS_BLOCKED_OVER_TIMES)&&(wakesta->timer_out<32768))
+	//	return;
+	clk_state_statics(wakesta->r13,wakesta->timer_out,deep_sleep_time,"static_clk_no_sleep");
+	/* Show who is blocking system LPM */
+	log_size += scnprintf(log_buf + log_size,
+		LOG_BUF_SIZE - log_size,
+		"suspend warning:System LPM is blocked by ");//NG:r13 = 0xc400712c  OK:r13 = 0x4000000
+	/*R13 defined in pcm_def.h*/
+	if ((wakesta->r13 &(R13_CLK_STABLE[2]|R13_CLK_STABLE[3]|R13_CLK_STABLE[5]|R13_CLK_STABLE[8]|R13_CLK_STABLE[12]|R13_CLK_STABLE[30]))){//0x4000112C
+		log_size += scnprintf(log_buf + log_size,LOG_BUF_SIZE - log_size, "MD_clk(2/3/5/8/12/30) ");	
+	}
+
+	if ((wakesta->r13 &(R13_CLK_STABLE[4]|R13_CLK_STABLE[13]|R13_CLK_STABLE[14]|R13_CLK_STABLE[15]|R13_CLK_STABLE[24])))
+		log_size += scnprintf(log_buf + log_size,LOG_BUF_SIZE - log_size, "CONN_clk(4/13/14/15/24/) ");
+
+	if ((wakesta->r13 &(R13_CLK_STABLE[25]|R13_CLK_STABLE[28]|R13_CLK_STABLE[29])))
+		log_size += scnprintf(log_buf + log_size,LOG_BUF_SIZE - log_size, "SC_DR_SRAM_clk(25/28/29) ");
+
+	if (wakesta->r13 & (R13_CLK_STABLE[10]))
+		log_size += scnprintf(log_buf + log_size,LOG_BUF_SIZE - log_size, "MM_disp_clk(10) ");
+
+	if (wakesta->r13 & (R13_CLK_STABLE[18]))
+		log_size += scnprintf(log_buf + log_size,LOG_BUF_SIZE - log_size, "SCP_clk(18) ");
+
+	if (wakesta->r13 & (R13_CLK_STABLE[22]))
+		log_size += scnprintf(log_buf + log_size,LOG_BUF_SIZE - log_size, "AUDIO_clk(22) ");
+
+	if (wakesta->r13 & (R13_CLK_STABLE[31]))
+		log_size += scnprintf(log_buf + log_size,LOG_BUF_SIZE - log_size, "DDR_clk(31) ");
+
+	if (wakesta->r13 & (R13_CLK_STABLE[6]|R13_CLK_STABLE[7]|R13_CLK_STABLE[11]))
+		log_size += scnprintf(log_buf + log_size,LOG_BUF_SIZE - log_size, "SSPM_clk(6/7/11) ");
+
+	if (wakesta->r13 & (R13_CLK_STABLE[0]|R13_CLK_STABLE[1]))
+		log_size += scnprintf(log_buf + log_size,LOG_BUF_SIZE - log_size, "SRC_clk(0/1) ");
+
+	if (wakesta->r13 & (R13_CLK_STABLE[16]|R13_CLK_STABLE[17]))
+		log_size += scnprintf(log_buf + log_size,LOG_BUF_SIZE - log_size, "BIT(16/17) ");
+
+	if (wakesta->r13 & (R13_CLK_STABLE[9]|R13_CLK_STABLE[21]))
+		log_size += scnprintf(log_buf + log_size,LOG_BUF_SIZE - log_size, "EMI_clk(9/21) ");
+	
+	if (wakesta->r13 & (R13_CLK_STABLE[19]))
+		log_size += scnprintf(log_buf + log_size,LOG_BUF_SIZE - log_size, "CSYSPWRUPREQ_clk(19) ");
+	
+	if (wakesta->r13 & (R13_CLK_STABLE[20]))
+		log_size += scnprintf(log_buf + log_size,LOG_BUF_SIZE - log_size, "PWRAP_clk(20) ");
+	
+	if (wakesta->r13 & (R13_CLK_STABLE[23]))
+		log_size += scnprintf(log_buf + log_size,LOG_BUF_SIZE - log_size, "SW_DMDRAMCSHU_clk(23) ");
+	
+	if (wakesta->r13 & (R13_CLK_STABLE[27]))
+		log_size += scnprintf(log_buf + log_size,LOG_BUF_SIZE - log_size, "DVFS_clk(27) ");
+	
+	if (wakesta->r13==0x4000000)
+		log_size += scnprintf(log_buf + log_size,LOG_BUF_SIZE - log_size, "unknow_clk ");
+
+	WARN_ON(strlen(log_buf) >= LOG_BUF_SIZE);
+
+	printk_deferred("[name:spm&][SPM] %s", log_buf);
+}
+#endif /*OPLUS_FEATURE_POWERINFO_STANDBY*/
 
 unsigned int __spm_output_wake_reason(
 	const struct wake_status *wakesta, bool suspend, const char *scenario)
@@ -381,11 +511,29 @@ unsigned int __spm_output_wake_reason(
 			_golden_read_reg(WORLD_CLK_CNTCV_L),
 			_golden_read_reg(WORLD_CLK_CNTCV_H),
 			spm_26M_off_pct);
+		#ifdef OPLUS_FEATURE_POWERINFO_STANDBY
+		mt6779_suspend_CLK_check(wakesta,spm_read(SPM_SW_RSV_4));
+		printk_deferred("[name:spm&][SPM] Suspended for %d.%03d seconds",
+			PCM_TICK_TO_SEC(wakesta->timer_out),
+			PCM_TICK_TO_SEC((wakesta->timer_out % PCM_32K_TICKS_PER_SEC)* 1000));
+		#endif /* OPLUS_FEATURE_POWERINFO_STANDBY */
 	} else
 		log_size += sprintf(log_buf + log_size,
 			" clk_settle = 0x%x\n",
 			wakesta->clk_settle);
-
+	
+	#ifdef OPLUS_FEATURE_POWERINFO_STANDBY
+	//R12_EINT_EVENT_B wakeup statistics in other place
+	if(suspend==true && (!(wakesta->r12 & R12_EINT_EVENT_B))){
+		pr_info("%s:wakeup_reson=%d scenario=%s wakeupby(buf)=%s",__func__,wr,scenario,buf);
+		wakeup_state=false;
+		wakeup_state=wakeup_reasons_statics(buf, WS_CNT_WLAN|WS_CNT_ADSP|WS_CNT_SENSOR|WS_CNT_MODEM);
+		if((wakeup_state==false)&&(strlen(buf)!=0)){
+			wakeup_reasons_statics("other",WS_CNT_OTHER);	
+		}
+	}
+	#endif /* OPLUS_FEATURE_POWERINFO_STANDBY */
+	
 	WARN_ON(log_size >= 1024);
 
 	if (!suspend)
@@ -394,7 +542,6 @@ unsigned int __spm_output_wake_reason(
 		aee_sram_printk("%s", log_buf);
 		printk_deferred("[name:spm&][SPM] %s", log_buf);
 	}
-
 	return wr;
 }
 

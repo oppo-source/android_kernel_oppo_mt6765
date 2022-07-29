@@ -14,6 +14,9 @@
 #include <linux/of_address.h>
 #include <dt-bindings/pinctrl/mt65xx.h>
 #include "pinctrl-paris.h"
+#ifdef OPLUS_FEATURE_TP_BASIC
+#include <soc/oppo/oppo_project.h>
+#endif /*OPLUS_FEATURE_TP_BASIC*/
 
 #define PINCTRL_PINCTRL_DEV	KBUILD_MODNAME
 
@@ -23,6 +26,18 @@
 #define MTK_PIN_CONFIG_PU_ADV	(PIN_CONFIG_END + 3)
 #define MTK_PIN_CONFIG_PD_ADV	(PIN_CONFIG_END + 4)
 #define MTK_PIN_CONFIG_DRV_ADV	(PIN_CONFIG_END + 5)
+
+#ifdef OPLUS_FEATURE_TP_BASIC
+#define DRV_Reg32(addr)	readl(addr)
+#define DRV_WriteReg32(addr, val) writel(val, addr)
+#define I2C_SET_REG32(reg, field, val) \
+    do { \
+        unsigned int tv = DRV_Reg32(reg); \
+        tv &= ~(field); \
+        tv |= (val); \
+        DRV_WriteReg32(reg, tv); \
+    } while(0)
+#endif /*OPLUS_FEATURE_TP_BASIC*/
 
 static const struct pinconf_generic_params mtk_custom_bindings[] = {
 	{"mediatek,tdsel",	MTK_PIN_CONFIG_TDSEL,		0},
@@ -53,20 +68,13 @@ static int mtk_pinmux_gpio_request_enable(struct pinctrl_dev *pctldev,
 					  struct pinctrl_gpio_range *range,
 					  unsigned int pin)
 {
-	int err;
 	struct mtk_pinctrl *hw = pinctrl_dev_get_drvdata(pctldev);
 	const struct mtk_pin_desc *desc;
 
 	desc = (const struct mtk_pin_desc *)&hw->soc->pins[pin];
-	err = mtk_hw_set_value(hw, desc, PINCTRL_PIN_REG_MODE,
+
+	return mtk_hw_set_value(hw, desc, PINCTRL_PIN_REG_MODE,
 				hw->soc->gpio_m);
-	if (err)
-		return err;
-
-	if (hw->soc->eh_pin_pinmux)
-		mtk_eh_ctrl(hw, desc, hw->soc->gpio_m);
-
-	return 0;
 }
 
 static int mtk_pinmux_gpio_set_direction(struct pinctrl_dev *pctldev,
@@ -593,17 +601,12 @@ ssize_t mtk_pctrl_show_one_pin(struct mtk_pinctrl *hw,
 	unsigned int gpio, char *buf, unsigned int bufLen)
 {
 	const struct mtk_pin_desc *desc;
-	int pinmux, pullup = 0, pullen = 0, r1 = -1, r0 = -1, len = 0, val;
+	int pinmux, pullup = 0, pullen = 0, len = 0, r1 = -1, r0 = -1;
 
 	if (gpio > hw->soc->npins)
 		return -EINVAL;
 
 	desc = (const struct mtk_pin_desc *)&hw->soc->pins[gpio];
-
-	if (desc->eint.eint_m != NO_EINT_SUPPORT
-	 && desc->funcs[desc->eint.eint_m].name == 0)
-		return 0;
-
 	pinmux = mtk_pctrl_get_pinmux(hw, gpio);
 	if (pinmux >= hw->soc->nfuncs)
 		pinmux -= hw->soc->nfuncs;
@@ -628,39 +631,25 @@ ssize_t mtk_pctrl_show_one_pin(struct mtk_pinctrl *hw,
 	} else if (pullen != MTK_DISABLE && pullen != MTK_ENABLE) {
 		pullen = 0;
 	}
-
 	len += snprintf(buf + len, bufLen - len,
-			"%03d: %1d%1d%1d%1d",
+			"%03d: %1d%1d%1d%1d%02d%1d%1d%1d%1d",
 			gpio,
 			pinmux,
 			mtk_pctrl_get_direction(hw, gpio),
 			mtk_pctrl_get_out(hw, gpio),
-			mtk_pctrl_get_in(hw, gpio));
+			mtk_pctrl_get_in(hw, gpio),
+			mtk_pctrl_get_driving(hw, gpio),
+			mtk_pctrl_get_smt(hw, gpio),
+			mtk_pctrl_get_ies(hw, gpio),
+			pullen,
+			pullup);
 
-	val = mtk_pctrl_get_driving(hw, gpio);
-	if (val >= 0)
-		len += snprintf(buf + len, bufLen - len, "%02d", val);
-	else
-		len += snprintf(buf + len, bufLen - len, "XX");
-
-	val = mtk_pctrl_get_smt(hw, gpio);
-	if (val >= 0)
-		len += snprintf(buf + len, bufLen - len, "%1d", val);
-	else
-		len += snprintf(buf + len, bufLen - len, "X");
-
-	val = mtk_pctrl_get_ies(hw, gpio);
-	if (val >= 0)
-		len += snprintf(buf + len, bufLen - len, "%1d", val);
-	else
-		len += snprintf(buf + len, bufLen - len, "X");
-
-	if (r1 != -1)
-		len += snprintf(buf + len, bufLen - len, "%1d%1d (%1d %1d)\n",
-			pullen, pullup, r1, r0);
-	else
-		len += snprintf(buf + len, bufLen - len, "%1d%1d\n",
-			pullen, pullup);
+	if (r1 != -1) {
+		len += snprintf(buf + len, bufLen - len, " (%1d %1d)\n",
+			r1, r0);
+	} else {
+		len += snprintf(buf + len, bufLen - len, "\n");
+	}
 
 	return len;
 }
@@ -908,6 +897,64 @@ static int mtk_gpio_set_config(struct gpio_chip *chip, unsigned int offset,
 	return mtk_eint_set_debounce(hw->eint, desc->eint.eint_n, debounce);
 }
 
+#ifdef VENDOR_EDIT
+//TODO:temporary solution, use gpio instead.
+static int pinctrl_inited = 0;
+static DEFINE_MUTEX(Oplus_gpio_lock);
+struct mtk_pinctrl *g_pctl;
+static inline int is_projects_supported(void)
+{
+	unsigned int project = get_project();
+
+	switch (project) {
+	case 20361:
+	case 20362:
+	case 20363:
+	case 20364:
+	case 20365:
+	case 20366:
+		return 1;
+
+	default:
+		return 0;
+	}
+}
+
+void oplus_gpio_switch_lock(void)
+{
+	if (!is_projects_supported())
+		return;
+	return mutex_lock(&Oplus_gpio_lock);
+}
+
+void oplus_gpio_switch_unlock(void)
+{
+	if (!is_projects_supported())
+		return;
+	return mutex_unlock(&Oplus_gpio_lock);
+}
+
+void oplus_gpio_value_switch(unsigned int pin, unsigned int val)
+{
+	struct pinctrl_dev *pctldev;
+
+	if (!is_projects_supported())
+		return;
+
+	if (!pinctrl_inited)
+		return;
+
+	if (!g_pctl)
+		return;
+
+	pctldev = g_pctl->pctrl;
+
+	mtk_pinmux_gpio_set_direction(pctldev, NULL, pin, false);
+	mtk_gpio_set(&g_pctl->chip, pin, !!val);
+	pr_err("%s, output value is %d\n", __func__, mtk_gpio_get(&g_pctl->chip, pin));
+}
+#endif
+
 static int mtk_build_gpiochip(struct mtk_pinctrl *hw, struct device_node *np)
 {
 	struct gpio_chip *chip = &hw->chip;
@@ -975,6 +1022,9 @@ int mtk_paris_pinctrl_probe(struct platform_device *pdev,
 	struct property *prop;
 	struct resource *res;
 	int err, i;
+#ifdef OPLUS_FEATURE_TP_BASIC
+	unsigned int prjNo = 0;
+#endif /*OPLUS_FEATURE_TP_BASIC*/
 
 	hw = devm_kzalloc(&pdev->dev, sizeof(*hw), GFP_KERNEL);
 	if (!hw)
@@ -1026,6 +1076,18 @@ int mtk_paris_pinctrl_probe(struct platform_device *pdev,
 			of_node_put(node);
 		}
 	}
+#ifdef OPLUS_FEATURE_TP_BASIC
+	prjNo = get_project();
+	if (prjNo >= 20291 && prjNo <= 20295) {
+		for (i = 0; i < hw->soc->nbase_names; i++) {
+			if (!strcmp("iocfg_lm", hw->soc->base_names[i])) {
+				I2C_SET_REG32(hw->base[i] + 0xD0, 0xFFFF, 0xFDFD);
+				/*register definition is same with internal_resister_setting (preloader/mt6779/i2c.c)*/
+				dev_err(&pdev->dev, "checking iocfg_lm regValue 0x%x\n", DRV_Reg32(hw->base[i] + 0xD0));
+			}
+		}
+	}
+#endif /*OPLUS_FEATURE_TP_BASIC*/
 
 	err = mtk_pctrl_build_state(pdev);
 	if (err) {
@@ -1076,6 +1138,10 @@ int mtk_paris_pinctrl_probe(struct platform_device *pdev,
 
 	platform_set_drvdata(pdev, hw);
 
+#ifdef VENDOR_EDIT
+	pinctrl_inited = 1;
+	g_pctl = hw;
+#endif
 	return 0;
 }
 EXPORT_SYMBOL_GPL(mtk_paris_pinctrl_probe);

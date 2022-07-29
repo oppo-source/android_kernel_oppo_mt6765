@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2019 MediaTek Inc.
+ * Copyright (c) 2018 MediaTek Inc.
  */
 
 #ifndef __MTK_DCM_COMMON_H__
@@ -12,19 +12,18 @@
 #define DCM_ON (1)
 
 #define TAG	"[Power/dcm] "
-#ifdef pr_fmt
-#undef pr_fmt
-#endif
-#define pr_fmt(fmt) TAG " : " fmt
-
-#define dcm_pr_err(fmt, args...)		pr_err(fmt, ##args)
-#define dcm_pr_warn(fmt, args...)		pr_warn(fmt, ##args)
-#define dcm_pr_info_limit(fmt, args...)		pr_info_ratelimited(fmt, ##args)
-#define dcm_pr_info(fmt, args...)		pr_info(fmt, ##args)
+#define dcm_pr_err(fmt, args...)			\
+	pr_err(TAG fmt, ##args)
+#define dcm_pr_warn(fmt, args...)			\
+	pr_warn(TAG fmt, ##args)
+#define dcm_pr_info_limit(fmt, args...)			\
+	pr_info_ratelimited(TAG fmt, ##args)
+#define dcm_pr_info(fmt, args...)			\
+	pr_info(TAG fmt, ##args)
 #define dcm_pr_dbg(fmt, args...)			\
 	do {						\
 		if (dcm_debug)				\
-			pr_info(fmt, ##args);	\
+			pr_info(TAG fmt, ##args);	\
 	} while (0)
 
 /** macro **/
@@ -32,20 +31,9 @@
 #define or(v, o) ((v) | (o))
 #define aor(v, a, o) (((v) & (a)) | (o))
 
-#define DCM_BASE_INFO(_name) \
-{ \
-	.name = #_name, \
-	.base = &_name, \
-}
 /*****************************************************/
 typedef int (*DCM_FUNC)(int);
-typedef bool (*DCM_FUNC_IS_ON)(void);
 typedef void (*DCM_PRESET_FUNC)(void);
-
-struct DCM_BASE {
-	char *name;
-	unsigned long *base;
-};
 
 struct DCM {
 	int current_state;
@@ -53,9 +41,8 @@ struct DCM {
 	int disable_refcnt;
 	int default_state;
 	DCM_FUNC func;
-	DCM_FUNC_IS_ON func_is_on;
 	DCM_PRESET_FUNC preset_func;
-	int typeid;
+	unsigned int typeid;
 	char *name;
 };
 

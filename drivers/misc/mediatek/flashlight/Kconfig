@@ -11,6 +11,42 @@ config MTK_FLASHLIGHT
 	  If you have any questions about this, say Y here,
 	  only say N if you know exactly what you are doing.
 
+config MTK_FLASHLIGHT_PASCAL
+	tristate "Mediatek flashlight pascal pwm driver"
+	depends on MTK_FLASHLIGHT
+	default n
+	help
+	  This is flashlight led191 gpio driver for camera.
+
+	  Say Y here if you want a driver IC with GPIO interface.
+	  Select this only if your board has this IC.
+
+	  Say M here if you want to compile this driver as a module.
+
+config MTK_FLASHLIGHT_PARKERA
+	tristate "Mediatek flashlight with driver IC (PARKERA)"
+	depends on MTK_FLASHLIGHT
+	default n
+        help
+	  This is for the flashlight driver IC (PARKERA).
+
+	  Say Y here if you want a flashlight driver IC PARKERA.
+	  Select this only if your board has this IC.
+
+	  Say M here if you want to compile this driver as a module.
+
+config MTK_FLASHLIGHT_PARKERB
+	tristate "Mediatek flashlight with driver IC (PARKERB)"
+	depends on MTK_FLASHLIGHT
+	default n
+        help
+	  This is for the flashlight driver IC (PARKERB).
+
+	  Say Y here if you want a flashlight driver IC PARKERB.
+	  Select this only if your board has this IC.
+
+	  Say M here if you want to compile this driver as a module.
+
 config MTK_FLASHLIGHT_AW3644
 	tristate "Mediatek flashlight with driver IC (AW3644)"
 	depends on MTK_FLASHLIGHT
@@ -40,6 +76,30 @@ config MTK_FLASHLIGHT_LM3642
 	  This is for the flashlight driver IC (TI LM3642).
 
 	  Say Y here if you want a flashlight driver IC LM3642.
+	  Select this only if your board has this IC.
+
+	  Say M here if you want to compile this driver as a module.
+
+config MTK_FLASHLIGHT_YOGURT
+        tristate "Mediatek flashlight with driver IC (yogurt vendor)"
+        depends on MTK_FLASHLIGHT
+        default n
+        help
+          This is for the flashlight driver IC (yogurt vendor).
+
+          Say Y here if you want a flashlight driver IC yogurt vendor.
+          Select this only if your board has this IC.
+
+	  Say M here if you want to compile this driver as a module.
+
+config MTK_FLASHLIGHT_YOGURTA
+	tristate "Mediatek flashlight with driver IC (YOGURTA)"
+	depends on MTK_FLASHLIGHT
+	default n
+        help
+	  This is for the flashlight driver IC (YOGURTA).
+
+	  Say Y here if you want a flashlight driver IC YOGURTA.
 	  Select this only if your board has this IC.
 
 	  Say M here if you want to compile this driver as a module.

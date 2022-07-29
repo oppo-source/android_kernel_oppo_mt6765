@@ -20,7 +20,11 @@
 #include <linux/tty_flip.h>
 #include <linux/delay.h>
 #include "mt-plat/mtk_printk_ctrl.h"
-
+#ifdef OPLUS_FEATURE_CHG_BASIC
+#include <linux/pinctrl/consumer.h>
+#include <soc/oppo/oppo_project.h>
+#include <mt-plat/mtk_boot.h>
+#endif
 #include "8250.h"
 
 #define MTK_UART_HIGHS		0x09	/* Highspeed register */
@@ -38,16 +42,13 @@
 #define MTK_UART_FRACDIV_M	0x16	/* Fractional divider MSB address */
 #define MTK_UART_FCR_RD		0x17	/* Fifo control register */
 #define MTK_UART_DEBUG0	0x18
+#define MTK_UART_RX_SEL		0x24	/* Uart rx pin sel */
 #define MTK_UART_SLEEP_REQ	0x2d	/* Sleep request register */
 #define MTK_UART_SLEEP_ACK	0x2e	/* Sleep ack register */
 #define MTK_UART_IER_XOFFI	0x20	/* Enable XOFF character interrupt */
 #define MTK_UART_IER_RTSI	0x40	/* Enable RTS Modem status interrupt */
 #define MTK_UART_IER_CTSI	0x80	/* Enable CTS Modem status interrupt */
 
-#define MTK_UART_DLL  0x24
-#define MTK_UART_DLH  0x25
-#define MTK_UART_FEATURE_SEL  0x27
-#define MTK_UART_EFR    0x26
 #define MTK_UART_EFR_EN		0x10	/* Enable enhancement feature */
 #define MTK_UART_EFR_RTS	0x40	/* Enable hardware rx flow control */
 #define MTK_UART_EFR_CTS	0x80	/* Enable hardware tx flow control */
@@ -125,6 +126,39 @@ enum {
 	MTK_UART_FC_SW,
 	MTK_UART_FC_HW,
 };
+
+#ifdef OPLUS_FEATURE_CHG_BASIC
+static struct pinctrl *serial_pinctrl = NULL;
+static struct pinctrl_state *rx_pinctrl_state_diable = NULL;
+static struct pinctrl_state *tx_pinctrl_state_diable = NULL;
+
+bool boot_with_console(void)
+{
+	static bool is_console_initial = false;
+	static bool boot_uart_status = false;
+	int boot_mode = 0;
+
+	if (is_console_initial) {
+		return boot_uart_status;
+	}
+
+	boot_mode = get_boot_mode();
+	pr_err("%s: boot_mode = %d\n", __func__, boot_mode);
+	if (boot_mode == FACTORY_BOOT || boot_mode == ATE_FACTORY_BOOT) {
+		boot_uart_status = true;
+	} else {
+		if (mt_get_uartlog_status() == true) {
+			boot_uart_status = true;
+		} else {
+			boot_uart_status = false;
+		}
+	}
+
+	is_console_initial = true;
+
+	return boot_uart_status;
+}
+#endif /*OPLUS_FEATURE_CHG_BASIC*/
 
 #ifdef CONFIG_SERIAL_8250_DMA
 static void mtk8250_rx_dma(struct uart_8250_port *up);
@@ -269,19 +303,21 @@ static void mtk8250_enable_intrs(struct uart_8250_port *up, int mask)
 static void mtk8250_set_flow_ctrl(struct uart_8250_port *up, int mode)
 {
 	struct uart_port *port = &up->port;
+	int lcr = serial_in(up, UART_LCR);
 
-	serial_out(up, MTK_UART_FEATURE_SEL, 1);
-	serial_out(up, MTK_UART_EFR, UART_EFR_ECB);
-	serial_out(up, MTK_UART_FEATURE_SEL, 0);
+	serial_out(up, UART_LCR, UART_LCR_CONF_MODE_B);
+	serial_out(up, UART_EFR, UART_EFR_ECB);
+	serial_out(up, UART_LCR, lcr);
+	lcr = serial_in(up, UART_LCR);
 
 	switch (mode) {
 	case MTK_UART_FC_NONE:
 		serial_out(up, MTK_UART_ESCAPE_DAT, MTK_UART_ESCAPE_CHAR);
 		serial_out(up, MTK_UART_ESCAPE_EN, 0x00);
-		serial_out(up, MTK_UART_FEATURE_SEL, 1);
-		serial_out(up, MTK_UART_EFR, serial_in(up, MTK_UART_EFR) &
+		serial_out(up, UART_LCR, UART_LCR_CONF_MODE_B);
+		serial_out(up, UART_EFR, serial_in(up, UART_EFR) &
 			(~(MTK_UART_EFR_HW_FC | MTK_UART_EFR_SW_FC_MASK)));
-		serial_out(up, MTK_UART_FEATURE_SEL, 0);
+		serial_out(up, UART_LCR, lcr);
 		mtk8250_disable_intrs(up, MTK_UART_IER_XOFFI |
 			MTK_UART_IER_RTSI | MTK_UART_IER_CTSI);
 		break;
@@ -290,14 +326,14 @@ static void mtk8250_set_flow_ctrl(struct uart_8250_port *up, int mode)
 		serial_out(up, MTK_UART_ESCAPE_DAT, MTK_UART_ESCAPE_CHAR);
 		serial_out(up, MTK_UART_ESCAPE_EN, 0x00);
 		serial_out(up, UART_MCR, UART_MCR_RTS);
-		serial_out(up, MTK_UART_FEATURE_SEL, 1);
+		serial_out(up, UART_LCR, UART_LCR_CONF_MODE_B);
 
 		/*enable hw flow control*/
-		serial_out(up, MTK_UART_EFR, MTK_UART_EFR_HW_FC |
-			(serial_in(up, MTK_UART_EFR) &
+		serial_out(up, UART_EFR, MTK_UART_EFR_HW_FC |
+			(serial_in(up, UART_EFR) &
 			(~(MTK_UART_EFR_HW_FC | MTK_UART_EFR_SW_FC_MASK))));
 
-		serial_out(up, MTK_UART_FEATURE_SEL, 0);
+		serial_out(up, UART_LCR, lcr);
 		mtk8250_disable_intrs(up, MTK_UART_IER_XOFFI);
 		mtk8250_enable_intrs(up, MTK_UART_IER_CTSI | MTK_UART_IER_RTSI);
 		break;
@@ -305,32 +341,22 @@ static void mtk8250_set_flow_ctrl(struct uart_8250_port *up, int mode)
 	case MTK_UART_FC_SW:	/*MTK software flow control */
 		serial_out(up, MTK_UART_ESCAPE_DAT, MTK_UART_ESCAPE_CHAR);
 		serial_out(up, MTK_UART_ESCAPE_EN, 0x01);
-		serial_out(up, MTK_UART_FEATURE_SEL, 1);
+		serial_out(up, UART_LCR, UART_LCR_CONF_MODE_B);
 
 		/*enable sw flow control */
-		serial_out(up, MTK_UART_EFR, MTK_UART_EFR_XON1_XOFF1 |
-			(serial_in(up, MTK_UART_EFR) &
+		serial_out(up, UART_EFR, MTK_UART_EFR_XON1_XOFF1 |
+			(serial_in(up, UART_EFR) &
 			(~(MTK_UART_EFR_HW_FC | MTK_UART_EFR_SW_FC_MASK))));
 
 		serial_out(up, UART_XON1, START_CHAR(port->state->port.tty));
 		serial_out(up, UART_XOFF1, STOP_CHAR(port->state->port.tty));
-		serial_out(up, MTK_UART_FEATURE_SEL, 0);
+		serial_out(up, UART_LCR, lcr);
 		mtk8250_disable_intrs(up, MTK_UART_IER_CTSI|MTK_UART_IER_RTSI);
 		mtk8250_enable_intrs(up, MTK_UART_IER_XOFFI);
 		break;
 	default:
 		break;
 	}
-}
-
-static void
-mtk8250_set_divisor(struct uart_port *port, unsigned int baud,
-			unsigned int quot, unsigned int quot_frac)
-{
-	serial_port_out(port, MTK_UART_FEATURE_SEL, 1);
-	serial_port_out(port, MTK_UART_DLL, quot & 0xff);
-	serial_port_out(port, MTK_UART_DLH, (quot >> 8) & 0xff);
-	serial_port_out(port, MTK_UART_FEATURE_SEL, 0);
 }
 
 static void
@@ -359,20 +385,7 @@ mtk8250_set_termios(struct uart_port *port, struct ktermios *termios,
 	}
 #endif
 
-	/*
-	 * Store the requested baud rate before calling the generic 8250
-	 * set_termios method. Standard 8250 port expects bauds to be
-	 * no higher than (uartclk / 16) so the baud will be clamped if it
-	 * gets out of that bound. Mediatek 8250 port supports speed
-	 * higher than that, therefore we'll get original baud rate back
-	 * after calling the generic set_termios method and recalculate
-	 * the speed later in this method.
-	 */
-	baud = tty_termios_baud_rate(termios);
-
-	serial8250_do_set_termios(port, termios, NULL);
-
-	tty_termios_encode_baud_rate(termios, baud, baud);
+	serial8250_do_set_termios(port, termios, old);
 
 	/*
 	 * Mediatek UARTs use an extra highspeed register (MTK_UART_HIGHS)
@@ -405,10 +418,12 @@ mtk8250_set_termios(struct uart_port *port, struct ktermios *termios,
 	 */
 	spin_lock_irqsave(&port->lock, flags);
 
-	/*
-	 * Update the per-port timeout.
-	 */
-	uart_update_timeout(port, termios->c_cflag, baud);
+	/* set DLAB we have cval saved in up->lcr from the call to the core */
+	serial_port_out(port, UART_LCR, up->lcr | UART_LCR_DLAB);
+	serial_dl_write(up, quot);
+
+	/* reset DLAB */
+	serial_port_out(port, UART_LCR, up->lcr);
 
 	if (baud >= 115200) {
 		unsigned int tmp;
@@ -431,8 +446,6 @@ mtk8250_set_termios(struct uart_port *port, struct ktermios *termios,
 		serial_port_out(port, MTK_UART_FRACDIV_L, 0x00);
 		serial_port_out(port, MTK_UART_FRACDIV_M, 0x00);
 	}
-
-	mtk8250_set_divisor(port, baud, quot, fraction);
 
 	if ((termios->c_cflag & CRTSCTS) && (!(termios->c_iflag & CRTSCTS)))
 		mode = MTK_UART_FC_HW;
@@ -461,11 +474,9 @@ static int mtk8250_handle_irq(struct uart_port *port)
 	serial8250_rpm_get(up);
 
 #ifndef CONFIG_FIQ_DEBUGGER
-#ifdef CONFIG_MTK_ENG_BUILD
 #ifdef CONFIG_PRINTK_MTK_UART_CONSOLE
 	if (uart_console(port) && (serial_port_in(port, UART_LSR) & 0x01))
 		mt_enable_uart();
-#endif
 #endif
 #endif
 
@@ -608,6 +619,35 @@ static int mtk8250_probe(struct platform_device *pdev)
 			return err;
 	} else
 		return -ENODEV;
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	if (boot_with_console() == false) {
+		serial_pinctrl = devm_pinctrl_get(&pdev->dev);
+		if (IS_ERR_OR_NULL(serial_pinctrl)) {
+			pr_err("%s: No serial_pinctrl config specified!\n", __func__);
+		} else {
+			rx_pinctrl_state_diable = pinctrl_lookup_state(serial_pinctrl, "uart0_rx_gpio");
+			if (IS_ERR_OR_NULL(rx_pinctrl_state_diable)) {
+				pr_err("%s: No serial_pinctrl_state config specified!\n", __func__);
+			} else {
+				pr_err("%s: rx serial_pinctrl_state config specified!\n", __func__);
+				pinctrl_select_state(serial_pinctrl, rx_pinctrl_state_diable);
+			}
+
+			tx_pinctrl_state_diable = pinctrl_lookup_state(serial_pinctrl, "uart0_tx_gpio");
+			if (IS_ERR_OR_NULL(tx_pinctrl_state_diable)) {
+				pr_err("%s: No serial_pinctrl_state config specified!\n", __func__);
+			} else {
+				pr_err("%s: tx serial_pinctrl_state config specified!\n", __func__);
+				pinctrl_select_state(serial_pinctrl, tx_pinctrl_state_diable);
+			}
+		}
+		if (!IS_ERR_OR_NULL(rx_pinctrl_state_diable)
+				|| !IS_ERR_OR_NULL(tx_pinctrl_state_diable)) {
+			pr_err("%s: boot with console false\n", __func__);
+			return -ENODEV;
+		}
+	}
+#endif /*OPLUS_FEATURE_CHG_BASIC*/
 
 	spin_lock_init(&uart.port.lock);
 	uart.port.mapbase = regs->start;
@@ -623,7 +663,6 @@ static int mtk8250_probe(struct platform_device *pdev)
 	uart.port.startup = mtk8250_startup;
 	uart.port.set_termios = mtk8250_set_termios;
 	uart.port.handle_irq = mtk8250_handle_irq;
-	uart.port.set_divisor = mtk8250_set_divisor;
 	uart.port.uartclk = clk_get_rate(data->uart_clk);
 #ifdef CONFIG_SERIAL_8250_DMA
 	if (data->dma)

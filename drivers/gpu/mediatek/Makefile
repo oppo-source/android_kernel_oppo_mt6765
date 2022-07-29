@@ -22,19 +22,12 @@ ifneq ($(CONFIG_MTK_GPU_SUPPORT),)
 	obj-y += ged/
 ifneq (, $(findstring $(CONFIG_MTK_PLATFORM), "mt6779"))
 	obj-y += gpu_bm/
-$(info *GPU defined GPU BM QoS 2.0-419)
-endif
-ifneq (, $(findstring $(CONFIG_MTK_PLATFORM), "mt6885" "mt6873" "mt6853"))
-	obj-y += gpu_bm_k414/
-$(info *GPU defined GPU BM QoS 2.0-414)
+$(info *GPU defined GPU BM QoS 2.0)
 endif
 
 # GPU R5P0
 ifeq ($(CONFIG_MTK_GPU_R5P0),y)
     obj-y += $(subst ",,$(CONFIG_MTK_PLATFORM))/
-else ifeq ($(CONFIG_MACH_MT6781),y)
-    $(info *direct build mali-r32p1 for CONFIG_MACH_MT6781)
-    obj-y += gpu_mali/mali_valhall/mali-r32p1/drivers/gpu/arm/midgard/
 else ifneq ($(word 1,$(MTK_GPU_VERSION)),)
     obj-y += gpu_$(word 1,$(MTK_GPU_VERSION))/
 else

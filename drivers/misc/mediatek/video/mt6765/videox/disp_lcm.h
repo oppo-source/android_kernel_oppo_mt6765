@@ -47,6 +47,13 @@ int disp_lcm_is_support_adjust_fps(struct disp_lcm_handle *plcm);
 int disp_lcm_adjust_fps(void *cmdq, struct disp_lcm_handle *plcm, int fps);
 int disp_lcm_set_backlight(struct disp_lcm_handle *plcm,
 	void *handle, int level);
+
+int disp_lcm_set_hbm(bool en, struct disp_lcm_handle *plcm, void *qhandle);
+int disp_lcm_get_hbm_state(struct disp_lcm_handle *plcm);
+int disp_lcm_get_hbm_wait(struct disp_lcm_handle *plcm);
+int disp_lcm_set_hbm_wait(bool wait, struct disp_lcm_handle *plcm);
+unsigned int disp_lcm_get_hbm_time(bool en, struct disp_lcm_handle *plcm);
+
 int disp_lcm_read_fb(struct disp_lcm_handle *plcm);
 int disp_lcm_ioctl(struct disp_lcm_handle *plcm, enum LCM_IOCTL ioctl,
 	unsigned int arg);
@@ -79,4 +86,17 @@ void disp_lcm_dynfps_send_cmd(struct disp_lcm_handle *plcm, void *cmdq_handle,
 	unsigned int from_fps, unsigned int to_fps);
 
 /*-----------------------DynFPS end-----------------------------------*/
+
+//ifdef OPLUS_BUG_STABILITY
+int disp_lcm_set_cabc(struct disp_lcm_handle *plcm, void *handle, int enable);
+int disp_lcm_get_cabc(struct disp_lcm_handle *plcm, int *status);
+int disp_lcm_oppo_set_lcm_cabc_cmd(struct disp_lcm_handle *plcm, void *handle, unsigned int level);
+int disp_lcm_set_lcm_dimming_cmd(struct disp_lcm_handle *plcm, void *handle, unsigned int level);
+//#endif
+int disp_lcm_oppo_set_lcm_gamma_cmd(struct disp_lcm_handle *plcm, void *handle, unsigned int level);
+
+#ifdef OPLUS_BUG_STABILITY
+int disp_lcm_shutdown(struct disp_lcm_handle *plcm);
+#endif
+
 #endif

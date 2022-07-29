@@ -365,7 +365,9 @@ static int dwc3_ep0_handle_status(struct dwc3 *dwc,
 	dwc->ep0_usb_req.request.length = sizeof(*response_pkt);
 	dwc->ep0_usb_req.request.buf = dwc->setup_buf;
 	dwc->ep0_usb_req.request.complete = dwc3_ep0_status_cmpl;
-
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	dwc->ep0_usb_req.request.dma = DMA_ERROR_CODE;
+#endif
 	return __dwc3_gadget_ep0_queue(dep, &dwc->ep0_usb_req);
 }
 
@@ -718,6 +720,10 @@ static int dwc3_ep0_set_sel(struct dwc3 *dwc, struct usb_ctrlrequest *ctrl)
 	dwc->ep0_usb_req.request.buf = dwc->setup_buf;
 	dwc->ep0_usb_req.request.complete = dwc3_ep0_set_sel_cmpl;
 
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	dwc->ep0_usb_req.request.dma = DMA_ERROR_CODE;
+#endif
+
 	return __dwc3_gadget_ep0_queue(dep, &dwc->ep0_usb_req);
 }
 
@@ -935,16 +941,12 @@ static void dwc3_ep0_xfer_complete(struct dwc3 *dwc,
 static void __dwc3_ep0_do_control_data(struct dwc3 *dwc,
 		struct dwc3_ep *dep, struct dwc3_request *req)
 {
-	unsigned int		trb_length = 0;
 	int			ret;
 
 	req->direction = !!dep->number;
 
 	if (req->request.length == 0) {
-		if (!req->direction)
-			trb_length = dep->endpoint.maxpacket;
-
-		dwc3_ep0_prepare_one_trb(dep, dwc->bounce_addr, trb_length,
+		dwc3_ep0_prepare_one_trb(dep, dwc->ep0_trb_addr, 0,
 				DWC3_TRBCTL_CONTROL_DATA, false);
 		ret = dwc3_ep0_start_trans(dep);
 	} else if (!IS_ALIGNED(req->request.length, dep->endpoint.maxpacket)
@@ -991,12 +993,9 @@ static void __dwc3_ep0_do_control_data(struct dwc3 *dwc,
 
 		req->trb = &dwc->ep0_trb[dep->trb_enqueue - 1];
 
-		if (!req->direction)
-			trb_length = dep->endpoint.maxpacket;
-
 		/* Now prepare one extra TRB to align transfer size */
 		dwc3_ep0_prepare_one_trb(dep, dwc->bounce_addr,
-					 trb_length, DWC3_TRBCTL_CONTROL_DATA,
+					 0, DWC3_TRBCTL_CONTROL_DATA,
 					 false);
 		ret = dwc3_ep0_start_trans(dep);
 	} else {

@@ -750,9 +750,6 @@ fb_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
 	int c, cnt = 0, err = 0;
 	unsigned long total_size;
 
-	if (p % 8 != 0)
-		p = (p + 7) / 8;
-
 	if (!info || ! info->screen_base)
 		return -ENODEV;
 
@@ -761,7 +758,7 @@ fb_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
 
 	if (info->fbops->fb_read)
 		return info->fbops->fb_read(info, buf, count, ppos);
-
+	
 	total_size = info->screen_size;
 
 	if (total_size == 0)
@@ -818,9 +815,6 @@ fb_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
 	int c, cnt = 0, err = 0;
 	unsigned long total_size;
 
-	if (p % 8 != 0)
-		p = (p + 7) / 8;
-
 	if (!info || !info->screen_base)
 		return -ENODEV;
 
@@ -829,7 +823,7 @@ fb_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
 
 	if (info->fbops->fb_write)
 		return info->fbops->fb_write(info, buf, count, ppos);
-
+	
 	total_size = info->screen_size;
 
 	if (total_size == 0)
@@ -1637,7 +1631,7 @@ MODULE_PARM_DESC(lockless_register_fb,
 static int do_register_framebuffer(struct fb_info *fb_info)
 {
 	int i, ret;
-	struct fb_event event;
+	struct fb_event event = {NULL,NULL};
 	struct fb_videomode mode;
 
 	if (fb_check_foreignness(fb_info))

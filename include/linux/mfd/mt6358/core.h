@@ -95,7 +95,7 @@ enum mt6358_irq_numbers {
 	MT6358_IRQ_BAT_TEMP_H,
 	MT6358_IRQ_BAT_TEMP_L,
 	MT6358_IRQ_AUXADC_IMP,
-	MT6358_IRQ_NAG_C_DLTV,
+	MT6358_IRQ_NAG_C_DLTV= 121,
 	MT6358_IRQ_AUDIO = 128,
 	MT6358_IRQ_ACCDET = 133,
 	MT6358_IRQ_ACCDET_EINT0,
@@ -219,19 +219,5 @@ enum mt6358_irq_numbers {
 	[MT6358_IRQ_ACCDET_EINT1] = {.name = "accdet_eint1"},	\
 	[MT6358_IRQ_SPI_CMD_ALERT] = {.name = "spi_cmd_alert"},	\
 }
-
-struct mt6358_chip {
-	struct device *dev;
-	struct regmap *regmap;
-	int irq;
-	struct irq_domain *irq_domain;
-	struct mutex irqlock;
-	unsigned int num_sps;
-	unsigned int num_pmic_irqs;
-	unsigned short top_int_status_reg;
-};
-
-extern unsigned int mt6358_irq_get_virq(struct device *dev, unsigned int hwirq);
-extern const char *mt6358_irq_get_name(struct device *dev, unsigned int hwirq);
 
 #endif /* __MFD_MT6358_CORE_H__ */

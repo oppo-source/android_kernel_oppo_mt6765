@@ -97,7 +97,11 @@ obj-$(CONFIG_MEGARAID_LEGACY)	+= megaraid.o
 obj-$(CONFIG_MEGARAID_NEWGEN)	+= megaraid/
 obj-$(CONFIG_MEGARAID_SAS)	+= megaraid/
 obj-$(CONFIG_SCSI_MPT3SAS)	+= mpt3sas/
-obj-$(CONFIG_SCSI_UFSHCD)	+= ufs/
+#ifdef VENDOR_EDIT
+obj-$(CONFIG_SCSI_UFSHCD)	+= oufs/
+#else
+#obj-$(CONFIG_SCSI_UFSHCD)	+= ufs/
+#endif
 obj-$(CONFIG_SCSI_ACARD)	+= atp870u.o
 obj-$(CONFIG_SCSI_SUNESP)	+= esp_scsi.o	sun_esp.o
 obj-$(CONFIG_SCSI_GDTH)		+= gdth.o

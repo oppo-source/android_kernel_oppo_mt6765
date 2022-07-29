@@ -72,7 +72,8 @@ config INIT_ENV_ARG_LIMIT
 
 config COMPILE_TEST
 	bool "Compile also drivers which will not load"
-	depends on HAS_IOMEM
+	depends on !UML
+	default n
 	help
 	  Some drivers can be compiled on a different platform than they are
 	  intended to be run on. Despite they cannot be loaded there (or even
@@ -423,6 +424,17 @@ config IRQ_TIME_ACCOUNTING
 
 	  If in doubt, say N here.
 
+#ifdef OPLUS_FEATURE_UIFIRST
+config SCHED_WALT
+	bool "Support window based load tracking"
+	depends on SMP
+	help
+	  This feature will allow the scheduler to maintain a tunable window
+	  based set of metrics for tasks and runqueues. These metrics can be
+	  used to guide task placement as well as task frequency requirements
+	  for cpufreq governors.
+#endif /* OPLUS_FEATURE_UIFIRST */
+
 config HAVE_SCHED_AVG_IRQ
 	def_bool y
 	depends on IRQ_TIME_ACCOUNTING || PARAVIRT_TIME_ACCOUNTING
@@ -588,8 +600,7 @@ config IKHEADERS
 
 config LOG_BUF_SHIFT
 	int "Kernel log buffer size (16 => 64KB, 17 => 128KB)"
-	range 12 25 if !H8300
-	range 12 19 if H8300
+	range 12 25
 	default 17
 	depends on PRINTK
 	help
@@ -1910,6 +1921,12 @@ config TRACEPOINTS
 endmenu		# General setup
 
 source "arch/Kconfig"
+
+config SLABINFO
+	bool
+	depends on PROC_FS
+	depends on SLAB || SLUB_DEBUG || KMALLOC_DEBUG
+	default n
 
 config RT_MUTEXES
 	bool

@@ -57,9 +57,9 @@ static struct LCM_UTIL_FUNCS lcm_util;
 		lcm_util.dsi_dcs_read_lcm_reg_v2(cmd, buffer, buffer_size)
 	/*DynFPS*/
 #define dfps_dsi_send_cmd( \
-			cmdq, cmd, count, para_list, force_update, sendmode) \
+			cmdq, cmd, count, para_list, force_update) \
 			lcm_util.dsi_dynfps_send_cmd( \
-			cmdq, cmd, count, para_list, force_update, sendmode)
+			cmdq, cmd, count, para_list, force_update)
 
 #ifndef BUILD_LK
 #include <linux/kernel.h>
@@ -760,7 +760,7 @@ static void lcm_validate_roi(int *x, int *y, int *width, int *height)
 #ifdef CONFIG_MTK_HIGH_FRAME_RATE
 static void dfps_dsi_push_table(
 	void *cmdq, struct LCM_setting_table *table,
-	unsigned int count, unsigned char force_update, enum LCM_Send_Cmd_Mode sendmode)
+	unsigned int count, unsigned char force_update)
 {
 	unsigned int i;
 	unsigned int cmd;
@@ -773,14 +773,14 @@ static void dfps_dsi_push_table(
 		default:
 			dfps_dsi_send_cmd(
 				cmdq, cmd, table[i].count,
-				table[i].para_list, force_update, sendmode);
+				table[i].para_list, force_update);
 			break;
 		}
 	}
 
 }
 static bool lcm_dfps_need_inform_lcm(
-	unsigned int from_level, unsigned int to_level, struct LCM_PARAMS *params)
+	unsigned int from_level, unsigned int to_level)
 {
 	struct LCM_dfps_cmd_table *p_dfps_cmds = NULL;
 
@@ -790,13 +790,12 @@ static bool lcm_dfps_need_inform_lcm(
 	}
 	p_dfps_cmds =
 		&(dfps_cmd_table[from_level][to_level]);
-	params->sendmode = p_dfps_cmds->sendmode;
 
 	return p_dfps_cmds->need_send_cmd;
 }
 
 static void lcm_dfps_inform_lcm(void *cmdq_handle,
-unsigned int from_level, unsigned int to_level, struct LCM_PARAMS *params)
+unsigned int from_level, unsigned int to_level)
 {
 	struct LCM_dfps_cmd_table *p_dfps_cmds = NULL;
 
@@ -814,11 +813,9 @@ unsigned int from_level, unsigned int to_level, struct LCM_PARAMS *params)
 		goto done;
 	}
 
-	sendmode = params->sendmode;
-
 	dfps_dsi_push_table(
 		cmdq_handle, p_dfps_cmds->prev_f_cmd,
-		ARRAY_SIZE(p_dfps_cmds->prev_f_cmd), 1, sendmode);
+		ARRAY_SIZE(p_dfps_cmds->prev_f_cmd), 1);
 done:
 	LCM_LOGI("%s,done %d->%d\n",
 		__func__, from_level, to_level);

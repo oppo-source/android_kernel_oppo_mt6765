@@ -119,6 +119,8 @@ DEFINE_SPINLOCK(record_spinlock);
  * common variables for legacy ptp
  *******************************************
  */
+/* Add the calibration flag to be compatible with the recovery scenario.*/
+static unsigned int is_calibration_fail;
 static int eem_log_en;
 static unsigned int eem_checkEfuse = 1;
 #if defined(CONFIG_CPU_FORCE_TO_BIN2)
@@ -219,17 +221,13 @@ static int get_devinfo(void)
 		eem_error("%s fail to get device node\n", __func__);
 		return 0;
 	}
-
-	pdev = of_platform_device_create(node, NULL, NULL);
-	if (pdev == NULL)
-		goto get_devinfo_end;
-
+	pdev = of_device_alloc(node, NULL, NULL);
 	nvmem_dev = nvmem_device_get(&pdev->dev, "mtk_efuse");
 
 	if (IS_ERR(nvmem_dev)) {
 		eem_error("%s ptpod failed to get mtk_efuse device\n",
 				__func__);
-		goto get_devinfo_end;
+		return 0;
 	}
 
 	/* FTPGM */
@@ -382,12 +380,6 @@ static int get_devinfo(void)
 #if (EEM_FAKE_EFUSE)
 	eem_checkEfuse = 1;
 #endif
-
-get_devinfo_end:
-	if (pdev != NULL) {
-		of_platform_device_destroy(&pdev->dev, NULL);
-		of_dev_put(pdev);
-	}
 
 	FUNC_EXIT(FUNC_LV_HELP);
 	return ret;
@@ -1642,7 +1634,7 @@ static inline void handle_init01_isr(struct eem_det *det)
 	det->DCVOFFSETIN = ~(eem_read(EEM_DCVALUES) & 0xffff) + 1;
 	/* check if DCVALUES is minus and set DCVOFFSETIN to zero */
 
-	if (det->DCVOFFSETIN & 0x8000)
+	if ((det->DCVOFFSETIN & 0x8000) || (is_calibration_fail))
 		det->DCVOFFSETIN = 0;
 
 	det->AGEVOFFSETIN = eem_read(EEM_AGEVALUES) & 0xffff;
@@ -2552,11 +2544,16 @@ void eem_init01(void)
 			while (det->real_vboot != det->VBOOT) {
 				det->real_vboot = det->ops->volt_2_eem(det,
 					det->ops->get_volt(det));
-				if (timeout++ % 300 == 0)
+				if (timeout++ % 10000 == 0) {
 					eem_error
 ("@%s():%d, get_volt(%s) = 0x%08X, VBOOT = 0x%08X\n",
 __func__, __LINE__, det->name, det->real_vboot, det->VBOOT);
+					is_calibration_fail = 1;
+					break;
+				}
 			}
+			if (det->real_vboot == det->VBOOT)
+				is_calibration_fail = 0;
 			/* BUG_ON(det->real_vboot != det->VBOOT); */
 			WARN_ON(det->real_vboot != det->VBOOT);
 

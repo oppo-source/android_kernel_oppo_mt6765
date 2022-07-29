@@ -68,6 +68,11 @@ static ktime_t curr_monotime; /* monotonic time after last suspend */
 static ktime_t last_stime; /* monotonic boottime offset before last suspend */
 static ktime_t curr_stime; /* monotonic boottime offset after last suspend */
 
+#ifdef OPLUS_FEATURE_POWERINFO_STANDBY
+#include "../../drivers/base/power/owakelock/oppo_wakelock_profiler_mtk.h"
+extern const char *wakeup_irq_name;
+#endif/*OPLUS_FEATURE_POWERINFO_STANDBY*/
+
 static void init_node(struct wakeup_irq_node *p, int irq)
 {
 	struct irq_desc *desc;
@@ -279,19 +284,37 @@ static void print_wakeup_sources(void)
 
 	if (wakeup_reason == RESUME_ABORT) {
 		pr_info("Abort: %s\n", non_irq_wake_reason);
+
+		#ifdef OPLUS_FEATURE_POWERINFO_STANDBY
+		wakeup_reasons_statics(IRQ_NAME_ABORT, WS_CNT_ABORT);
+		#endif/*OPLUS_FEATURE_POWERINFO_STANDBY*/
+
 		spin_unlock_irqrestore(&wakeup_reason_lock, flags);
 		return;
 	}
 
-	if (wakeup_reason == RESUME_IRQ && !list_empty(&leaf_irqs))
-		list_for_each_entry(n, &leaf_irqs, siblings)
-			pr_info("Resume caused by IRQ %d, %s\n", n->irq,
-				n->irq_name);
-	else if (wakeup_reason == RESUME_ABNORMAL)
+	if (!list_empty(&leaf_irqs)){
+		list_for_each_entry(n, &leaf_irqs, siblings){
+			pr_info("Resume caused by IRQ %d, %s\n", n->irq,n->irq_name);
+
+			#ifdef OPLUS_FEATURE_POWERINFO_STANDBY
+		   if(strncmp(wakeup_irq_name,"NULL", strlen("NULL"))&&strncmp(n->irq_name,"wlan0", strlen("wlan0"))&&
+		   	strncmp(n->irq_name,"CCIF_AP_DATA", strlen("CCIF_AP_DATA"))){
+				wakeup_reasons_statics(wakeup_irq_name,WS_PMIC_IQR|WS_CNT_POWERKEY);
+				wakeup_irq_name="NULL";
+		   	}
+			#endif /* OPLUS_FEATURE_POWERINFO_STANDBY */
+
+		}
+	}
+	else if (wakeup_reason == RESUME_ABNORMAL){
 		pr_info("Resume caused by %s\n", non_irq_wake_reason);
+		#ifdef OPLUS_FEATURE_POWERINFO_STANDBY
+		wakeup_reasons_statics(non_irq_wake_reason, WS_CNT_WLAN|WS_CNT_ADSP|WS_CNT_MODEM|WS_CNT_POWERKEY|WS_CNT_SENSOR);
+		#endif /* OPLUS_FEATURE_POWERINFO_STANDBY */
+	}
 	else
 		pr_info("Resume cause unknown\n");
-
 	spin_unlock_irqrestore(&wakeup_reason_lock, flags);
 }
 

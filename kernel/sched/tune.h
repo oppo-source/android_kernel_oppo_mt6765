@@ -31,7 +31,7 @@ void init_root_st_uclamp(int clamp_id);
 void uclamp_update_root_st(void);
 
 #endif
-#else /* CONFIG_SCHED_TUNE */
+#else
 
 #define schedtune_cpu_boost(cpu)  0
 #define schedtune_task_boost(tsk) 0

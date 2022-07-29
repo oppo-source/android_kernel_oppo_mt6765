@@ -46,7 +46,6 @@ enum TASK_STATE_ENUM {
 
 /* max count of input */
 #define CMDQ_MAX_COMMAND_SIZE		(0x80000000)
-#define CMDQ_MAX_SIMULATE_COMMAND_SIZE	(0x80000)
 #define CMDQ_MAX_DUMP_REG_COUNT		(2048)
 #define CMDQ_MAX_WRITE_ADDR_COUNT	(PAGE_SIZE / sizeof(u32))
 #define CMDQ_MAX_DBG_STR_LEN		(1024)
@@ -72,8 +71,10 @@ struct DumpFirstErrorStruct {
 
 #define CMDQ_LOG(string, args...) \
 do {			\
+	if (0) { \
 	pr_notice("[CMDQ]"string, ##args); \
 	cmdq_core_save_first_dump("[CMDQ]"string, ##args); \
+	} \
 } while (0)
 
 #define CMDQ_MSG(string, args...) \
@@ -539,7 +540,10 @@ struct WriteAddrStruct {
 	void *va;
 	dma_addr_t pa;
 	pid_t user;
+
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
 	bool pool;
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 };
 
 /* resource unit between each module */
@@ -859,12 +863,21 @@ void cmdq_core_reset_first_dump(void);
 s32 cmdq_core_save_first_dump(const char *string, ...);
 
 /* Allocate/Free HW use buffer, e.g. command buffer forCMDQ HW */
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+void *cmdq_core_alloc_hw_buffer_clt(struct device *dev, size_t size,
+	dma_addr_t *dma_handle, const gfp_t flag, enum CMDQ_CLT_ENUM clt,
+	bool *pool);
+void cmdq_core_free_hw_buffer_clt(struct device *dev, size_t size,
+	void *cpu_addr, dma_addr_t dma_handle, enum CMDQ_CLT_ENUM clt);
+#else
 void *cmdq_core_alloc_hw_buffer_clt(struct device *dev, size_t size,
 	dma_addr_t *dma_handle, const gfp_t flag, enum CMDQ_CLT_ENUM clt,
 	bool *pool);
 void cmdq_core_free_hw_buffer_clt(struct device *dev, size_t size,
 	void *cpu_addr, dma_addr_t dma_handle, enum CMDQ_CLT_ENUM clt,
 	bool pool);
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
+
 void *cmdq_core_alloc_hw_buffer(struct device *dev,
 	size_t size, dma_addr_t *dma_handle, const gfp_t flag);
 void cmdq_core_free_hw_buffer(struct device *dev, size_t size,

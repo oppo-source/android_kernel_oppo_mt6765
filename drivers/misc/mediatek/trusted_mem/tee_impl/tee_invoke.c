@@ -1,5 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0 */
-
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (c) 2019 MediaTek Inc.
  */
@@ -32,23 +31,10 @@
 #include "tee_impl/tee_ops.h"
 #include "tee_impl/tee_regions.h"
 
-#ifdef CONFIG_MTK_IOMMU_V2
-#include <mach/pseudo_m4u.h>
-
-enum mtk_iommu_sec_id {
-	SEC_ID_SEC_CAM = 0,
-	SEC_ID_SVP,
-	SEC_ID_SDSP,
-	SEC_ID_WFD,
-	SEC_ID_COUNT
-};
-#endif
-
 #define TEE_CMD_LOCK() mutex_lock(&tee_lock)
 #define TEE_CMD_UNLOCK() mutex_unlock(&tee_lock)
-static DEFINE_MUTEX(tee_lock);
 
-#if defined(CONFIG_TRUSTONIC_TEE_SUPPORT) || defined(CONFIG_MICROTRUST_TEE_SUPPORT)
+static DEFINE_MUTEX(tee_lock);
 static struct trusted_driver_operations *tee_ops;
 static void *tee_session_data;
 
@@ -75,13 +61,6 @@ tee_directly_invoke_cmd_locked(struct trusted_driver_cmd_params *invoke_params)
 
 	return ret;
 }
-#else
-static inline int
-tee_directly_invoke_cmd_locked(struct trusted_driver_cmd_params *invoke_params)
-{
-	return 0;
-}
-#endif
 
 int tee_directly_invoke_cmd(struct trusted_driver_cmd_params *invoke_params)
 {
@@ -94,63 +73,8 @@ int tee_directly_invoke_cmd(struct trusted_driver_cmd_params *invoke_params)
 	return ret;
 }
 
-#if defined(CONFIG_TRUSTONIC_TEE_SUPPORT) \
-	|| defined(CONFIG_MICROTRUST_TEE_SUPPORT) \
-	&& defined(CONFIG_MTK_SVP_ON_MTEE_SUPPORT)
-int secmem_fr_set_svp_region(u64 pa, u32 size, int remote_region_type)
-{
-	int ret;
-	struct trusted_driver_cmd_params cmd_params = {0};
-
-	cmd_params.cmd = CMD_SEC_MEM_SET_SVP_REGION;
-	cmd_params.param0 = pa;
-	cmd_params.param1 = size;
-	cmd_params.param2 = remote_region_type;
-
-	if (pa == 0 && size == 0)
-		return TMEM_OK;
-
-#ifdef TCORE_UT_TESTS_SUPPORT
-	if (is_multi_type_alloc_multithread_test_locked()) {
-		pr_debug("%s:%d return for UT purpose!\n", __func__, __LINE__);
-		return TMEM_OK;
-	}
-#endif
-
-	ret = tee_directly_invoke_cmd(&cmd_params);
-
-#ifdef CONFIG_MTK_IOMMU_V2
-	pseudo_m4u_sec_init(SEC_ID_SVP);
-#endif
-
-	return ret;
-}
-
-int secmem_fr_set_wfd_region(u64 pa, u32 size, int remote_region_type)
-{
-	struct trusted_driver_cmd_params cmd_params = {0};
-
-	cmd_params.cmd = CMD_SEC_MEM_SET_WFD_REGION;
-	cmd_params.param0 = pa;
-	cmd_params.param1 = size;
-	cmd_params.param2 = remote_region_type;
-
-	if (pa == 0 && size == 0)
-		return TMEM_OK;
-
-#ifdef TCORE_UT_TESTS_SUPPORT
-	if (is_multi_type_alloc_multithread_test_locked()) {
-		pr_debug("%s:%d return for UT purpose!\n", __func__, __LINE__);
-		return TMEM_OK;
-	}
-#endif
-
-	return tee_directly_invoke_cmd(&cmd_params);
-}
-#endif
-
-#if defined(CONFIG_MTK_SECURE_MEM_SUPPORT)                                     \
-	&& defined(CONFIG_MTK_CAM_SECURITY_SUPPORT)
+#if IS_ENABLED(CONFIG_MTK_SECURE_MEM_SUPPORT)                                  \
+	&& IS_ENABLED(CONFIG_MTK_CAM_SECURITY_SUPPORT)
 int secmem_fr_set_prot_shared_region(u64 pa, u32 size, int remote_region_type)
 {
 	struct trusted_driver_cmd_params cmd_params = {0};
@@ -159,9 +83,6 @@ int secmem_fr_set_prot_shared_region(u64 pa, u32 size, int remote_region_type)
 	cmd_params.param0 = pa;
 	cmd_params.param1 = size;
 	cmd_params.param2 = remote_region_type;
-
-	if (pa == 0 && size == 0)
-		return TMEM_OK;
 
 #ifdef TCORE_UT_TESTS_SUPPORT
 	if (is_multi_type_alloc_multithread_test_locked()) {
@@ -182,7 +103,7 @@ int secmem_fr_dump_info(void)
 }
 #endif
 
-#if defined(CONFIG_MTK_MTEE_MULTI_CHUNK_SUPPORT)
+#if IS_ENABLED(CONFIG_MTK_MTEE_MULTI_CHUNK_SUPPORT)
 int secmem_set_mchunks_region(u64 pa, u32 size, int remote_region_type)
 {
 	struct trusted_driver_cmd_params cmd_params = {0};
@@ -203,7 +124,7 @@ int secmem_set_mchunks_region(u64 pa, u32 size, int remote_region_type)
 }
 #endif
 
-#if defined(CONFIG_MTK_SECURE_MEM_SUPPORT)
+#if IS_ENABLED(CONFIG_MTK_SECURE_MEM_SUPPORT)
 int secmem_svp_dump_info(void)
 {
 	struct trusted_driver_cmd_params cmd_params = {0};
@@ -230,7 +151,7 @@ int secmem_force_hw_protection(void)
 }
 #endif
 
-#if defined(CONFIG_MTK_WFD_SMEM_SUPPORT)
+#if IS_ENABLED(CONFIG_MTK_WFD_SMEM_SUPPORT)
 int wfd_smem_dump_info(void)
 {
 	struct trusted_driver_cmd_params cmd_params = {0};

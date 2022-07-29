@@ -1,0 +1,1 @@
+bringup lcm for project S98607AA1,and this panel is nt36525b+txd nt36525b_txd_yogurt_hdp_dsi_vdo_lcm.c

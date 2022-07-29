@@ -113,6 +113,13 @@ struct mt63xx_accdet_data {
 	/* when eint issued, queue work: eint_work */
 	struct work_struct eint_work;
 	struct workqueue_struct *eint_workqueue;
+#ifdef OPLUS_ARCH_EXTENDS
+	struct delayed_work hp_detect_work;
+#endif
+#ifdef CONFIG_HSKEY_BLOCK
+	struct delayed_work hskey_block_work;
+	bool g_hskey_block_flag;
+#endif /* CONFIG_HSKEY_BLOCK */
 	u32 water_r;
 	u32 moisture_ext_r;
 	u32 moisture_int_r;
@@ -180,6 +187,7 @@ static struct task_struct *thread;
 
 static u32 button_press_debounce = 0x400;
 
+extern void switch_headset_state(int headset_state);
 /* local function declaration */
 static void accdet_init_once(void);
 static inline void accdet_init(void);
@@ -757,6 +765,14 @@ static void send_key_event(u32 keycode, u32 flag)
 {
 	int report = 0;
 
+#ifdef CONFIG_HSKEY_BLOCK
+	pr_info("[accdet][send_key_event]g_hskey_block_flag = %d\n", accdet->g_hskey_block_flag);
+	if (accdet->g_hskey_block_flag) {
+		pr_info("[accdet][send_key_event]No key event in 1s after inserting 4-pole headsets\n");
+		return;
+	}
+#endif /* CONFIG_HSKEY_BLOCK */
+
 	switch (keycode) {
 	case DW_KEY:
 		if (flag != 0)
@@ -1160,6 +1176,14 @@ static void eint_work_callback(struct work_struct *work)
 
 }
 
+#ifdef CONFIG_HSKEY_BLOCK
+static void disable_hskey_block_callback(struct work_struct *work)
+{
+	pr_info("[accdet][disable_hskey_block_callback]:\n");
+	accdet->g_hskey_block_flag = false;
+}
+#endif /* CONFIG_HSKEY_BLOCK */
+
 void accdet_set_debounce(int state, unsigned int debounce)
 {
 	switch (state) {
@@ -1342,6 +1366,11 @@ static void accdet_queue_work(void)
 		pr_notice("Error: %s (%d)\n", __func__, ret);
 }
 
+#ifdef CONFIG_CHARGER_SGM41512
+void sgm41512_switch_headset_plugin(void);
+void sgm41512_switch_headset_plugout(void);
+#endif
+
 static int pmic_eint_queue_work(int eintID)
 {
 	int ret = 0;
@@ -1364,8 +1393,33 @@ static int pmic_eint_queue_work(int eintID)
 					jiffies + MICBIAS_DISABLE_TIMER);
 				}
 			}
+#ifdef OPLUS_ARCH_EXTENDS
+			pr_info("%s delayed work 500ms scheduled when plugging in\n", __func__);
+			schedule_delayed_work(&accdet->hp_detect_work, msecs_to_jiffies(500));
+#else
 			ret = queue_work(accdet->eint_workqueue,
 					&accdet->eint_work);
+#endif
+			if (accdet->cur_eint_state == EINT_PLUG_IN) {
+#ifdef CONFIG_HSKEY_BLOCK
+				accdet->g_hskey_block_flag = true;
+				schedule_delayed_work(&accdet->hskey_block_work, msecs_to_jiffies(1500));
+#endif /* CONFIG_HSKEY_BLOCK */
+				pr_info("[TP] going to switch headset mode [%d] \n", 1);
+				switch_headset_state(1);
+#ifdef CONFIG_CHARGER_SGM41512
+				sgm41512_switch_headset_plugin();
+#endif
+			} else {
+#ifdef CONFIG_HSKEY_BLOCK
+				cancel_delayed_work_sync(&accdet->hskey_block_work);
+#endif /* CONFIG_HSKEY_BLOCK */
+				pr_info("[TP] going to switch headset mode [%d] \n", 0);
+				switch_headset_state(0);
+#ifdef CONFIG_CHARGER_SGM41512
+				sgm41512_switch_headset_plugout();
+#endif
+			}
 		} else
 			pr_notice("%s invalid EINT ID!\n", __func__);
 	} else if (HAS_CAP(accdet->data->caps, ACCDET_PMIC_EINT1)) {
@@ -1386,8 +1440,13 @@ static int pmic_eint_queue_work(int eintID)
 					jiffies + MICBIAS_DISABLE_TIMER);
 				}
 			}
+#ifdef OPLUS_ARCH_EXTENDS
+			cancel_delayed_work_sync(&accdet->hp_detect_work);
+			schedule_delayed_work(&accdet->hp_detect_work, 0);
+#else
 			ret = queue_work(accdet->eint_workqueue,
 					&accdet->eint_work);
+#endif
 		} else
 			pr_notice("%s invalid EINT ID!\n", __func__);
 	} else if (HAS_CAP(accdet->data->caps, ACCDET_PMIC_BI_EINT)) {
@@ -1419,8 +1478,13 @@ static int pmic_eint_queue_work(int eintID)
 			if (accdet->cur_eint_state == EINT_PLUG_IN) {
 				mod_timer(&micbias_timer,
 					jiffies + MICBIAS_DISABLE_TIMER);
+#ifdef OPLUS_ARCH_EXTENDS
+				cancel_delayed_work_sync(&accdet->hp_detect_work);
+				schedule_delayed_work(&accdet->hp_detect_work, 0);
+#else
 				ret = queue_work(accdet->eint_workqueue,
 						&accdet->eint_work);
+#endif
 			}
 		} else if (accdet->cur_eint_state == EINT_PLUG_IN) {
 			if ((accdet->eint0_state|accdet->eint1_state)
@@ -1430,8 +1494,13 @@ static int pmic_eint_queue_work(int eintID)
 			} else if ((accdet->eint0_state & accdet->eint1_state)
 					== EINT_PLUG_OUT) {
 				accdet->cur_eint_state = EINT_PLUG_OUT;
+#ifdef OPLUS_ARCH_EXTENDS
+				cancel_delayed_work_sync(&accdet->hp_detect_work);
+				schedule_delayed_work(&accdet->hp_detect_work, 0);
+#else
 				ret = queue_work(accdet->eint_workqueue,
 						&accdet->eint_work);
+#endif
 			}
 		}
 	}
@@ -1596,7 +1665,12 @@ static irqreturn_t ex_eint_handler(int irq, void *data)
 	}
 
 	disable_irq_nosync(accdet->gpioirq);
+#ifdef OPLUS_ARCH_EXTENDS
+	cancel_delayed_work_sync(&accdet->hp_detect_work);
+	ret = schedule_delayed_work(&accdet->hp_detect_work, 0);
+#else
 	ret = queue_work(accdet->eint_workqueue, &accdet->eint_work);
+#endif
 	return IRQ_HANDLED;
 }
 
@@ -1873,6 +1947,10 @@ static void accdet_init_once(void)
 	accdet_write(ACCDET_RISE_DELAY_ADDR,
 		  (cust_pwm_deb->fall_delay << 15 | cust_pwm_deb->rise_delay));
 
+#ifdef OPLUS_ARCH_EXTENDS
+	reg = accdet_read(RG_EINTCOMPVTH_ADDR);
+	accdet_write(RG_EINTCOMPVTH_ADDR, reg | 0x400);
+#endif /* OPLUS_ARCH_EXTENDS */
 	/* config micbias voltage, micbias1 vref is only controlled by accdet
 	 * if we need 2.8V, config [12:13]
 	 */
@@ -2217,6 +2295,12 @@ static int accdet_probe(struct platform_device *pdev)
 		ret = -1;
 		goto err_create_workqueue;
 	}
+#ifdef OPLUS_ARCH_EXTENDS
+	INIT_DELAYED_WORK(&accdet->hp_detect_work, eint_work_callback);
+#endif
+#ifdef CONFIG_HSKEY_BLOCK
+	INIT_DELAYED_WORK(&accdet->hskey_block_work, disable_hskey_block_callback);
+#endif /* CONFIG_HSKEY_BLOCK */
 	if (HAS_CAP(accdet->data->caps, ACCDET_AP_GPIO_EINT)) {
 		accdet->accdet_eint_type = IRQ_TYPE_LEVEL_LOW;
 		ret = ext_eint_setup(pdev);

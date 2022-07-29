@@ -28,6 +28,9 @@
 #if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
 #include <linux/iio/consumer.h>
 #endif
+#include "kd_imgsensor.h"
+extern int pascal_project(void);
+extern int parkera_temperature_enable(bool On);
 /*=============================================================
  *Weak functions
  *=============================================================
@@ -464,30 +467,21 @@ static struct BTSMDPA_TEMPERATURE BTSMDPA_Temperature_Table7[] = {
 
 
 /* convert register to temperature  */
-static __s32 mtkts_btsmdpa_thermistor_conver_temp(__s32 Res)
+static __s16 mtkts_btsmdpa_thermistor_conver_temp(__s32 Res)
 {
 	int i = 0;
 	int asize = 0;
 	__s32 RES1 = 0, RES2 = 0;
-	__s32 TAP_Value = -200, TMP1 = 0, TMP2 = 0;
+	__s32 TAP_Value = -2000, TMP1 = 0, TMP2 = 0;
 
-#ifdef APPLY_PRECISE_BTS_TEMP
-	TAP_Value = TAP_Value * 1000;
-#endif
 	asize = (ntc_tbl_size / sizeof(struct BTSMDPA_TEMPERATURE));
 	/* mtkts_btsmdpa_dprintk("%s() :
 	 * asize = %d, Res = %d\n", __func__,asize,Res);
 	 */
 	if (Res >= BTSMDPA_Temperature_Table[0].TemperatureR) {
-		TAP_Value = -40;	/* min */
-#ifdef APPLY_PRECISE_BTS_TEMP
-		TAP_Value = TAP_Value * 1000;
-#endif
+		TAP_Value = -400;	/* min */
 	} else if (Res <= BTSMDPA_Temperature_Table[asize - 1].TemperatureR) {
-		TAP_Value = 125;	/* max */
-#ifdef APPLY_PRECISE_BTS_TEMP
-		TAP_Value = TAP_Value * 1000;
-#endif
+		TAP_Value = 1250;	/* max */
 	} else {
 		RES1 = BTSMDPA_Temperature_Table[0].TemperatureR;
 		TMP1 = BTSMDPA_Temperature_Table[0].BTSMDPA_Temp;
@@ -514,13 +508,8 @@ static __s32 mtkts_btsmdpa_thermistor_conver_temp(__s32 Res)
 			 */
 		}
 
-#ifdef APPLY_PRECISE_BTS_TEMP
-		TAP_Value = mult_frac((((Res - RES2) * TMP1) +
-			((RES1 - Res) * TMP2)), 1000, (RES1 - RES2));
-#else
-		TAP_Value = (((Res - RES2) * TMP1) + ((RES1 - Res) * TMP2))
+		TAP_Value = (((Res - RES2) * TMP1) + ((RES1 - Res) * TMP2)) * 10
 								/ (RES1 - RES2);
-#endif
 	}
 
 
@@ -549,7 +538,7 @@ static __s32 mtkts_btsmdpa_thermistor_conver_temp(__s32 Res)
 
 /* convert ADC_AP_temp_volt to register */
 /*Volt to Temp formula same with 6589*/
-static __s32 mtk_ts_btsmdpa_volt_to_temp(__u32 dwVolt)
+static __s16 mtk_ts_btsmdpa_volt_to_temp(__u32 dwVolt)
 {
 	__s32 TRes;
 	__u64 dwVCriAP = 0;
@@ -569,16 +558,6 @@ static __s32 mtk_ts_btsmdpa_volt_to_temp(__u32 dwVolt)
 	do_div(dwVCriAP, dwVCriAP2);
 
 
-#ifdef APPLY_PRECISE_BTS_TEMP
-	if ((dwVolt / 100) > ((__u32)dwVCriAP)) {
-		TRes = g_TAP_over_critical_low;
-	} else {
-		/* TRes = (39000*dwVolt) / (1800-dwVolt); */
-		/* TRes = (RAP_PULL_UP_R*dwVolt) / (RAP_PULL_UP_VOLT-dwVolt); */
-		TRes = ((long long)g_RAP_pull_up_R * dwVolt) /
-					(g_RAP_pull_up_voltage * 100 - dwVolt);
-	}
-#else
 	if (dwVolt > ((__u32)dwVCriAP)) {
 		TRes = g_TAP_over_critical_low;
 	} else {
@@ -588,7 +567,6 @@ static __s32 mtk_ts_btsmdpa_volt_to_temp(__u32 dwVolt)
 		TRes = (g_RAP_pull_up_R * dwVolt)
 				/ (g_RAP_pull_up_voltage - dwVolt);
 	}
-#endif
 	/* ------------------------------------------------------------------ */
 
 	g_btsmdpa_TemperatureR = TRes;
@@ -599,6 +577,9 @@ static __s32 mtk_ts_btsmdpa_volt_to_temp(__u32 dwVolt)
 	return BTSMDPA_TMP;
 }
 
+extern int thermal_pm_event;
+extern int get_pa_ntc_volt(void);
+extern bool is_kthread_get_adc(void);
 static int get_hw_btsmdpa_temp(void)
 {
 #if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
@@ -610,20 +591,31 @@ static int get_hw_btsmdpa_temp(void)
 	static int valid_temp;
 #endif
 
-#if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
-	ret = iio_read_channel_processed(thermistor_ch1, &val);
-	mtkts_btsmdpa_dprintk("%s val=%d\n", __func__, val);
+#ifdef VENDOR_EDIT
+	static int cached_temp;
 
-	if (ret < 0) {
-		mtkts_btsmdpa_printk("IIO channel read failed %d\n", ret);
-		return ret;
+	if (thermal_pm_event) {
+		mtkts_btsmdpa_printk("skip get_hw_btsmdpa_temp while pm\n");
+		return cached_temp;
 	}
-
-#ifdef APPLY_PRECISE_BTS_TEMP
-	ret = val * 100;
-#else
-	ret = val;
 #endif
+
+#if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
+	if (!is_kthread_get_adc()) {
+		ret = iio_read_channel_processed(thermistor_ch1, &val);
+		mtkts_btsmdpa_dprintk("%s val=%d\n", __func__, val);
+
+		if (ret < 0) {
+			mtkts_btsmdpa_printk("IIO channel read failed %d\n", ret);
+			return ret;
+		}
+	} else
+		val = get_pa_ntc_volt();
+
+	/* NOT need to do the conversion "val * 1500 / 4096" */
+	/* iio_read_channel_processed can get mV immediately */
+	ret = val;
+
 #else
 
 #if defined(APPLY_AUXADC_CALI_DATA)
@@ -687,11 +679,7 @@ static int get_hw_btsmdpa_temp(void)
 	/* #define AUXADC_PRECISE      4096 // 12 bits */
 #if defined(APPLY_AUXADC_CALI_DATA)
 #else
-#ifdef APPLY_PRECISE_BTS_TEMP
-	ret = (val * 9375) >>  8;
-#else
 	ret = ret * 1500 / 4096;
-#endif
 #endif
 #endif /*CONFIG_MEDIATEK_MT6577_AUXADC*/
 
@@ -699,6 +687,7 @@ static int get_hw_btsmdpa_temp(void)
 	mtkts_btsmdpa_dprintk("APtery output mV = %d\n", ret);
 	output = mtk_ts_btsmdpa_volt_to_temp(ret);
 	mtkts_btsmdpa_dprintk("BTSMDPA output temperature = %d\n", output);
+	cached_temp = output;
 	return output;
 }
 
@@ -717,9 +706,7 @@ int mtkts_btsmdpa_get_hw_temp(void)
 	/* get HW AP temp (TSAP) */
 	/* cat /sys/class/power_supply/AP/AP_temp */
 	t_ret = get_hw_btsmdpa_temp();
-#ifndef APPLY_PRECISE_BTS_TEMP
-	t_ret = t_ret * 1000;
-#endif
+	t_ret = t_ret * 100;
 
 #if MTKTS_BTSMDPA_SW_FILTER
 	if ((t_ret > 100000) || (t_ret < -30000)) {

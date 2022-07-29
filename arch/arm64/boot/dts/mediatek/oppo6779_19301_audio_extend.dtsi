@@ -1,0 +1,162 @@
+
+&audio_extend {
+	//for nxp speaker
+	oplus,speaker-vendor = "nxp";
+	oplus,speaker-i2s-id = <3>;
+	oplus,speaker-i2s-id-in = <0>;
+	oplus,speaker-codec-name = "tfa98xx.6-0035";
+	oplus,speaker-codec-dai-name = "tfa98xx-aif-6-35";
+};
+
+//#ifdef VENDOR_EDIT
+&i2c6 {
+
+    tfa98xx@35 {
+        compatible = "nxp,tfa98xx";
+        reg = <0x35>;
+        audio_mic_mode = <2>;
+        headset_mic_mode = <2>;
+        soundtrigger_enable = <0>;
+        speaker_type = <2>;
+        status = "okay";
+        oppo,tfa98xx-dual-spk = <0>;
+        pinctrl-names = "tfa98xx_reset_default", "tfa98xx_reset_high", "tfa98xx_reset_low";
+        pinctrl-0 = <&tfa98xxresetdefault>;
+        pinctrl-1 = <&tfa98xxresethigh>;
+        pinctrl-2 = <&tfa98xxresetlow>;
+    };
+};
+
+&pio {
+	tfa98xxresetdefault: tfa98xxrstdefault {
+	};
+
+	tfa98xxresethigh: tfa98xxrsthigh {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO141__FUNC_GPIO141>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	tfa98xxresetlow: tfa98xxrstlow {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO141__FUNC_GPIO141>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+};
+&snd_audio_dsp {
+	compatible = "mediatek,snd_audio_dsp";
+	mtk_dsp_voip = <0x1 0x1 0xffffffff 0xffffffff>;
+	mtk_dsp_primary = <0x0 0x0 0xffffffff 0xffffffff>;
+	mtk_dsp_offload = <0x0 0x6 0xffffffff 0xffffffff>;
+	mtk_dsp_deep = <0x0 0x3 0xffffffff 0xffffffff>;
+	//#ifdef VENDOR_EDIT
+	mtk_dsp_playback = <0x1 0x4 0xf 0xffffffff>;
+	//#else /* VENDOR_EDIT */
+	//mtk_dsp_playback = <0x0 0x4 0xf 0xffffffff>;
+	//#endif /* VENDOR_EDIT */
+	mtk_dsp_capture1 = <0x1 0xffffffff 0xc 0x12>;
+	mtk_dsp_a2dp = <0x0 0xffffffff 0xffffffff 0xffffffff>;
+	mtk_dsp_dataprovider = <0x0 0xffffffff 0xf 0xffffffff>;
+	mtk_dsp_call_final = <0x0 0x4 0xf 0x13>;
+	mtk_dsp_ktv = <0x0 0x8 0x11 0xffffffff>;
+	swdsp_smartpa_process_enable = <0x0>;
+};
+
+&sound {
+	/* this dtsi config for product's special config, AudioHal read ctl 'OPLUS_AUDIO_EXTERN_CONFIG' get the values*
+	 * 1st value --> PA type: 0:NXP Pa, 1:Awinic Pa */
+	audio_extern_config = <0>;
+};
+
+/* accdet start */
+&accdet {
+	/* accdet micbias voltage: 0x09:2.85v 0x08:2.8v 0x07,
+	 * 2.7v;0x05,2.5v;0x02,1.9v
+	 */
+	accdet-mic-vol = <8>;
+	/* accdet pwm_width, pwm_thresh, fall_delay, rise_delay
+	 * debounce0, debounce1, debounce3, debounce4
+	 * eint pwm_width, eint pwm_thresh
+	 * eint deb(debounce0, debounce1, debounce2, debounce3), inv_debounce
+	 */
+	headset-mode-setting = <0x500 0x500 1 0x1f0
+				0x2000 0x800 0x2000 0x44
+				0x0 0x7
+				0x5 0x9 0x9 0xd 0xe>;
+	accdet-plugout-debounce = <1>;
+	/*1:ACC mode, 2:low cost without in bias, 6:low cost with in bias*/
+	accdet-mic-mode = <2>;
+	/*0--MD_MAX--UP_MAX--DW_MAX*/
+
+	//#ifdef VENDOR_EDIT
+	headset-three-key-threshold = <0 82 170 306>;
+	//#else /* VENDOR_EDIT */
+	//headset-three-key-threshold = <0 80 220 400>;
+	//#endif /* VENDOR_EDIT */
+	headset-three-key-threshold-CDD = <0 121 192 600>;
+	/*0--MD_MAX--VOICE_MAX--UP_MAX--DW_MAX*/
+	headset-four-key-threshold = <0 58 121 192 400>;
+
+//#ifdef VENDOR_EDIT
+	/* moisture HW mode config start. Enable moisture detection or not
+	 * default use HW mode for moisture detection
+	 */
+	moisture_detect_enable = <1>;
+//#endif /* VENDOR_EDIT */
+	/* select VTH to 2v and 500k, use internal resitance */
+	eint_use_ext_res = <0>;
+//#ifdef VENDOR_EDIT
+	/* enable eint detection mode, if moisture detection enable
+	 * eint_detect_mode = moisture_detect_mode;otherwise, select
+	 * eint_detect_mode = 4 as DEFAULT
+	 */
+	eint_detect_mode = <5>;
+	/* enable moisture detection mode, if moisture detection enable
+	 * eint_detect_mode = moisture_detect_mode
+	 */
+	moisture_detect_mode = <5>;
+	/* select 0: 2.8V; 1: 2.4V; 2: 2V; 3: VTH=MVTH(VTH2) */
+	moisture_comp_vth = <2>;
+	/* vref2 voltage for different water impedance */
+//#ifdef VENDOR_EDIT
+	moisture_comp_vref2 = <2>;
+//#else /* VENDOR_EDIT */
+	//moisture_comp_vref2 = <0>;
+//#endif /* VENDOR_EDIT */
+	/* moisture HW mode config end */
+
+	/* moisture SW mode config start, use external resister or not.
+	 * DEFAULT NOT NEED
+	 */
+	moisture_use_ext_res = <0>;
+	/* moisture external resister ohm, SW mode by auxadc */
+	moisture-external-r = <2000000>;
+	/* moisture internal resister ohm, SW mode by auxadc */
+	moisture-internal-r = <47000>;
+	/* moisture of water resister ohm, SW mode by auxadc*/
+	moisture-water-r = <10000>;
+	/* moisture SW mode config end */
+//#endif /* VENDOR_EDIT */
+	/* ACCDET GPIO standardization for AP EINT */
+	pinctrl-names = "default", "state_eint_as_int";
+	pinctrl-0 = <&accdet_pins_default>;
+	pinctrl-1 = <&accdet_pins_eint_as_int>;
+	status = "okay";
+};
+&pio {
+	accdet_pins_default: accdetdefault {
+	};
+	accdet_pins_eint_as_int: accdeteint@0 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO9__FUNC_GPIO9>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+};
+/* accdet end */
+//#endif /* VENDOR_EDIT */

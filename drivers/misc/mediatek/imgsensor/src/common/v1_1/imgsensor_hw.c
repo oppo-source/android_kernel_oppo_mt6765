@@ -1,6 +1,6 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2016 MediaTek Inc.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <linux/delay.h>
@@ -12,82 +12,22 @@
 #include "imgsensor_sensor.h"
 #include "imgsensor_hw.h"
 
-/*the index is consistent with enum IMGSENSOR_HW_PIN*/
-char * const imgsensor_hw_pin_names[] = {
-	"none",
-	"pdn",
-	"rst",
-	"vcama",
-#ifdef CONFIG_REGULATOR_RT5133
-	"vcama1",
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#include<soc/oppo/oppo_project.h>
+int gpio57usercont = 0;
 #endif
-	"vcamd",
-	"vcamio",
-#ifdef MIPI_SWITCH
-	"mipi_switch_en",
-	"mipi_switch_sel",
-#endif
-	"mclk"
-};
-
-/*the index is consistent with enum IMGSENSOR_HW_ID*/
-char * const imgsensor_hw_id_names[] = {
-	"mclk",
-	"regulator",
-	"gpio"
-};
 
 enum IMGSENSOR_RETURN imgsensor_hw_init(struct IMGSENSOR_HW *phw)
 {
 	struct IMGSENSOR_HW_SENSOR_POWER      *psensor_pwr;
 	struct IMGSENSOR_HW_CFG               *pcust_pwr_cfg;
 	struct IMGSENSOR_HW_CUSTOM_POWER_INFO *ppwr_info;
-	unsigned int i, j, len;
+	int i, j;
 	char str_prop_name[LENGTH_FOR_SNPRINTF];
-	const char *pin_hw_id_name;
 	struct device_node *of_node
 		= of_find_compatible_node(NULL, NULL, "mediatek,imgsensor");
 
 	mutex_init(&phw->common.pinctrl_mutex);
-
-	/* update the imgsensor_custom_cfg by dts */
-	for (i = 0; i < IMGSENSOR_SENSOR_IDX_MAX_NUM; i++) {
-		PK_DBG("IMGSENSOR_SENSOR_IDX: %d\n", i);
-		pcust_pwr_cfg = imgsensor_custom_config;
-		while (pcust_pwr_cfg->sensor_idx != i &&
-		       pcust_pwr_cfg->sensor_idx != IMGSENSOR_SENSOR_IDX_NONE)
-			pcust_pwr_cfg++;
-
-		if (pcust_pwr_cfg->sensor_idx == IMGSENSOR_SENSOR_IDX_NONE)
-			continue;
-
-		ppwr_info = pcust_pwr_cfg->pwr_info;
-		while (ppwr_info->pin != IMGSENSOR_HW_PIN_NONE) {
-			memset(str_prop_name, 0, sizeof(str_prop_name));
-			snprintf(str_prop_name,
-				sizeof(str_prop_name),
-				"cam%d_pin_%s",
-				i,
-				imgsensor_hw_pin_names[ppwr_info->pin]);
-			if (of_property_read_string(
-				of_node, str_prop_name,
-				&pin_hw_id_name) == 0) {
-				for (j = 0; j < IMGSENSOR_HW_ID_MAX_NUM; j++) {
-					len = strlen(imgsensor_hw_id_names[j]);
-					if (strncmp(pin_hw_id_name, imgsensor_hw_id_names[j], len)
-						== 0) {
-						PK_DBG(
-							"imgsensor_hw_cfg hw_pin:%s, id name:%s, id:%d\n",
-							str_prop_name, pin_hw_id_name, j);
-						ppwr_info->id = j;
-						break;
-					}
-				}
-			}
-			ppwr_info++;
-		}
-	}
-	/* update the imgsensor_custom_cfg by dts END */
 
 	for (i = 0; i < IMGSENSOR_HW_ID_MAX_NUM; i++) {
 		if (hw_open[i] != NULL)
@@ -101,7 +41,30 @@ enum IMGSENSOR_RETURN imgsensor_hw_init(struct IMGSENSOR_HW *phw)
 	for (i = 0; i < IMGSENSOR_SENSOR_IDX_MAX_NUM; i++) {
 		psensor_pwr = &phw->sensor_pwr[i];
 
+		#ifdef OPLUS_FEATURE_CAMERA_COMMON
+		if (is_project(19536) || is_project(19537) ||
+			is_project(19538) || is_project(19539) ||
+			is_project(19541)) {
+			pcust_pwr_cfg = imgsensor_custom_config_19537;
+		} else if (is_project(OPPO_19550) || is_project(OPPO_19551) || is_project(OPPO_19553)
+			|| is_project(OPPO_19556)) {
+			pcust_pwr_cfg = imgsensor_custom_config_P90Q;
+		} else if (is_project(OPPO_19357) || is_project(OPPO_19354) || is_project(OPPO_19358) || is_project(OPPO_19359)) {
+			pcust_pwr_cfg = imgsensor_custom_config_19357;
+		} else if (is_project(OPPO_19011) || is_project(OPPO_19301)) {
+		        pcust_pwr_cfg = imgsensor_custom_config_19301;
+		} else if (is_project(OPPO_18593) || is_project(OPPO_18073)) {
+			pcust_pwr_cfg = imgsensor_custom_config_18593;
+		} else if (is_project(OPPO_20291) || is_project(OPPO_20292) ||
+			is_project(OPPO_20293) || is_project(OPPO_20294) ||
+			is_project(OPPO_20295)) {
+			pcust_pwr_cfg = imgsensor_custom_config_20291;
+		} else {
+			pcust_pwr_cfg = imgsensor_custom_config;
+		}
+		#else
 		pcust_pwr_cfg = imgsensor_custom_config;
+		#endif
 		while (pcust_pwr_cfg->sensor_idx != i &&
 		       pcust_pwr_cfg->sensor_idx != IMGSENSOR_SENSOR_IDX_NONE)
 			pcust_pwr_cfg++;
@@ -151,6 +114,17 @@ enum IMGSENSOR_RETURN imgsensor_hw_release_all(struct IMGSENSOR_HW *phw)
 	return IMGSENSOR_RETURN_SUCCESS;
 }
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+static bool g_is_sub2_gc02m0 = false;
+static bool g_is_main3_gc02m0 = false;
+void set_gc02m0_flag(enum IMGSENSOR_SENSOR_IDX sensor_idx)
+{
+	if (sensor_idx == IMGSENSOR_SENSOR_IDX_SUB2)
+		g_is_sub2_gc02m0 = true;
+	else if (sensor_idx == IMGSENSOR_SENSOR_IDX_MAIN3)
+		g_is_main3_gc02m0 = true;
+}
+#endif
 static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 		struct IMGSENSOR_HW             *phw,
 		enum   IMGSENSOR_SENSOR_IDX      sensor_idx,
@@ -192,7 +166,6 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 	ppwr_info = ppwr_seq->pwr_info;
 
 	while (ppwr_info->pin != IMGSENSOR_HW_PIN_NONE &&
-	       ppwr_info->pin < IMGSENSOR_HW_PIN_MAX_NUM &&
 	       ppwr_info < ppwr_seq->pwr_info + IMGSENSOR_HW_POWER_INFO_MAX) {
 
 		if (pwr_status == IMGSENSOR_HW_POWER_STATUS_ON) {
@@ -202,12 +175,17 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 
 				if (__ratelimit(&ratelimit))
 					PK_DBG(
-					"sensor_idx %d, ppwr_info->pin %d, ppwr_info->pin_state_on %d, delay %u",
+					"sensor_idx %d, ppwr_info->pin %d, ppwr_info->pin_state_on %d",
 					sensor_idx,
 					ppwr_info->pin,
-					ppwr_info->pin_state_on,
-					ppwr_info->pin_on_delay);
-
+					ppwr_info->pin_state_on);
+				#ifdef OPLUS_FEATURE_CAMERA_COMMON
+				if (is_project(OPPO_19550) || is_project(OPPO_19551) || is_project(OPPO_19553) || is_project(OPPO_19556) || is_project(OPPO_19357) || is_project(OPPO_19354) || is_project(OPPO_19358) || is_project(OPPO_19359)) {
+					if((sensor_idx == 2||(sensor_idx == 3)) && (ppwr_info->pin == 8))
+						gpio57usercont ++;
+					PK_DBG("on gpio57usercont = %d",gpio57usercont);
+				}
+				#endif
 				if (pdev->set != NULL)
 					pdev->set(pdev->pinstance,
 					sensor_idx,
@@ -228,12 +206,50 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 
 			if (__ratelimit(&ratelimit))
 				PK_DBG(
-				"sensor_idx %d, ppwr_info->pin %d, ppwr_info->pin_state_off %d, delay %u",
+				"sensor_idx %d, ppwr_info->pin %d, ppwr_info->pin_state_off %d",
 				sensor_idx,
 				ppwr_info->pin,
-				ppwr_info->pin_state_off,
-				ppwr_info->pin_on_delay);
+				ppwr_info->pin_state_off);
+			#ifdef OPLUS_FEATURE_CAMERA_COMMON
+			if (is_project(OPPO_19550) || is_project(OPPO_19551) || is_project(OPPO_19553) || is_project(OPPO_19556) || is_project(OPPO_19357) || is_project(OPPO_19354) || is_project(OPPO_19358) || is_project(OPPO_19359)) {
+				if (ppwr_info->pin != IMGSENSOR_HW_PIN_UNDEF) {
+					pdev =phw->pdev[psensor_pwr->id[ppwr_info->pin]];
+					if((ppwr_info->pin == 8)&&(gpio57usercont ==1)&&((sensor_idx == 2)||(sensor_idx == 3)))
+					{
+						pdev->set(pdev->pinstance,
+						sensor_idx,
+						ppwr_info->pin, ppwr_info->pin_state_off);
+						PK_DBG("off gpio57usercont poweroff= %d",gpio57usercont);
+					}
+					if ((pdev->set != NULL)&&(ppwr_info->pin != 8))
+						pdev->set(pdev->pinstance,sensor_idx,ppwr_info->pin,ppwr_info->pin_state_off);
 
+					if((sensor_idx == 2||(sensor_idx == 3)) && (ppwr_info->pin == 8))
+						gpio57usercont --;
+					PK_DBG("off gpio57usercont = %d",gpio57usercont);
+				}
+			} else {
+				if (ppwr_info->pin != IMGSENSOR_HW_PIN_UNDEF) {
+					pdev =
+					phw->pdev[psensor_pwr->id[ppwr_info->pin]];
+
+					if (pdev->set != NULL)
+						pdev->set(pdev->pinstance,
+						sensor_idx,
+					ppwr_info->pin, ppwr_info->pin_state_off);
+				}
+			    #ifdef OPLUS_FEATURE_CAMERA_COMMON
+			    if (is_project(19011) || is_project(19301)) {
+				PK_DBG("19301 iovdd/avdd/dvdd need more delay time");
+				mdelay(ppwr_info->pin_off_delay);
+			    } else {
+				mdelay(ppwr_info->pin_on_delay);
+			    }
+			    #else
+				mdelay(ppwr_info->pin_on_delay);
+			    #endif
+			}
+			#else
 			if (ppwr_info->pin != IMGSENSOR_HW_PIN_UNDEF) {
 				pdev =
 				phw->pdev[psensor_pwr->id[ppwr_info->pin]];
@@ -243,10 +259,34 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 					sensor_idx,
 				ppwr_info->pin, ppwr_info->pin_state_off);
 			}
-
-			mdelay(ppwr_info->pin_on_delay);
+			#endif
 		}
 	}
+	#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	if ((sensor_idx == IMGSENSOR_SENSOR_IDX_MAIN) && (is_project(OPPO_19011) || is_project(OPPO_19301))) {
+		if (pwr_status == IMGSENSOR_HW_POWER_STATUS_ON) {//power up
+			pdev = phw->pdev[IMGSENSOR_HW_ID_GPIO];
+			if (g_is_sub2_gc02m0 && pdev->set != NULL) {
+				PK_DBG("force sub2_gc02 avdd to high");
+				pdev->set(pdev->pinstance, IMGSENSOR_SENSOR_IDX_SUB2, IMGSENSOR_HW_PIN_AVDD, Vol_2800);
+			}
+			if (g_is_main3_gc02m0 && pdev->set != NULL) {
+				PK_DBG("force main3_gc02 avdd to high");
+				pdev->set(pdev->pinstance, IMGSENSOR_SENSOR_IDX_MAIN3, IMGSENSOR_HW_PIN_AVDD, Vol_2800);
+			}
+		} else if (pwr_status == IMGSENSOR_HW_POWER_STATUS_OFF) {//power down
+			pdev = phw->pdev[IMGSENSOR_HW_ID_GPIO];
+			if (g_is_sub2_gc02m0 && pdev->set != NULL) {
+				PK_DBG("force sub2_gc02 avdd to low");
+				pdev->set(pdev->pinstance, IMGSENSOR_SENSOR_IDX_SUB2, IMGSENSOR_HW_PIN_AVDD, Vol_Low);
+			}
+			if (g_is_main3_gc02m0 && pdev->set != NULL) {
+				PK_DBG("force main3_gc02 avdd to low");
+				pdev->set(pdev->pinstance, IMGSENSOR_SENSOR_IDX_MAIN3, IMGSENSOR_HW_PIN_AVDD, Vol_Low);
+			}
+		}
+	}
+	#endif
 
 	return IMGSENSOR_RETURN_SUCCESS;
 }
@@ -256,10 +296,10 @@ enum IMGSENSOR_RETURN imgsensor_hw_power(
 		struct IMGSENSOR_SENSOR *psensor,
 		enum IMGSENSOR_HW_POWER_STATUS pwr_status)
 {
-	int ret = 0;
 	enum IMGSENSOR_SENSOR_IDX sensor_idx = psensor->inst.sensor_idx;
 	char *curr_sensor_name = psensor->inst.psensor_list->name;
 	char str_index[LENGTH_FOR_SNPRINTF];
+	int ret = 0;
 
 	PK_DBG("sensor_idx %d, power %d curr_sensor_name %s, enable list %s\n",
 		sensor_idx,
@@ -273,23 +313,92 @@ enum IMGSENSOR_RETURN imgsensor_hw_power(
 	!strstr(phw->enable_sensor_by_index[(uint32_t)sensor_idx], curr_sensor_name))
 		return IMGSENSOR_RETURN_ERROR;
 
+
 	ret = snprintf(str_index, sizeof(str_index), "%d", sensor_idx);
-	if (ret < 0) {
+	if (ret == 0) {
 		pr_info("Error! snprintf allocate 0");
 		ret = IMGSENSOR_RETURN_ERROR;
 		return ret;
 	}
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	if (is_project(19536) || is_project(19537) ||
+		is_project(19538) || is_project(19539) ||
+		is_project(19541)) {
+		imgsensor_hw_power_sequence(
+				phw,
+				sensor_idx,
+				pwr_status,
+				platform_power_sequence_19537,
+				str_index);
+		imgsensor_hw_power_sequence(
+				phw,
+				sensor_idx,
+				pwr_status, sensor_power_sequence_19537, curr_sensor_name);
+	} else if (is_project(OPPO_20291) || is_project(OPPO_20292)
+		|| is_project(OPPO_20293) || is_project(OPPO_20294)
+		|| is_project(OPPO_20295)) {
+		imgsensor_hw_power_sequence(
+				phw,
+				sensor_idx,
+				pwr_status,
+				platform_power_sequence_20291,
+				str_index);
+		imgsensor_hw_power_sequence(
+				phw,
+				sensor_idx,
+				pwr_status, sensor_power_sequence_20291, curr_sensor_name);
+	} else if (is_project(OPPO_19550) || is_project(OPPO_19551)
+		|| is_project(OPPO_19553) || is_project(OPPO_19556)) {
+		imgsensor_hw_power_sequence(
+			phw,
+			sensor_idx,
+			pwr_status, sensor_power_sequence_19551, curr_sensor_name);
+	} else if (is_project(OPPO_19357) || is_project(OPPO_19354)
+		|| is_project(OPPO_19358) || is_project(OPPO_19359)) {
+		imgsensor_hw_power_sequence(
+			phw,
+			sensor_idx,
+			pwr_status, sensor_power_sequence_19357, curr_sensor_name);
+	} else if(is_project(OPPO_19011) || is_project(OPPO_19301)){
+        imgsensor_hw_power_sequence(
+			phw,
+			sensor_idx,
+			pwr_status,
+			platform_power_sequence_19301,
+			str_index);
+        imgsensor_hw_power_sequence(
+            phw,
+            sensor_idx,
+            pwr_status, sensor_power_sequence_19301, curr_sensor_name);
+	}else if (is_project(OPPO_18593) || is_project(OPPO_18073)) {
+		imgsensor_hw_power_sequence(
+			phw,
+			sensor_idx,
+			pwr_status, sensor_power_sequence_18593, curr_sensor_name);
+	} else {
+		imgsensor_hw_power_sequence(
+				phw,
+				sensor_idx,
+				pwr_status,
+				platform_power_sequence,
+				str_index);
+		imgsensor_hw_power_sequence(
+			phw,
+			sensor_idx,
+			pwr_status, sensor_power_sequence, curr_sensor_name);
+	}
+#else
 	imgsensor_hw_power_sequence(
 			phw,
 			sensor_idx,
 			pwr_status,
 			platform_power_sequence,
 			str_index);
-
 	imgsensor_hw_power_sequence(
 			phw,
 			sensor_idx,
 			pwr_status, sensor_power_sequence, curr_sensor_name);
+#endif
 
 	return IMGSENSOR_RETURN_SUCCESS;
 }

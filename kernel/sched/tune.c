@@ -489,6 +489,9 @@ int schedtune_cpu_boost(int cpu)
 	return bg->boost_max;
 }
 
+#ifdef OPLUS_FEATURE_UIFIRST
+extern bool test_task_ux(struct task_struct *task);
+#endif /* OPLUS_FEATURE_UIFIRST */
 int schedtune_task_boost(struct task_struct *p)
 {
 	struct schedtune *st;
@@ -501,6 +504,11 @@ int schedtune_task_boost(struct task_struct *p)
 	rcu_read_lock();
 	st = task_schedtune(p);
 	task_boost = st->boost;
+#ifdef OPLUS_FEATURE_UIFIRST
+	if (sysctl_uifirst_enabled && sysctl_launcher_boost_enabled && p->static_ux == 2) {
+		task_boost = 60;
+	}
+#endif /* OPLUS_FEATURE_UIFIRST */
 	rcu_read_unlock();
 
 	return task_boost;
@@ -518,6 +526,11 @@ int schedtune_prefer_idle(struct task_struct *p)
 	rcu_read_lock();
 	st = task_schedtune(p);
 	prefer_idle = st->prefer_idle;
+#ifdef OPLUS_FEATURE_UIFIRST
+	if (sysctl_uifirst_enabled && sysctl_launcher_boost_enabled && test_task_ux(p)) {
+		prefer_idle = 1;
+	}
+#endif /* OPLUS_FEATURE_UIFIRST */
 	rcu_read_unlock();
 
 	return prefer_idle;
@@ -554,8 +567,7 @@ uclamp_st_restrict(struct task_struct *p, enum uclamp_id clamp_id)
 
 	if (UCLAMP_MIN == clamp_id && 0 == uc_max.value)
 		goto unlock;
-	if (!uc_req.user_defined || (uc_req.value != uc_max.value &&
-						uc_max.value != uclamp_none(clamp_id))) {
+	if (uc_req.value > uc_max.value || !uc_req.user_defined) {
 		rcu_read_unlock();
 		return uc_max;
 	}
@@ -1005,18 +1017,6 @@ int uclamp_min_for_perf_idx(int idx, int min_value)
 
 }
 EXPORT_SYMBOL(uclamp_min_for_perf_idx);
-
-int uclamp_min_pct_for_perf_idx(int idx, int pct)
-{
-	unsigned int min_value;
-
-	if (pct < 0 || pct > 100)
-		return -ERANGE;
-
-	min_value = scale_from_percent(pct);
-	return uclamp_min_for_perf_idx(idx, min_value);
-}
-EXPORT_SYMBOL(uclamp_min_pct_for_perf_idx);
 #endif
 
 /*

@@ -169,11 +169,9 @@ int tcp_twsk_unique(struct sock *sk, struct sock *sktw, void *twp)
 		 * without appearing to create any others.
 		 */
 		if (likely(!tp->repair)) {
-			u32 seq = tcptw->tw_snd_nxt + 65535 + 2;
-
-			if (!seq)
-				seq = 1;
-			WRITE_ONCE(tp->write_seq, seq);
+			tp->write_seq = tcptw->tw_snd_nxt + 65535 + 2;
+			if (tp->write_seq == 0)
+				tp->write_seq = 1;
 			tp->rx_opt.ts_recent	   = tcptw->tw_ts_recent;
 			tp->rx_opt.ts_recent_stamp = tcptw->tw_ts_recent_stamp;
 		}
@@ -260,7 +258,7 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 		tp->rx_opt.ts_recent	   = 0;
 		tp->rx_opt.ts_recent_stamp = 0;
 		if (likely(!tp->repair))
-			WRITE_ONCE(tp->write_seq, 0);
+			tp->write_seq	   = 0;
 	}
 
 	inet->inet_dport = usin->sin_port;
@@ -298,11 +296,10 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 
 	if (likely(!tp->repair)) {
 		if (!tp->write_seq)
-			WRITE_ONCE(tp->write_seq,
-				   secure_tcp_seq(inet->inet_saddr,
-						  inet->inet_daddr,
-						  inet->inet_sport,
-						  usin->sin_port));
+			tp->write_seq = secure_tcp_seq(inet->inet_saddr,
+						       inet->inet_daddr,
+						       inet->inet_sport,
+						       usin->sin_port);
 		tp->tsoffset = secure_tcp_ts_off(sock_net(sk),
 						 inet->inet_saddr,
 						 inet->inet_daddr);
@@ -1066,18 +1063,9 @@ int tcp_md5_do_add(struct sock *sk, const union tcp_md5_addr *addr,
 
 	key = tcp_md5_do_lookup_exact(sk, addr, family, prefixlen);
 	if (key) {
-		/* Pre-existing entry - just update that one.
-		 * Note that the key might be used concurrently.
-		 */
+		/* Pre-existing entry - just update that one. */
 		memcpy(key->key, newkey, newkeylen);
-
-		/* Pairs with READ_ONCE() in tcp_md5_hash_key().
-		 * Also note that a reader could catch new key->keylen value
-		 * but old key->key[], this is the reason we use __GFP_ZERO
-		 * at sock_kmalloc() time below these lines.
-		 */
-		WRITE_ONCE(key->keylen, newkeylen);
-
+		key->keylen = newkeylen;
 		return 0;
 	}
 
@@ -1093,7 +1081,7 @@ int tcp_md5_do_add(struct sock *sk, const union tcp_md5_addr *addr,
 		rcu_assign_pointer(tp->md5sig_info, md5sig);
 	}
 
-	key = sock_kmalloc(sk, sizeof(*key), gfp | __GFP_ZERO);
+	key = sock_kmalloc(sk, sizeof(*key), gfp);
 	if (!key)
 		return -ENOMEM;
 	if (!tcp_alloc_md5sig_pool()) {
@@ -2343,12 +2331,12 @@ static void get_tcp4_sock(struct sock *sk, struct seq_file *f, int i)
 		 * we might find a transient negative value.
 		 */
 		rx_queue = max_t(int, READ_ONCE(tp->rcv_nxt) -
-				      READ_ONCE(tp->copied_seq), 0);
+				      tp->copied_seq, 0);
 
 	seq_printf(f, "%4d: %08X:%04X %08X:%04X %02X %08X:%08X %02X:%08lX "
 			"%08X %5u %8d %lu %d %pK %lu %lu %u %u %d",
 		i, src, srcp, dest, destp, state,
-		READ_ONCE(tp->write_seq) - tp->snd_una,
+		tp->write_seq - tp->snd_una,
 		rx_queue,
 		timer_active,
 		jiffies_delta_to_clock_t(timer_expires - jiffies),
@@ -2568,6 +2556,11 @@ static int __net_init tcp_sk_init(struct net *net)
 	net->ipv4.sysctl_tcp_sack = 1;
 	net->ipv4.sysctl_tcp_window_scaling = 1;
 	net->ipv4.sysctl_tcp_timestamps = 1;
+
+	#ifdef OPLUS_BUG_STABILITY
+	net->ipv4.sysctl_tcp_random_timestamp = 1;
+	#endif /* OPLUS_BUG_STABILITY */
+
 	net->ipv4.sysctl_tcp_early_retrans = 3;
 	net->ipv4.sysctl_tcp_recovery = TCP_RACK_LOSS_DETECTION;
 	net->ipv4.sysctl_tcp_slow_start_after_idle = 1; /* By default, RFC2861 behavior.  */
@@ -2583,8 +2576,8 @@ static int __net_init tcp_sk_init(struct net *net)
 	 * which are too large can cause TCP streams to be bursty.
 	 */
 	net->ipv4.sysctl_tcp_tso_win_divisor = 3;
-	/* Default TSQ limit of 16 TSO segments */
-	net->ipv4.sysctl_tcp_limit_output_bytes = 16 * 65536;
+	/* Default TSQ limit of four TSO segments */
+	net->ipv4.sysctl_tcp_limit_output_bytes = 262144;
 	/* rfc5961 challenge ack rate limiting */
 	net->ipv4.sysctl_tcp_challenge_ack_limit = 1000;
 	net->ipv4.sysctl_tcp_min_tso_segs = 2;

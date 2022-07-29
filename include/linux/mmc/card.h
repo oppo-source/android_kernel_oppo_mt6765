@@ -146,6 +146,11 @@ struct sd_ssr {
 	unsigned int		au;			/* In sectors */
 	unsigned int		erase_timeout;		/* In milliseconds */
 	unsigned int		erase_offset;		/* In milliseconds */
+#ifdef VENDOR_EDIT
+//#ifdef OPPO_RESERVE_USE_LEGACY
+	unsigned int		speed_class;		/* speed_class */
+//#endif
+#endif /* VENDOR_EDIT */
 };
 
 struct sd_switch_caps {
@@ -228,7 +233,7 @@ struct mmc_queue_req;
  * MMC Physical partitions
  */
 struct mmc_part {
-	u64		size;	/* partition size (in bytes) */
+	unsigned int	size;	/* partition size (in bytes) */
 	unsigned int	part_cfg;	/* partition type */
 	char	name[MAX_MMC_PART_NAME_LEN];
 	bool	force_ro;	/* to make boot parts RO by default */
@@ -308,10 +313,6 @@ struct mmc_card {
 	struct dentry		*debugfs_root;
 	struct mmc_part	part[MMC_NUM_PHY_PARTITION]; /* physical partitions */
 	unsigned int    nr_parts;
-#ifdef CONFIG_MTK_EMMC_HW_CQ
-	unsigned int	part_curr;
-	bool cqe_init;
-#endif
 
 	unsigned int		bouncesz;	/* Bounce buffer size */
 	struct workqueue_struct *complete_wq;	/* Private workqueue */

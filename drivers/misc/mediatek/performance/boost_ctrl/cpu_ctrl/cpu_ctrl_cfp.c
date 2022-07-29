@@ -10,11 +10,9 @@
 #include <linux/string.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
-#include <linux/cpumask.h>
 
 #include <mt-plat/cpu_ctrl.h>
 #include <mt-plat/mtk_ppm_api.h>
-#include "cpu_ctrl.h"
 #include "boost_ctrl.h"
 #include "mtk_perfmgr_internal.h"
 #include "load_track.h"
@@ -107,7 +105,7 @@ static void set_cfp_ppm(struct ppm_limit_data *desired_freq, int headroom_opp)
 	mt_ppm_userlimit_cpu_freq(perfmgr_clusters, cfp_freq);
 }
 
-static void cfp_lt_callback(int mask_loading, int loading)
+static void cfp_lt_callback(int loading)
 {
 	cfp_lock(__func__);
 
@@ -163,7 +161,7 @@ static void start_cfp(void)
 	pr_debug("%s\n", __func__);
 
 	cfp_unlock(__func__);
-	reg_ret = reg_loading_tracking(cfp_lt_callback, poll_ms, cpu_possible_mask);
+	reg_ret = reg_loading_tracking(cfp_lt_callback, poll_ms);
 	if (reg_ret)
 		pr_debug("%s reg_ret=%d\n", __func__, reg_ret);
 	cfp_lock(__func__);
@@ -391,7 +389,6 @@ int cpu_ctrl_cfp_init(struct proc_dir_entry *parent)
 	int i;
 	int clu_idx, opp_idx;
 	int ret = 0;
-	size_t idx;
 
 	struct pentry {
 		const char *name;
@@ -410,11 +407,11 @@ int cpu_ctrl_cfp_init(struct proc_dir_entry *parent)
 		PROC_ENTRY(cfp_curr_stat),
 	};
 
-	for (idx = 0; idx < ARRAY_SIZE(entries); idx++) {
-		if (!proc_create(entries[idx].name, 0644,
-					parent, entries[idx].fops)) {
+	for (i = 0; i < ARRAY_SIZE(entries); i++) {
+		if (!proc_create(entries[i].name, 0644,
+					parent, entries[i].fops)) {
 			pr_debug("%s(), create /cpu_ctrl%s failed\n",
-					__func__, entries[idx].name);
+					__func__, entries[i].name);
 			ret = -EINVAL;
 			goto out_err;
 		}
@@ -452,7 +449,6 @@ int cpu_ctrl_cfp_init(struct proc_dir_entry *parent)
 		for (opp_idx = 0; opp_idx < MAX_NR_FREQ; opp_idx++)
 			freq_tbl[clu_idx][opp_idx] =
 			mt_cpufreq_get_freq_by_idx(clu_idx, opp_idx);
-
 	}
 
 	__cfp_enable       = 1;

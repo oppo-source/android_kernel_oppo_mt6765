@@ -17,7 +17,6 @@
 #include "disp_event.h"
 #include "graphics-base-v1.0.h"
 #include "graphics-base-v1.1.h"
-#include <ion.h>
 
 /**
  * bit  25  24  17    16  15     10        9       8  0
@@ -235,7 +234,6 @@ struct OVL_CONFIG_STRUCT {
 	int ext_layer;
 	int phy_layer;
 	unsigned char compress;
-	struct ion_handle *hnd;
 };
 
 struct OVL_BASIC_STRUCT {
@@ -307,7 +305,6 @@ struct RDMA_CONFIG_STRUCT {
 	enum DISP_BUFFER_TYPE security;
 	unsigned int yuv_range;
 	struct rdma_bg_ctrl_t bg_ctrl;
-	struct ion_handle *hnd;
 };
 
 struct WDMA_CONFIG_STRUCT {
@@ -324,7 +321,6 @@ struct WDMA_CONFIG_STRUCT {
 	unsigned int useSpecifiedAlpha;
 	unsigned char alpha;
 	enum DISP_BUFFER_TYPE security;
-	struct ion_handle *hnd;
 };
 
 struct golden_setting_context {
@@ -423,6 +419,9 @@ enum DDP_IOCTL_NAME {
 	DDP_DSI_ENABLE_TE,
 	DDP_DSI_ENTER_IDLE,
 	DDP_DSI_EXIT_IDLE,
+	//#ifdef OPLUS_FEATURE_RAMLESS_AOD
+	DDP_SWITCH_AOD_MODE,
+	//#endif /* OPLUS_FEATURE_RAMLESS_AOD */
 };
 
 struct ddp_io_golden_setting_arg {

@@ -34,7 +34,7 @@
 
 /* #define DEBUG_GPIO	66 */
 
-#define MT6370_DRV_VERSION	"2.0.6_MTK"
+#define MT6370_DRV_VERSION	"2.0.3_MTK"
 
 #define MT6370_IRQ_WAKE_TIME	(500) /* ms */
 
@@ -63,57 +63,55 @@ struct mt6370_chip {
 };
 
 #ifdef CONFIG_RT_REGMAP
-RT_REG_DECL(TCPC_V10_REG_VID, 2, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(TCPC_V10_REG_PID, 2, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(TCPC_V10_REG_DID, 2, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(TCPC_V10_REG_TYPEC_REV, 2, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(TCPC_V10_REG_PD_REV, 2, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(TCPC_V10_REG_PDIF_REV, 2, RT_NORMAL_WR_ONCE, {});
+RT_REG_DECL(TCPC_V10_REG_VID, 2, RT_VOLATILE, {});
+RT_REG_DECL(TCPC_V10_REG_PID, 2, RT_VOLATILE, {});
+RT_REG_DECL(TCPC_V10_REG_DID, 2, RT_VOLATILE, {});
+RT_REG_DECL(TCPC_V10_REG_TYPEC_REV, 2, RT_VOLATILE, {});
+RT_REG_DECL(TCPC_V10_REG_PD_REV, 2, RT_VOLATILE, {});
+RT_REG_DECL(TCPC_V10_REG_PDIF_REV, 2, RT_VOLATILE, {});
 RT_REG_DECL(TCPC_V10_REG_ALERT, 2, RT_VOLATILE, {});
-RT_REG_DECL(TCPC_V10_REG_ALERT_MASK, 2, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(TCPC_V10_REG_POWER_STATUS_MASK, 1, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(TCPC_V10_REG_FAULT_STATUS_MASK, 1, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(TCPC_V10_REG_TCPC_CTRL, 1, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(TCPC_V10_REG_ROLE_CTRL, 1, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(TCPC_V10_REG_FAULT_CTRL, 1, RT_NORMAL_WR_ONCE, {});
+RT_REG_DECL(TCPC_V10_REG_ALERT_MASK, 2, RT_VOLATILE, {});
+RT_REG_DECL(TCPC_V10_REG_POWER_STATUS_MASK, 1, RT_VOLATILE, {});
+RT_REG_DECL(TCPC_V10_REG_FAULT_STATUS_MASK, 1, RT_VOLATILE, {});
+RT_REG_DECL(TCPC_V10_REG_TCPC_CTRL, 1, RT_VOLATILE, {});
+RT_REG_DECL(TCPC_V10_REG_ROLE_CTRL, 1, RT_VOLATILE, {});
+RT_REG_DECL(TCPC_V10_REG_FAULT_CTRL, 1, RT_VOLATILE, {});
 RT_REG_DECL(TCPC_V10_REG_POWER_CTRL, 1, RT_VOLATILE, {});
 RT_REG_DECL(TCPC_V10_REG_CC_STATUS, 1, RT_VOLATILE, {});
 RT_REG_DECL(TCPC_V10_REG_POWER_STATUS, 1, RT_VOLATILE, {});
 RT_REG_DECL(TCPC_V10_REG_FAULT_STATUS, 1, RT_VOLATILE, {});
 RT_REG_DECL(TCPC_V10_REG_COMMAND, 1, RT_VOLATILE, {});
-RT_REG_DECL(TCPC_V10_REG_MSG_HDR_INFO, 1, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(TCPC_V10_REG_RX_DETECT, 1, RT_NORMAL_WR_ONCE, {});
+RT_REG_DECL(TCPC_V10_REG_MSG_HDR_INFO, 1, RT_VOLATILE, {});
+RT_REG_DECL(TCPC_V10_REG_RX_DETECT, 1, RT_VOLATILE, {});
 RT_REG_DECL(TCPC_V10_REG_RX_BYTE_CNT, 1, RT_VOLATILE, {});
 RT_REG_DECL(TCPC_V10_REG_RX_BUF_FRAME_TYPE, 1, RT_VOLATILE, {});
 RT_REG_DECL(TCPC_V10_REG_RX_HDR, 2, RT_VOLATILE, {});
-RT_REG_DECL(TCPC_V10_REG_RX_DATA, 28, RT_VOLATILE, {});
+RT_REG_DECL(TCPC_V10_REG_RX_DATA, 1, RT_VOLATILE, {});
 RT_REG_DECL(TCPC_V10_REG_TRANSMIT, 1, RT_VOLATILE, {});
-RT_REG_DECL(TCPC_V10_REG_TX_BYTE_CNT, 1, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(TCPC_V10_REG_TX_HDR, 2, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(TCPC_V10_REG_TX_DATA, 28, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(MT6370_REG_PHY_CTRL1, 1, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(MT6370_REG_PHY_CTRL2, 1, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(MT6370_REG_PHY_CTRL3, 1, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(MT6370_REG_CLK_CTRL2, 1, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(MT6370_REG_CLK_CTRL3, 1, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(MT6370_REG_PRL_FSM_RESET, 1, RT_VOLATILE, {});
+RT_REG_DECL(TCPC_V10_REG_TX_BYTE_CNT, 1, RT_VOLATILE, {});
+RT_REG_DECL(TCPC_V10_REG_TX_HDR, 2, RT_VOLATILE, {});
+RT_REG_DECL(TCPC_V10_REG_TX_DATA, 1, RT_VOLATILE, {});
+RT_REG_DECL(MT6370_REG_PHY_CTRL1, 1, RT_VOLATILE, {});
+RT_REG_DECL(MT6370_REG_PHY_CTRL2, 1, RT_VOLATILE, {});
+RT_REG_DECL(MT6370_REG_PHY_CTRL3, 1, RT_VOLATILE, {});
+RT_REG_DECL(MT6370_REG_CLK_CTRL2, 1, RT_VOLATILE, {});
+RT_REG_DECL(MT6370_REG_CLK_CTRL3, 1, RT_VOLATILE, {});
 RT_REG_DECL(MT6370_REG_BMC_CTRL, 1, RT_VOLATILE, {});
-RT_REG_DECL(MT6370_REG_BMCIO_RXDZSEL, 1, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(MT6370_REG_VCONN_CLIMITEN, 1, RT_NORMAL_WR_ONCE, {});
+RT_REG_DECL(MT6370_REG_BMCIO_RXDZSEL, 1, RT_VOLATILE, {});
 RT_REG_DECL(MT6370_REG_MT_STATUS, 1, RT_VOLATILE, {});
 RT_REG_DECL(MT6370_REG_MT_INT, 1, RT_VOLATILE, {});
-RT_REG_DECL(MT6370_REG_MT_MASK, 1, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(MT6370_REG_BMCIO_RXDZEN, 1, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(MT6370_REG_IDLE_CTRL, 1, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(MT6370_REG_INTRST_CTRL, 1, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(MT6370_REG_WATCHDOG_CTRL, 1, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(MT6370_REG_I2CRST_CTRL, 1, RT_NORMAL_WR_ONCE, {});
+RT_REG_DECL(MT6370_REG_MT_MASK, 1, RT_VOLATILE, {});
+RT_REG_DECL(MT6370_REG_BMCIO_RXDZEN, 1, RT_VOLATILE, {});
+RT_REG_DECL(MT6370_REG_IDLE_CTRL, 1, RT_VOLATILE, {});
+RT_REG_DECL(MT6370_REG_INTRST_CTRL, 1, RT_VOLATILE, {});
+RT_REG_DECL(MT6370_REG_WATCHDOG_CTRL, 1, RT_VOLATILE, {});
+RT_REG_DECL(MT6370_REG_I2CRST_CTRL, 1, RT_VOLATILE, {});
 RT_REG_DECL(MT6370_REG_SWRESET, 1, RT_VOLATILE, {});
-RT_REG_DECL(MT6370_REG_TTCPC_FILTER, 1, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(MT6370_REG_DRP_TOGGLE_CYCLE, 1, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(MT6370_REG_DRP_DUTY_CTRL, 2, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(MT6370_REG_PHY_CTRL11, 1, RT_NORMAL_WR_ONCE, {});
-RT_REG_DECL(MT6370_REG_PHY_CTRL12, 1, RT_NORMAL_WR_ONCE, {});
+RT_REG_DECL(MT6370_REG_TTCPC_FILTER, 1, RT_VOLATILE, {});
+RT_REG_DECL(MT6370_REG_DRP_TOGGLE_CYCLE, 1, RT_VOLATILE, {});
+RT_REG_DECL(MT6370_REG_DRP_DUTY_CTRL, 1, RT_VOLATILE, {});
+RT_REG_DECL(MT6370_REG_PHY_CTRL11, 1, RT_VOLATILE, {});
+RT_REG_DECL(MT6370_REG_PHY_CTRL12, 1, RT_VOLATILE, {});
 
 static const rt_register_map_t mt6370_chip_regmap[] = {
 	RT_REG(TCPC_V10_REG_VID),
@@ -149,10 +147,8 @@ static const rt_register_map_t mt6370_chip_regmap[] = {
 	RT_REG(MT6370_REG_PHY_CTRL3),
 	RT_REG(MT6370_REG_CLK_CTRL2),
 	RT_REG(MT6370_REG_CLK_CTRL3),
-	RT_REG(MT6370_REG_PRL_FSM_RESET),
 	RT_REG(MT6370_REG_BMC_CTRL),
 	RT_REG(MT6370_REG_BMCIO_RXDZSEL),
-	RT_REG(MT6370_REG_VCONN_CLIMITEN),
 	RT_REG(MT6370_REG_MT_STATUS),
 	RT_REG(MT6370_REG_MT_INT),
 	RT_REG(MT6370_REG_MT_MASK),
@@ -378,8 +374,8 @@ static int mt6370_regmap_init(struct mt6370_chip *chip)
 	props->register_num = MT6370_CHIP_REGMAP_SIZE;
 	props->rm = mt6370_chip_regmap;
 
-	props->rt_regmap_mode = RT_MULTI_BYTE |
-				RT_IO_PASS_THROUGH | RT_DBG_SPECIAL;
+	props->rt_regmap_mode = RT_MULTI_BYTE | RT_CACHE_DISABLE |
+				RT_IO_PASS_THROUGH | RT_DBG_GENERAL;
 	ret = snprintf(name, sizeof(name), "mt6370-%02x",
 		chip->client->addr);
 	if (ret < 0 || ret >= sizeof(name)) {
@@ -419,15 +415,10 @@ static int mt6370_regmap_deinit(struct mt6370_chip *chip)
 static inline int mt6370_software_reset(struct tcpc_device *tcpc)
 {
 	int ret = mt6370_i2c_write8(tcpc, MT6370_REG_SWRESET, 1);
-#ifdef CONFIG_RT_REGMAP
-	struct mt6370_chip *chip = tcpc_get_dev_data(tcpc);
-#endif /* CONFIG_RT_REGMAP */
 
 	if (ret < 0)
 		return ret;
-#ifdef CONFIG_RT_REGMAP
-	rt_regmap_cache_reload(chip->m_dev);
-#endif /* CONFIG_RT_REGMAP */
+
 	usleep_range(1000, 2000);
 	return 0;
 }
@@ -625,7 +616,7 @@ static int mt6370_init_alert(struct tcpc_device *tcpc)
 	sched_setscheduler(chip->irq_worker_task, SCHED_FIFO, &param);
 	kthread_init_work(&chip->irq_work, mt6370_irq_work_handler);
 
-	pr_info("IRQF_NO_THREAD Test\n");
+	pr_info("IRQF_NO_THREAD Test\r\n");
 	ret = request_irq(chip->irq, mt6370_intr_handler,
 		IRQF_TRIGGER_FALLING | IRQF_NO_THREAD, name, chip);
 	if (ret < 0) {
@@ -669,15 +660,15 @@ int mt6370_alert_status_clear(struct tcpc_device *tcpc, uint32_t mask)
 	return 0;
 }
 
-static int mt6370_set_clock_gating(struct tcpc_device *tcpc,
+static int mt6370_set_clock_gating(struct tcpc_device *tcpc_dev,
 									bool en)
 {
 	int ret = 0;
 
 #ifdef CONFIG_TCPC_CLOCK_GATING
-	int i = 0;
 	uint8_t clk2 = MT6370_REG_CLK_DIV_600K_EN
 		| MT6370_REG_CLK_DIV_300K_EN | MT6370_REG_CLK_CK_300K_EN;
+
 	uint8_t clk3 = MT6370_REG_CLK_DIV_2P4M_EN;
 
 	if (!en) {
@@ -688,15 +679,16 @@ static int mt6370_set_clock_gating(struct tcpc_device *tcpc,
 	}
 
 	if (en) {
-		for (i = 0; i < 2; i++)
-			ret = mt6370_alert_status_clear(tcpc,
-				TCPC_REG_ALERT_RX_ALL_MASK);
+		ret = mt6370_alert_status_clear(tcpc_dev,
+			TCPC_REG_ALERT_RX_STATUS |
+			TCPC_REG_ALERT_RX_HARD_RST |
+			TCPC_REG_ALERT_RX_BUF_OVF);
 	}
 
 	if (ret == 0)
-		ret = mt6370_i2c_write8(tcpc, MT6370_REG_CLK_CTRL2, clk2);
+		ret = mt6370_i2c_write8(tcpc_dev, MT6370_REG_CLK_CTRL2, clk2);
 	if (ret == 0)
-		ret = mt6370_i2c_write8(tcpc, MT6370_REG_CLK_CTRL3, clk3);
+		ret = mt6370_i2c_write8(tcpc_dev, MT6370_REG_CLK_CTRL3, clk3);
 #endif	/* CONFIG_TCPC_CLOCK_GATING */
 
 	return ret;
@@ -771,7 +763,7 @@ static int mt6370_tcpc_init(struct tcpc_device *tcpc, bool sw_reset)
 	 * DRP Duyt Ctrl : dcSRC: /1024
 	 */
 
-	mt6370_i2c_write8(tcpc, MT6370_REG_TTCPC_FILTER, 10);
+	mt6370_i2c_write8(tcpc, MT6370_REG_TTCPC_FILTER, 5);
 	mt6370_i2c_write8(tcpc, MT6370_REG_DRP_TOGGLE_CYCLE, 4);
 	mt6370_i2c_write16(tcpc, MT6370_REG_DRP_DUTY_CTRL, TCPC_NORMAL_RP_DUTY);
 
@@ -796,9 +788,9 @@ static int mt6370_tcpc_init(struct tcpc_device *tcpc, bool sw_reset)
 	mt6370_init_fault_mask(tcpc);
 	mt6370_init_mt_mask(tcpc);
 
-	/* CK_300K from 320K, SHIPPING off, AUTOIDLE enable, TIMEOUT = 6.4ms */
+	/* CK_300K from 320K, SHIPPING off, AUTOIDLE enable, TIMEOUT = 32ms */
 	mt6370_i2c_write8(tcpc, MT6370_REG_IDLE_CTRL,
-		MT6370_REG_IDLE_SET(0, 1, 1, 0));
+		MT6370_REG_IDLE_SET(0, 1, 1, 2));
 	mdelay(1);
 
 	return 0;
@@ -864,6 +856,7 @@ int mt6370_get_alert_mask(struct tcpc_device *tcpc, uint32_t *mask)
 int mt6370_get_alert_status(struct tcpc_device *tcpc, uint32_t *alert)
 {
 	int ret;
+
 #ifdef CONFIG_TCPC_VSAFE0V_DETECT_IC
 	uint8_t v2;
 #endif
@@ -949,10 +942,7 @@ static int mt6370_get_cc(struct tcpc_device *tcpc, int *cc1, int *cc2)
 	if (act_as_drp) {
 		act_as_sink = TCPC_V10_REG_CC_STATUS_DRP_RESULT(status);
 	} else {
-		if (tcpc->typec_polarity)
-			cc_role = TCPC_V10_REG_CC_STATUS_CC2(role_ctrl);
-		else
-			cc_role = TCPC_V10_REG_CC_STATUS_CC1(role_ctrl);
+		cc_role =  TCPC_V10_REG_CC_STATUS_CC1(role_ctrl);
 		if (cc_role == TYPEC_CC_RP)
 			act_as_sink = false;
 		else
@@ -976,7 +966,6 @@ static int mt6370_get_cc(struct tcpc_device *tcpc, int *cc1, int *cc2)
 	return 0;
 }
 
-#ifdef CONFIG_TCPC_VSAFE0V_DETECT_IC
 static int mt6370_enable_vsafe0v_detect(
 	struct tcpc_device *tcpc, bool enable)
 {
@@ -990,9 +979,9 @@ static int mt6370_enable_vsafe0v_detect(
 	else
 		ret &= ~MT6370_REG_M_VBUS_80;
 
-	return mt6370_i2c_write8(tcpc, MT6370_REG_MT_MASK, (uint8_t) ret);
+	mt6370_i2c_write8(tcpc, MT6370_REG_MT_MASK, (uint8_t) ret);
+	return ret;
 }
-#endif /* CONFIG_TCPC_VSAFE0V_DETECT_IC */
 
 static int mt6370_set_cc(struct tcpc_device *tcpc, int pull)
 {
@@ -1000,7 +989,7 @@ static int mt6370_set_cc(struct tcpc_device *tcpc, int pull)
 	uint8_t data;
 	int rp_lvl = TYPEC_CC_PULL_GET_RP_LVL(pull), pull1, pull2;
 
-	MT6370_INFO("pull = 0x%02X\n", pull);
+	MT6370_INFO("\n");
 	pull = TYPEC_CC_PULL_GET_RES(pull);
 	if (pull == TYPEC_CC_DRP) {
 		data = TCPC_V10_REG_ROLE_CTRL_RES_SET(
@@ -1010,9 +999,7 @@ static int mt6370_set_cc(struct tcpc_device *tcpc, int pull)
 			tcpc, TCPC_V10_REG_ROLE_CTRL, data);
 
 		if (ret == 0) {
-#ifdef CONFIG_TCPC_VSAFE0V_DETECT_IC
 			mt6370_enable_vsafe0v_detect(tcpc, false);
-#endif /* CONFIG_TCPC_VSAFE0V_DETECT_IC */
 			ret = mt6370_command(tcpc, TCPM_CMD_LOOK_CONNECTION);
 		}
 	} else {
@@ -1023,7 +1010,9 @@ static int mt6370_set_cc(struct tcpc_device *tcpc, int pull)
 
 		pull1 = pull2 = pull;
 
-		if (pull == TYPEC_CC_RP && tcpc->typec_is_attached_src) {
+		if ((pull == TYPEC_CC_RP_DFT || pull == TYPEC_CC_RP_1_5 ||
+			pull == TYPEC_CC_RP_3_0) &&
+			tcpc->typec_is_attached_src) {
 			if (tcpc->typec_polarity)
 				pull1 = TYPEC_CC_OPEN;
 			else
@@ -1080,6 +1069,11 @@ static int mt6370_set_vconn(struct tcpc_device *tcpc, int enable)
 	if (rv < 0)
 		return rv;
 
+#ifndef CONFIG_TCPC_IDLE_MODE
+	rv = mt6370_i2c_write8(tcpc, MT6370_REG_IDLE_CTRL,
+		MT6370_REG_IDLE_SET(0, 1, enable ? 0 : 1, 2));
+#endif /* CONFIG_TCPC_IDLE_MODE */
+
 	if (enable)
 		mt6370_init_fault_mask(tcpc);
 
@@ -1087,9 +1081,9 @@ static int mt6370_set_vconn(struct tcpc_device *tcpc, int enable)
 }
 
 #ifdef CONFIG_TCPC_LOW_POWER_MODE
-static int mt6370_is_low_power_mode(struct tcpc_device *tcpc)
+static int mt6370_is_low_power_mode(struct tcpc_device *tcpc_dev)
 {
-	int rv = mt6370_i2c_read8(tcpc, MT6370_REG_BMC_CTRL);
+	int rv = mt6370_i2c_read8(tcpc_dev, MT6370_REG_BMC_CTRL);
 
 	if (rv < 0)
 		return rv;
@@ -1098,18 +1092,11 @@ static int mt6370_is_low_power_mode(struct tcpc_device *tcpc)
 }
 
 static int mt6370_set_low_power_mode(
-		struct tcpc_device *tcpc, bool en, int pull)
+		struct tcpc_device *tcpc_dev, bool en, int pull)
 {
-	int ret = 0;
+	int rv = 0;
 	uint8_t data;
 
-	ret = mt6370_i2c_write8(tcpc, MT6370_REG_IDLE_CTRL,
-		MT6370_REG_IDLE_SET(0, 1, en ? 0 : 1, 0));
-	if (ret < 0)
-		return ret;
-#ifdef CONFIG_TCPC_VSAFE0V_DETECT_IC
-	mt6370_enable_vsafe0v_detect(tcpc, !en);
-#endif /* CONFIG_TCPC_VSAFE0V_DETECT_IC */
 	if (en) {
 		data = MT6370_REG_BMCIO_LPEN;
 
@@ -1122,53 +1109,49 @@ static int mt6370_set_low_power_mode(
 	} else {
 		data = MT6370_REG_BMCIO_BG_EN |
 			MT6370_REG_VBUS_DET_EN | MT6370_REG_BMCIO_OSC_EN;
+
+		mt6370_enable_vsafe0v_detect(tcpc_dev, true);
 	}
 
-	return mt6370_i2c_write8(tcpc, MT6370_REG_BMC_CTRL, data);
+	rv = mt6370_i2c_write8(tcpc_dev, MT6370_REG_BMC_CTRL, data);
+	return rv;
 }
 #endif	/* CONFIG_TCPC_LOW_POWER_MODE */
 
 #ifdef CONFIG_TCPC_WATCHDOG_EN
-int mt6370_set_watchdog(struct tcpc_device *tcpc, bool en)
+int mt6370_set_watchdog(struct tcpc_device *tcpc_dev, bool en)
 {
 	uint8_t data = MT6370_REG_WATCHDOG_CTRL_SET(en, 7);
 
-	return mt6370_i2c_write8(tcpc,
+	return mt6370_i2c_write8(tcpc_dev,
 		MT6370_REG_WATCHDOG_CTRL, data);
 }
 #endif	/* CONFIG_TCPC_WATCHDOG_EN */
 
 #ifdef CONFIG_TCPC_INTRST_EN
-int mt6370_set_intrst(struct tcpc_device *tcpc, bool en)
+int mt6370_set_intrst(struct tcpc_device *tcpc_dev, bool en)
 {
-	return mt6370_i2c_write8(tcpc,
+	return mt6370_i2c_write8(tcpc_dev,
 		MT6370_REG_INTRST_CTRL, MT6370_REG_INTRST_SET(en, 3));
 }
 #endif	/* CONFIG_TCPC_INTRST_EN */
 
-static int mt6370_tcpc_deinit(struct tcpc_device *tcpc)
+static int mt6370_tcpc_deinit(struct tcpc_device *tcpc_dev)
 {
-#ifdef CONFIG_RT_REGMAP
-	struct mt6370_chip *chip = tcpc_get_dev_data(tcpc);
-#endif /* CONFIG_RT_REGMAP */
-
 #ifdef CONFIG_TCPC_SHUTDOWN_CC_DETACH
-	mt6370_set_cc(tcpc, TYPEC_CC_DRP);
-	mt6370_set_cc(tcpc, TYPEC_CC_OPEN);
+	mt6370_set_cc(tcpc_dev, TYPEC_CC_DRP);
+	mt6370_set_cc(tcpc_dev, TYPEC_CC_OPEN);
 
-	mt6370_i2c_write8(tcpc,
+	mt6370_i2c_write8(tcpc_dev,
 		MT6370_REG_I2CRST_CTRL,
 		MT6370_REG_I2CRST_SET(true, 4));
 
-	mt6370_i2c_write8(tcpc,
+	mt6370_i2c_write8(tcpc_dev,
 		MT6370_REG_INTRST_CTRL,
 		MT6370_REG_INTRST_SET(true, 0));
 #else
-	mt6370_i2c_write8(tcpc, MT6370_REG_SWRESET, 1);
+	mt6370_i2c_write8(tcpc_dev, MT6370_REG_SWRESET, 1);
 #endif	/* CONFIG_TCPC_SHUTDOWN_CC_DETACH */
-#ifdef CONFIG_RT_REGMAP
-	rt_regmap_cache_reload(chip->m_dev);
-#endif /* CONFIG_RT_REGMAP */
 
 	return 0;
 }
@@ -1184,11 +1167,11 @@ static int mt6370_set_msg_header(
 		tcpc, TCPC_V10_REG_MSG_HDR_INFO, msg_hdr);
 }
 
-static int mt6370_protocol_reset(struct tcpc_device *tcpc)
+static int mt6370_protocol_reset(struct tcpc_device *tcpc_dev)
 {
-	mt6370_i2c_write8(tcpc, MT6370_REG_PRL_FSM_RESET, 0);
+	mt6370_i2c_write8(tcpc_dev, MT6370_REG_PRL_FSM_RESET, 0);
 	mdelay(1);
-	mt6370_i2c_write8(tcpc, MT6370_REG_PRL_FSM_RESET, 1);
+	mt6370_i2c_write8(tcpc_dev, MT6370_REG_PRL_FSM_RESET, 1);
 	return 0;
 }
 
@@ -1202,11 +1185,12 @@ static int mt6370_set_rx_enable(struct tcpc_device *tcpc, uint8_t enable)
 	if (ret == 0)
 		ret = mt6370_i2c_write8(tcpc, TCPC_V10_REG_RX_DETECT, enable);
 
-	if ((ret == 0) && (!enable)) {
-		mt6370_protocol_reset(tcpc);
+	if ((ret == 0) && (!enable))
 		ret = mt6370_set_clock_gating(tcpc, true);
-	}
 
+	/* For testing */
+	if (!enable)
+		mt6370_protocol_reset(tcpc);
 	return ret;
 }
 
@@ -1457,10 +1441,14 @@ static int mt6370_tcpcdev_init(struct mt6370_chip *chip, struct device *dev)
 
 	if (of_property_read_u32(np, "mt-tcpc,rp_level", &val) >= 0) {
 		switch (val) {
-		case TYPEC_RP_DFT:
-		case TYPEC_RP_1_5:
-		case TYPEC_RP_3_0:
-			desc->rp_lvl = val;
+		case 0: /* RP Default */
+			desc->rp_lvl = TYPEC_CC_RP_DFT;
+			break;
+		case 1: /* RP 1.5V */
+			desc->rp_lvl = TYPEC_CC_RP_1_5;
+			break;
+		case 2: /* RP 3.0V */
+			desc->rp_lvl = TYPEC_CC_RP_3_0;
 			break;
 		default:
 			break;
@@ -1495,13 +1483,8 @@ static int mt6370_tcpcdev_init(struct mt6370_chip *chip, struct device *dev)
 
 	chip->tcpc = tcpc_device_register(dev,
 			desc, &mt6370_tcpc_ops, chip);
-	if (IS_ERR_OR_NULL(chip->tcpc))
+	if (IS_ERR(chip->tcpc))
 		return -EINVAL;
-
-#ifdef CONFIG_USB_PD_DISABLE_PE
-	chip->tcpc->disable_pe =
-			of_property_read_bool(np, "mt-tcpc,disable_pe");
-#endif	/* CONFIG_USB_PD_DISABLE_PE */
 
 	chip->tcpc->tcpc_flags =
 		TCPC_FLAGS_LPM_WAKEUP_WATCHDOG |
@@ -1519,7 +1502,6 @@ static int mt6370_tcpcdev_init(struct mt6370_chip *chip, struct device *dev)
 	else
 		dev_info(dev, "PD_REV20\n");
 #endif	/* CONFIG_USB_PD_REV30 */
-	chip->tcpc->tcpc_flags |= TCPC_FLAGS_ALERT_V10;
 
 	return 0;
 }
@@ -1616,9 +1598,9 @@ static int mt6370_i2c_probe(struct i2c_client *client,
 	i2c_set_clientdata(client, chip);
 	INIT_DELAYED_WORK(&chip->poll_work, mt6370_poll_work);
 	chip->irq_wake_lock =
-		wakeup_source_register(chip->dev, "mt6370_irq_wake_lock");
+		wakeup_source_register(chip->dev, "mt6370_irq_wakelock");
 	chip->i2c_wake_lock =
-		wakeup_source_register(chip->dev, "mt6370_i2c_wake_lock");
+		wakeup_source_register(chip->dev, "mt6370_i2c_wakelock");
 
 	chip->chip_id = chip_id;
 	pr_info("mt6370_chipID = 0x%0x\n", chip_id);
@@ -1806,17 +1788,6 @@ MODULE_DESCRIPTION("MT6370 TCPC Driver");
 MODULE_VERSION(MT6370_DRV_VERSION);
 
 /**** Release Note ****
- * 2.0.6_MTK
- * (1) Update tTCPCfilter to 267us
- *
- * 2.0.5_MTK
- * (1) Utilize rt-regmap to reduce I2C accesses
- *
- * 2.0.4_MTK
- * (1) Mask vSafe0V IRQ before entering low power mode
- * (2) Disable auto idle mode before entering low power mode
- * (3) Reset Protocol FSM and clear RX alerts twice before clock gating
- *
  * 2.0.3_MTK
  * (1) Move down the shipping off
  *

@@ -287,7 +287,7 @@ static int pd_get_cap(struct adapter_device *dev,
 
 	uint8_t cap_i = 0;
 	int ret;
-	unsigned int idx = 0;
+	int idx = 0;
 	unsigned int i, j;
 	struct mtk_pd_adapter_info *info;
 

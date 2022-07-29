@@ -2222,12 +2222,12 @@ static inline u32 open_file_to_av(struct file *file)
 static int selinux_binder_set_context_mgr(const struct cred *mgr)
 {
 	return avc_has_perm(&selinux_state,
-			    current_sid(), cred_sid(mgr), SECCLASS_BINDER,
+			current_sid(), cred_sid(mgr), SECCLASS_BINDER,
 			    BINDER__SET_CONTEXT_MGR, NULL);
 }
 
 static int selinux_binder_transaction(const struct cred *from,
-				      const struct cred *to)
+					const struct cred *to)
 {
 	u32 mysid = current_sid();
 	u32 fromsid = cred_sid(from);
@@ -2241,17 +2241,16 @@ static int selinux_binder_transaction(const struct cred *from,
 		if (rc)
 			return rc;
 	}
-
 	return avc_has_perm(&selinux_state, fromsid, tosid,
-			    SECCLASS_BINDER, BINDER__CALL, NULL);
+				SECCLASS_BINDER, BINDER__CALL, NULL);
 }
 
 static int selinux_binder_transfer_binder(const struct cred *from,
-					  const struct cred *to)
+					const struct cred *to)
 {
 	return avc_has_perm(&selinux_state,
-			    cred_sid(from), cred_sid(to),
-			    SECCLASS_BINDER, BINDER__TRANSFER,
+			cred_sid(from), cred_sid(to),
+			SECCLASS_BINDER, BINDER__TRANSFER,
 			    NULL);
 }
 
@@ -3307,9 +3306,6 @@ static int selinux_inode_setxattr(struct dentry *dentry, const char *name,
 		return dentry_has_perm(current_cred(), dentry, FILE__SETATTR);
 	}
 
-	if (!selinux_state.initialized)
-		return (inode_owner_or_capable(inode) ? 0 : -EPERM);
-
 	sbsec = inode->i_sb->s_security;
 	if (!(sbsec->flags & SBLABEL_MNT))
 		return -EOPNOTSUPP;
@@ -3390,15 +3386,6 @@ static void selinux_inode_post_setxattr(struct dentry *dentry, const char *name,
 
 	if (strcmp(name, XATTR_NAME_SELINUX)) {
 		/* Not an attribute we recognize, so nothing to do. */
-		return;
-	}
-
-	if (!selinux_state.initialized) {
-		/* If we haven't even been initialized, then we can't validate
-		 * against a policy, so leave the label as invalid. It may
-		 * resolve to a valid label on the next revalidation try if
-		 * we've since initialized.
-		 */
 		return;
 	}
 
@@ -7353,6 +7340,15 @@ void selinux_complete_init(void)
 	pr_debug("SELinux:  Setting up existing superblocks.\n");
 	iterate_supers(delayed_superblock_init, NULL);
 }
+
+
+#ifdef CONFIG_OPLUS_SECURE_GUARD
+int get_current_security_context(char **context, u32 *context_len)
+{
+	u32 sid = current_sid();
+	return security_sid_to_context(&selinux_state, sid, context, context_len);
+}
+#endif /* CONFIG_OPLUS_SECURE_GUARD */
 
 /* SELinux requires early initialization in order to label
    all processes and objects when they are created. */

@@ -23,3 +23,9 @@ config MTK_LEGACY_THERMAL_PLATFORM
 	  drivers. Config platform name for your
 	  selection. It's used for legacy thermal
 	  drivers only.
+
+config FEATURE_BTSCHARGER
+	bool "Use MTK bts_charger thermal code"
+	help
+	  use FEATURE_BTSCHARGER to switch bts_charger.c
+	  and charger.c

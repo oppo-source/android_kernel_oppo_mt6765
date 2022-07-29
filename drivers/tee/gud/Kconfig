@@ -10,10 +10,12 @@ config TRUSTONIC_TEE_SUPPORT
 	  TEE OS, for things like, setting up log buffers, interrupt pins,
 	  and IPC channels.
 
+#ifdef VENDOR_EDIT
 config TRUSTONIC_TEE_VERSION
 	string "TRUSTONIC TEE Version"
 	depends on TRUSTONIC_TEE_SUPPORT
 	default "500"
+#endif /*VENDOR_EDIT*/
 
 config TRUSTONIC_TEE_DEBUG
 	bool "Trustonic TEE driver debug mode"

@@ -1,9 +1,15 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2019 MediaTek Inc.
+ * Copyright (C) 2015 MediaTek Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
  */
-
-
 
 /*
  * DW9714AF voice coil motor driver
@@ -29,6 +35,10 @@
 #define LOG_INF(format, args...)
 #endif
 
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+#define OPLUS_FEATURE_CAMERA_COMMON
+#endif
+
 static struct i2c_client *g_pstAF_I2Cclient;
 static int *g_pAF_Opened;
 static spinlock_t *g_pAF_SpinLock;
@@ -37,14 +47,39 @@ static unsigned long g_u4AF_INF;
 static unsigned long g_u4AF_MACRO = 1023;
 static unsigned long g_u4CurrPosition;
 
+#if 0
+static int s4AF_ReadReg(unsigned short *a_pu2Result)
+{
+	int i4RetValue = 0;
+	char pBuff[2];
+
+	g_pstAF_I2Cclient->addr = AF_I2C_SLAVE_ADDR;
+
+	g_pstAF_I2Cclient->addr = g_pstAF_I2Cclient->addr >> 1;
+
+	i4RetValue = i2c_master_recv(g_pstAF_I2Cclient, pBuff, 2);
+
+	if (i4RetValue < 0) {
+		LOG_INF("I2C read failed!!\n");
+		return -1;
+	}
+
+	*a_pu2Result = (((u16)pBuff[0]) << 4) + (pBuff[1] >> 4);
+
+	return 0;
+}
+#endif
 
 static int s4AF_WriteReg(u16 a_u2Data)
 {
 	int i4RetValue = 0;
-
+    #ifdef OPLUS_FEATURE_CAMERA_COMMON
 	char puSendCmd[2] = {(char)(a_u2Data >> 4),
-			     (char)((a_u2Data & 0xF) << 4)};
-
+			     (char)(((a_u2Data & 0xF) << 4)|0x07)};
+    #else
+    char puSendCmd[2] = {(char)(a_u2Data >> 4),
+	             (char)((a_u2Data & 0xF) << 4)};
+    #endif
 	g_pstAF_I2Cclient->addr = AF_I2C_SLAVE_ADDR;
 
 	g_pstAF_I2Cclient->addr = g_pstAF_I2Cclient->addr >> 1;
@@ -58,7 +93,45 @@ static int s4AF_WriteReg(u16 a_u2Data)
 
 	return 0;
 }
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+static int s4AF_WriteReg_Directly(u16 a_u2Data)
+{
+    int i4RetValue = 0;
 
+    char puSendCmd[2] = { (char)(a_u2Data >> 8), (char)(a_u2Data & 0xFF) };
+    g_pstAF_I2Cclient->addr = AF_I2C_SLAVE_ADDR;
+    g_pstAF_I2Cclient->addr = g_pstAF_I2Cclient->addr >> 1;
+    i4RetValue = i2c_master_send(g_pstAF_I2Cclient, puSendCmd, 2);
+    if (i4RetValue < 0) {
+        LOG_INF("I2C send failed!!\n");
+        return -1;
+    }
+    return 0;
+}
+static int s4AF_esc_mode(void)
+{
+    s4AF_WriteReg_Directly(0x8000);
+    s4AF_WriteReg_Directly(0x0000);
+    mdelay(12);
+    s4AF_WriteReg_Directly(0xECA3);
+    s4AF_WriteReg_Directly(0xA10D);
+    s4AF_WriteReg_Directly(0xF220);
+    s4AF_WriteReg_Directly(0xDC51);
+    return 0;
+}
+#if 0
+static int s4AF_esc_mode_power_off(void)
+{
+    s4AF_WriteReg_Directly(0xECA3);
+    s4AF_WriteReg_Directly(0xA10D);
+    s4AF_WriteReg_Directly(0xF220);
+    s4AF_WriteReg_Directly(0xDC51);
+    s4AF_WriteReg_Directly(0x1900);
+    mdelay(15);
+    return 0;
+}
+#endif
+#endif
 static inline int getAFInfo(__user struct stAF_MotorInfo *pstMotorInfo)
 {
 	struct stAF_MotorInfo stMotorInfo;
@@ -89,9 +162,12 @@ static int initAF(void)
 
 	if (*g_pAF_Opened == 1) {
 
-		spin_lock(g_pAF_SpinLock);
-		*g_pAF_Opened = 2;
-		spin_unlock(g_pAF_SpinLock);
+	   spin_lock(g_pAF_SpinLock);
+	   *g_pAF_Opened = 2;
+	   spin_unlock(g_pAF_SpinLock);
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+          s4AF_esc_mode();
+#endif
 	}
 
 	LOG_INF("-\n");
@@ -174,8 +250,45 @@ int DW9714AF_Release(struct inode *a_pstInode, struct file *a_pstFile)
 	LOG_INF("Start\n");
 
 	if (*g_pAF_Opened == 2) {
-		LOG_INF("Wait\n");
-		s4AF_WriteReg(0x80); /* Power down mode */
+	  LOG_INF("Wait\n");
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+      //s4AF_WriteReg(0x80); /* Power down mode */
+      //s4AF_esc_mode_power_off();
+      s4AF_WriteReg(400);
+      mdelay(10);
+      s4AF_WriteReg_Directly(0xECA3);
+      s4AF_WriteReg_Directly(0xA105);
+      s4AF_WriteReg_Directly(0xF270);
+      s4AF_WriteReg_Directly(0xDC51);
+      s4AF_WriteReg(360);
+      mdelay(8);
+      s4AF_WriteReg(320);
+      mdelay(8);
+      s4AF_WriteReg(300);
+      mdelay(8);
+      s4AF_WriteReg(280);
+      mdelay(8);
+      s4AF_WriteReg(260);
+      mdelay(8);
+      s4AF_WriteReg(240);
+      mdelay(8);
+      s4AF_WriteReg(220);
+      mdelay(8);
+      s4AF_WriteReg(200);
+      mdelay(8);
+      s4AF_WriteReg(180);
+      mdelay(8);
+      s4AF_WriteReg(160);
+      mdelay(8);
+      s4AF_WriteReg(140);
+      mdelay(8);
+      s4AF_WriteReg(100);
+      mdelay(8);
+      s4AF_WriteReg(60);
+      mdelay(8);
+      s4AF_WriteReg(20);
+      mdelay(8);
+#endif
 	}
 
 	if (*g_pAF_Opened) {

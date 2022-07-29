@@ -19,8 +19,31 @@ enum boot_mode_t {
 	KERNEL_POWER_OFF_CHARGING_BOOT = 8,
 	LOW_POWER_OFF_CHARGING_BOOT = 9,
 	DONGLE_BOOT = 10,
+#ifdef VENDOR_EDIT
+	OPPO_SAU_BOOT = 11,
+	SILENCE_BOOT = 12,
+	AGING_BOOT = 998,
+	SAFE_BOOT = 999,
+#endif /* VENDOR_EDIT */
 	UNKNOWN_BOOT
 };
+
+#ifdef VENDOR_EDIT
+typedef enum
+{
+	OPPO_NORMAL_BOOT = 0,
+	OPPO_SILENCE_BOOT = 1,
+	OPPO_SAFE_BOOT = 2,
+	OPPO_AGING_BOOT = 3,
+	OPPO_UNKNOWN_BOOT
+}OPPO_BOOTMODE;
+
+extern OPPO_BOOTMODE oppo_boot_mode;
+#endif /* VENDOR_EDIT */
+
+#ifdef VENDOR_EDIT
+extern OPPO_BOOTMODE oppo_boot_mode;
+#endif /* VENDOR_EDIT */
 
 /* for boot type usage */
 #define BOOTDEV_NAND            (0)

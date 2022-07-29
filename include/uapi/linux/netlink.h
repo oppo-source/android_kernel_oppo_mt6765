@@ -1,8 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 #ifndef _UAPI__LINUX_NETLINK_H
 #define _UAPI__LINUX_NETLINK_H
+#define OPLUS_FEATURE_WIFI_LUCKYMONEY
 
-#include <linux/const.h>
+#include <linux/kernel.h>
 #include <linux/socket.h> /* for __kernel_sa_family_t */
 #include <linux/types.h>
 
@@ -32,8 +33,34 @@
 
 #define NETLINK_INET_DIAG	NETLINK_SOCK_DIAG
 
-#define MAX_LINKS 32		
+#ifdef OPLUS_FEATURE_WIFI_LUCKYMONEY
+#define NETLINK_OPLUS_NF_HOOKS	32
+#endif /* OPLUS_FEATURE_WIFI_LUCKYMONEY */
 
+#ifdef OPLUS_FEATURE_HANS_FREEZE
+#define NETLINK_OPPO_HANS       28      /* Socket for freezing solution*/
+#endif /*OPLUS_FEATURE_HANS_FREEZE*/
+//#ifdef OPLUS_FEATURE_WIFI_SLA
+#define NETLINK_OPLUS_SLA  33      /*SLA NETLINK SOCK*/
+//#endif /* OPLUS_FEATURE_WIFI_SLA */
+
+//#ifdef OPLUS_FEATURE_APP_MONITOR
+//Add for apps network monitors
+#define NETLINK_OPLUS_APPS_MONITOR  35      /* Apps monitor NETLINK SOCK */
+//#endif /* OPLUS_FEATURE_APP_MONITOR */
+
+//#ifdef OPLUS_FEATURE_DATA_EVAL
+#define NETLINK_OPLUS_KERNEL2USER  37      /* kernel data info to user space */
+//#endif /* OPLUS_FEATURE_DATA_EVAL */
+
+//#ifdef OPLUS_FEATURE_DHCP
+#define NETLINK_OPLUS_DHCP 38
+//#endif /* OPLUS_FEATURE_DHCP */
+
+/* #define OPLUS_NETLINK_MM_KEVENT 41  (defined in oplus_mm_kevent.h file) */
+
+//#define MAX_LINKS 32
+#define MAX_LINKS 42
 struct sockaddr_nl {
 	__kernel_sa_family_t	nl_family;	/* AF_NETLINK	*/
 	unsigned short	nl_pad;		/* zero		*/

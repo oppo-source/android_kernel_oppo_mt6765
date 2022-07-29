@@ -104,6 +104,10 @@ void tcp_time_wait(struct sock *sk, int state, int timeo);
 				 * 15 is ~13-30min depending on RTO.
 				 */
 
+#ifdef OPLUS_BUG_STABILITY
+//Modify for connecting timeout too long when init a connection
+#define TCP_SYN_RETRIES  4
+#else /* OPLUS_BUG_STABILITY */
 #define TCP_SYN_RETRIES	 6	/* This is how many retries are done
 				 * when active opening a connection.
 				 * RFC1122 says the minimum retry MUST
@@ -113,12 +117,19 @@ void tcp_time_wait(struct sock *sk, int state, int timeo);
 				 * current initial RTO.
 				 */
 
+#endif /* OPLUS_BUG_STABILITY */
+
+#ifdef OPLUS_BUG_STABILITY
+//Modify for connecting timeout too long when init a connection
+#define TCP_SYNACK_RETRIES 3
+#else /* OPLUS_BUG_STABILITY */
 #define TCP_SYNACK_RETRIES 5	/* This is how may retries are done
 				 * when passive opening a connection.
 				 * This is corresponding to 31secs of
 				 * retransmission with the current
 				 * initial RTO.
 				 */
+#endif /* OPLUS_BUG_STABILITY */
 
 #define TCP_TIMEWAIT_LEN (60*HZ) /* how long to wait to destroy TIME-WAIT
 				  * state, about 60 seconds	*/
@@ -253,6 +264,10 @@ extern long sysctl_tcp_mem[3];
 extern atomic_long_t tcp_memory_allocated;
 extern struct percpu_counter tcp_sockets_allocated;
 extern unsigned long tcp_memory_pressure;
+
+#ifdef OPLUS_BUG_STABILITY
+extern int sysctl_tcp_ts_control[2];
+#endif /* OPLUS_BUG_STABILITY */
 
 /* optimized version of sk_under_memory_pressure() for TCP sockets */
 static inline bool tcp_under_memory_pressure(const struct sock *sk)
@@ -1380,13 +1395,8 @@ static inline int tcp_full_space(const struct sock *sk)
  */
 static inline bool tcp_rmem_pressure(const struct sock *sk)
 {
-	int rcvbuf, threshold;
-
-	if (tcp_under_memory_pressure(sk))
-		return true;
-
-	rcvbuf = READ_ONCE(sk->sk_rcvbuf);
-	threshold = rcvbuf - (rcvbuf >> 3);
+	int rcvbuf = READ_ONCE(sk->sk_rcvbuf);
+	int threshold = rcvbuf - (rcvbuf >> 3);
 
 	return atomic_read(&sk->sk_rmem_alloc) > threshold;
 }
@@ -1880,7 +1890,7 @@ static inline u32 tcp_notsent_lowat(const struct tcp_sock *tp)
 static inline bool tcp_stream_memory_free(const struct sock *sk)
 {
 	const struct tcp_sock *tp = tcp_sk(sk);
-	u32 notsent_bytes = READ_ONCE(tp->write_seq) - tp->snd_nxt;
+	u32 notsent_bytes = tp->write_seq - tp->snd_nxt;
 
 	return notsent_bytes < tcp_notsent_lowat(tp);
 }
@@ -1966,7 +1976,7 @@ void tcp_mark_skb_lost(struct sock *sk, struct sk_buff *skb);
 void tcp_newreno_mark_lost(struct sock *sk, bool snd_una_advanced);
 extern s32 tcp_rack_skb_timeout(struct tcp_sock *tp, struct sk_buff *skb,
 				u32 reo_wnd);
-extern bool tcp_rack_mark_lost(struct sock *sk);
+extern void tcp_rack_mark_lost(struct sock *sk);
 extern void tcp_rack_advance(struct tcp_sock *tp, u8 sacked, u32 end_seq,
 			     u64 xmit_time);
 extern void tcp_rack_reo_timeout(struct sock *sk);

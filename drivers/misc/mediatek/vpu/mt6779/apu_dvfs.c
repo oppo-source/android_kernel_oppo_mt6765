@@ -1116,8 +1116,9 @@ int mdla_get_hw_vmdla_opp(int core)
 			vmdla_opp_1_vol = 700000;
 		else
 			vmdla_opp_1_vol = 725000;
-	} else
+	} else {
 		vmdla_opp_1_vol = 725000;
+	}
 
 	vmdla_opp_2_vol = 650000;
 #endif

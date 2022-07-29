@@ -96,8 +96,7 @@ struct ccci_util_bc_user_ctlb {
 };
 
 static void inject_event_helper(struct ccci_util_bc_user_ctlb *user_ctlb,
-	int md_id, const struct timeval *ev_rtime,
-	int event_type, char reason[])
+	int md_id, struct timeval *ev_rtime, int event_type, char reason[])
 {
 	int ret = 0;
 
@@ -107,12 +106,6 @@ static void inject_event_helper(struct ccci_util_bc_user_ctlb *user_ctlb,
 		user_ctlb->pending_event_cnt--;
 		if (user_ctlb->curr_r >= user_ctlb->buff_cnt)
 			user_ctlb->curr_r = 0;
-	}
-
-	if (user_ctlb->curr_w >= EVENT_BUFF_SIZE || user_ctlb->curr_w < 0) {
-		CCCI_UTIL_ERR_MSG(
-		"%s(user_ctlb->curr_w = %d)\n", __func__, user_ctlb->curr_w);
-		return;
 	}
 
 	user_ctlb->event_buf[user_ctlb->curr_w].time_stamp = *ev_rtime;
@@ -136,7 +129,7 @@ static void inject_event_helper(struct ccci_util_bc_user_ctlb *user_ctlb,
 }
 
 static void save_last_md_status(int md_id,
-		const struct timeval *time_stamp, int event_type, char reason[])
+		struct timeval *time_stamp, int event_type, char reason[])
 {
 	/* MD_STA_EV_HS1 = 9
 	 * ignore events before MD_STA_EV_HS1
@@ -153,9 +146,9 @@ static void save_last_md_status(int md_id,
 	last_md_status[md_id].event_type = event_type;
 
 	if (reason != NULL)
-		scnprintf(last_md_status[md_id].reason, 32, "%s", reason);
+		snprintf(last_md_status[md_id].reason, 32, "%s", reason);
 	else
-		scnprintf(last_md_status[md_id].reason, 32, "%s", "----");
+		snprintf(last_md_status[md_id].reason, 32, "%s", "----");
 }
 
 static void send_last_md_status_to_user(int md_id,
@@ -184,7 +177,7 @@ static void send_last_md_status_to_user(int md_id,
 void inject_md_status_event(int md_id, int event_type, char reason[])
 {
 	struct timeval time_stamp;
-	struct ccci_util_bc_user_ctlb *user_ctlb = NULL;
+	struct ccci_util_bc_user_ctlb *user_ctlb;
 	unsigned int md_mark;
 	int i;
 	unsigned long flag;
@@ -226,7 +219,7 @@ int get_lock_rst_user_list(int md_id, char list_buff[], int size)
 {
 	int cpy_size;
 	int total_size = 0;
-	struct ccci_util_bc_user_ctlb *user_ctlb = NULL;
+	struct ccci_util_bc_user_ctlb *user_ctlb;
 	unsigned long flag;
 
 	if (list_buff == NULL) {
@@ -353,7 +346,7 @@ static int read_out_event(struct ccci_util_bc_user_ctlb *user_ctlb,
 	struct md_status_event *event)
 {
 	int ret;
-	struct md_status_event *src_event = NULL;
+	struct md_status_event *src_event;
 	unsigned long flag;
 
 	spin_lock_irqsave(&s_event_update_lock, flag);
@@ -455,7 +448,7 @@ static long ccci_util_bc_ioctl(struct file *filp, unsigned int cmd,
 	struct ccci_util_bc_user_ctlb *user_ctlb;
 	struct bc_ctl_block_t *bc_dev;
 	int lock_cnt, cpy_size;
-	char *buf = NULL;
+	char *buf;
 	int md_id;
 
 	user_ctlb = filp->private_data;
@@ -630,7 +623,7 @@ int ccci_util_broadcast_init(void)
 		if (i == 0)
 			s_bc_ctl_tbl[i]->md_bit_mask = 0x7;
 		else
-			s_bc_ctl_tbl[i]->md_bit_mask = (1U << (i-1));
+			s_bc_ctl_tbl[i]->md_bit_mask = (1<<(i-1));
 	}
 
 	spin_lock_init(&s_event_update_lock);

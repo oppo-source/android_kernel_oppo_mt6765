@@ -1,0 +1,1 @@
+bringup lcm for project S97567AA1,and this panel is ft8006s_txd ft8006s_txd_yogurt_hdp_dsi_vdo_lcm.c

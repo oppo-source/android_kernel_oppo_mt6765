@@ -31,8 +31,8 @@ static long sar_factory_unlocked_ioctl(struct file *file, unsigned int cmd,
 {
 	long err = 0;
 	void __user *ptr = (void __user *)arg;
-	int32_t data_buf[3] = {0};
-	struct SENSOR_DATA sensor_data = {0};
+	int32_t data_buf[8] = {0};
+	struct SAR_SENSOR_DATA sensor_data = {0};
 	uint32_t flag = 0;
 
 	if (_IOC_DIR(cmd) & _IOC_READ)
@@ -76,11 +76,17 @@ static long sar_factory_unlocked_ioctl(struct file *file, unsigned int cmd,
 					"SAR_IOCTL_READ_SENSORDATA read data fail!\n");
 				return -EINVAL;
 			}
-			pr_debug("SAR_IOCTL_READ_SENSORDATA: (%d, %d, %d)!\n",
-				data_buf[0], data_buf[1], data_buf[2]);
-			sensor_data.x = data_buf[0];
-			sensor_data.y = data_buf[1];
-			sensor_data.z = data_buf[2];
+			pr_debug("SAR_IOCTL_READ_SENSORDATA: diff = (%d, %d, %d),offet = (%d, %d, %d, %d, %d)!\n",
+				data_buf[0], data_buf[1], data_buf[2], data_buf[3], data_buf[4], data_buf[5],
+				data_buf[6], data_buf[7]);
+			sensor_data.diff[0] = data_buf[0];
+			sensor_data.diff[1] = data_buf[1];
+			sensor_data.diff[2] = data_buf[2];
+			sensor_data.offset[0] = data_buf[3];
+			sensor_data.offset[1] = data_buf[4];
+			sensor_data.offset[2] = data_buf[5];
+			sensor_data.offset[3] = data_buf[6];
+			sensor_data.offset[4] = data_buf[7];
 			if (copy_to_user(ptr, &sensor_data,
 							sizeof(sensor_data)))
 				return -EFAULT;
@@ -118,9 +124,11 @@ static long sar_factory_unlocked_ioctl(struct file *file, unsigned int cmd,
 
 		pr_debug("SAR_IOCTL_GET_CALI: (%d, %d, %d)!\n",
 			data_buf[0], data_buf[1], data_buf[2]);
-		sensor_data.x = data_buf[0];
-		sensor_data.y = data_buf[1];
-		sensor_data.z = data_buf[2];
+		sensor_data.offset[0] = data_buf[3];
+		sensor_data.offset[1] = data_buf[4];
+		sensor_data.offset[2] = data_buf[5];
+		//sensor_data.offset[3] = data_buf[6];
+		//sensor_data.offset[4] = data_buf[7];
 		if (copy_to_user(ptr, &sensor_data, sizeof(sensor_data)))
 			return -EFAULT;
 		return 0;

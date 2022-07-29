@@ -357,6 +357,7 @@ static struct ion_handle *mtkfb_ion_import_handle(struct ion_client *client,
 						  int fd)
 {
 	struct ion_handle *handle = NULL;
+	struct ion_mm_data mm_data;
 
 	/* If no need ION support, do nothing! */
 	if (fd == MTK_FB_NO_ION_FD) {
@@ -403,6 +404,7 @@ static size_t mtkfb_ion_phys_mmu_addr(struct ion_client *client,
 				      unsigned int *mva)
 {
 	size_t size;
+	ion_phys_addr_t phy_addr = 0;
 	struct ion_mm_data mm_data;
 
 	if (!ion_client) {
@@ -1772,33 +1774,4 @@ int disp_sync_get_debug_info(char *stringbuf, int buf_len)
 	}
 
 	return len;
-}
-
-struct ion_handle *disp_sync_get_ion_handle(unsigned int session_id,
-					    unsigned int timeline_id,
-					    unsigned int idx)
-{
-	struct mtkfb_fence_buf_info *buf = NULL;
-	struct disp_sync_info *layer_info = NULL;
-	struct ion_handle *handle = NULL;
-
-	layer_info = __get_layer_sync_info(session_id, timeline_id);
-
-	if (layer_info == NULL) {
-		DISP_PR_INFO("layer_info is null, layer_info=%p\n", layer_info);
-		return 0;
-	}
-
-	mutex_lock(&layer_info->sync_lock);
-	list_for_each_entry(buf, &layer_info->buf_list, list) {
-		if (buf->idx == idx) {
-			/* use local variable here to avoid polluted pointer */
-			handle = buf->hnd;
-			DISPMSG("%s, get handle:0x%lx\n", __func__, (unsigned long)handle);
-			break;
-		}
-	}
-	mutex_unlock(&layer_info->sync_lock);
-
-	return handle;
 }

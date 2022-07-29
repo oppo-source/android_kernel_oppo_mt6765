@@ -13,7 +13,6 @@
 #include <dt-bindings/gce/mt6765-gce.h>
 #include <generated/autoconf.h>
 #include <dt-bindings/soc/mediatek,boot-mode.h>
-#include <dt-bindings/phy/phy.h>
 
 /dts-v1/;
 
@@ -27,7 +26,7 @@
 	/* chosen */
 	chosen: chosen {
 		bootargs = "console=tty0 console=ttyS0,921600n1 vmalloc=400M \
-slub_debug=OFZPU page_owner=on \
+page_owner=on \
 swiotlb=noforce androidboot.hardware=mt6765 \
 maxcpus=8 loop.max_part=7 \
 firmware_class.path=/vendor/firmware";
@@ -36,9 +35,9 @@ firmware_class.path=/vendor/firmware";
 
 	regulator_vibrator {
 		compatible = "regulator-vibrator";
-		min-volt = <2300000>;
+		min-volt = <2900000>;
 		max-volt = <3200000>;
-		min-limit = <15>;
+		min-limit = <50>;
 		max-limit = <15000>;
 		vib-supply = <&mt_pmic_vibr_ldo_reg>;
 	};
@@ -111,6 +110,18 @@ firmware_class.path=/vendor/firmware";
 			opp-microvolt = <1118750>;
 		};
 	};
+
+    shell_front {
+        compatible = "oppo,shell-temp";
+    };
+
+    shell_frame {
+        compatible = "oppo,shell-temp";
+    };
+
+    shell_back {
+        compatible = "oppo,shell-temp";
+    };
 
 	cluster1_opp: opp_table1 {
 		compatible = "operating-points-v2";
@@ -490,7 +501,7 @@ firmware_class.path=/vendor/firmware";
 			compatible = "mediatek,reserve-memory-sspm_share";
 			no-map;
 			status = "okay";
-#ifdef CONFIG_MTK_GMO_RAM_OPTIMIZE
+#if defined(CONFIG_MTK_GMO_RAM_OPTIMIZE) || defined(CONFIG_MTK_MET_MEM_ALLOC)
 			size = <0 0x110000>; /* 1M + 64K */
 #else
 			size = <0 0x510000>; /* 5M + 64K */
@@ -538,6 +549,22 @@ firmware_class.path=/vendor/firmware";
 			alignment = <0 0x1000>;
 			alloc-ranges = <0 0xc0000000 0 0x10000000>;
 		};
+
+#ifdef CONFIG_MICROTRUST_TEE_SUPPORT
+		soter-shared-mem {
+			compatible = "microtrust,shared_mem";
+			no-map;
+#if defined(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT) || \
+	defined(CONFIG_MTK_CAM_SECURITY_SUPPORT)
+			size = <0 0x800000>;
+			alignment = <0 0x1000000>;
+#else
+			size = <0 0x200000>;
+			alignment = <0 0x200000>;
+#endif
+			alloc-ranges = <0 0x40000000 0 0x50000000>;
+		};
+#endif
 
 	};
 
@@ -640,16 +667,15 @@ firmware_class.path=/vendor/firmware";
 
 	infracfg_ao: infracfg_ao@10001000 {
 		compatible = "mediatek,common-infracfg_ao",
-			     "mediatek,infracfg_ao",
 			     "mediatek,mt6765-infracfg", "syscon";
 		reg = <0 0x10001000 0 0x1000>;
 		interrupts = <GIC_SPI 147 IRQ_TYPE_EDGE_RISING>;
 		#clock-cells = <1>;
 	};
 
-	mcdi@00110100 {
+	mcdi@0010fc00 {
 		compatible = "mediatek,mt6765-mcdi";
-		reg = <0 0x00110100 0 0x800>;
+		reg = <0 0x0010fc00 0 0x800>;
 	};
 
 	scpsys: scpsys@10001000 {
@@ -784,6 +810,15 @@ firmware_class.path=/vendor/firmware";
 			mode-ddr-reserve = <BOOT_DDR_RSVD>;
 			mode-meta = <BOOT_META>;
 			mode-rpmbpk = <BOOT_RPMBPK>;
+			//#ifdef VENDOR_EDIT
+			mode-kernel = <BOOT_KERNEL>;
+			mode-sau = <BOOT_SAU>;
+			mode-silence = <BOOT_SILENCE>;
+			mode-safe = <BOOT_SAFE>;
+			mode-sblmemtest = <BOOT_AGINGTEST>;
+			mode-usermemaging = <BOOT_AGINGTEST>;
+			mode-ftm = <BOOT_FACTORY>;
+			//#endif
 		};
 	};
 
@@ -942,7 +977,6 @@ firmware_class.path=/vendor/firmware";
 		interrupts = <GIC_SPI 192 IRQ_TYPE_LEVEL_HIGH>;
 		core_1 = "enable";
 		scp_sramSize = <0x00040000>;
-		scp_mpuRegionId = <27>;
 		scp_feature_tbl = <0 47>,   /* vow */
 				  <1 356>,  /* dsp */
 				  <2 62>,   /* sensor */
@@ -1024,6 +1058,12 @@ firmware_class.path=/vendor/firmware";
 		status = "okay";
 	};
 
+//#ifdef OPLUS_BUG_COMPATIBILITY
+	swtp:swtp {
+		compatible = "mediatek, swtp-eint";
+	};
+//#endif /*OPLUS_BUG_COMPATIBILITY*/
+
 	touch: touch {
 		compatible = "goodix,touch";
 	};
@@ -1032,9 +1072,32 @@ firmware_class.path=/vendor/firmware";
 		compatible = "mediatek,pmic-accdet";
 	};
 
-	goodix_fp: fingerprint {
-		compatible = "mediatek,goodix-fp";
+//#ifdef OPLUS_FEATURE_FINGERPRINT
+
+	goodix_fp: goodix_fp {
+        compatible = "goodix,goodix_fp";
+        };
+
+	fpc_interrupt: fpc_interrupt {
+        compatible = "fpc,fpc_irq";
+        };
+	egis_fp: egis_fp {
+        compatible = "mediatek,finger-fp";
+        };
+
+	fpsensor_finger:fpsensor_finger{
+		compatible = "mediatek,fingerprint";
 	};
+
+	oplus_fp_common:oplus_fp_common {
+		compatible = "oplus,fp_common";
+	};
+	silead_fp: silead_fp {
+		status        = "ok";
+		compatible = "sil,silead_fp-pins";
+	};
+
+//#endif /*OPLUS_FEATURE_FINGERPRINT*/
 
 	topmisc@10011000 {
 		compatible = "mediatek,topmisc";
@@ -1075,9 +1138,9 @@ firmware_class.path=/vendor/firmware";
 			compatible = "mediatek,mt6765-dvfsrc-met";
 		};
 
-		qos@00110b80 {
+		qos@00110780 {
 			compatible = "mediatek,mt6765-qos";
-			reg = <0 0x00110b80 0 0x80>;
+			reg = <0 0x00110780 0 0x80>;
 		};
 	};
 
@@ -1446,10 +1509,10 @@ firmware_class.path=/vendor/firmware";
 		reg = <0 0x10227000 0 0x1000>;
 	};
 
-	dvfsp@00110c00 {
+	dvfsp@00110800 {
 		compatible = "mediatek,mt6765-dvfsp";
-		reg = <0 0x00110c00 0 0x1400>,
-		      <0 0x00110c00 0 0x1400>;
+		reg = <0 0x00110800 0 0x1400>,
+		      <0 0x00110800 0 0x1400>;
 		state = <1>;
 		change_flag = <0>;
 		little-rise-time = <1000>;
@@ -2373,7 +2436,7 @@ firmware_class.path=/vendor/firmware";
 		memory-region = <&consys_mem>;
 	};
 
-	wifi: wifi@18000000 {
+	wifi@18000000 {
 		compatible = "mediatek,wifi";
 		reg = <0 0x18000000 0 0x100000>;
 		interrupts = <GIC_SPI 268 IRQ_TYPE_LEVEL_LOW>;
@@ -2469,30 +2532,12 @@ firmware_class.path=/vendor/firmware";
 		clock-names = "usb0",
 			"usb0_clk_top_sel",
 			"usb0_clk_univpll3_d4";
-		pericfg= <&pericfg>;
-		interrupt-names = "mc";
-		phys = <&u2port0 PHY_TYPE_USB2>;
-		dr_mode = "otg";
-		usb-role-switch;
+		//charger = <&mt6370_chg>;
 	};
 
-	u2phy0: usb-phy@11210000 {
-		compatible = "mediatek,generic-tphy-v1";
-		reg = <0 0x11cc0000 0 0x0800>;
-		#address-cells = <2>;
-		#size-cells = <2>;
-		ranges;
-		status = "okay";
-		u2port0: usb-phy@11210000 {
-			reg = <0 0x11cc0800 0 0x100>;
-			clocks = <&clk26m>;
-			clock-names = "ref";
-			#phy-cells = <1>;
-			nvmem-cells = <&u2_phy_data>;
-			nvmem-cell-names = "intr_cal";
-			nvmem-cell-masks = <0x1f>;
-			status = "okay";
-		};
+	usb_sif@11210000 {
+		compatible = "mediatek,usb_sif";
+		reg = <0 0x11210000 0 0x10000>;
 	};
 
 	msdc0:msdc@11230000 {
@@ -2604,7 +2649,12 @@ firmware_class.path=/vendor/firmware";
 		/*INFRA MISC, conn_bt_cvsd_mask*/
 		/*cvsd_mcu_read, write, packet_indicator*/
 		mediatek,offset =<0xf00 0x800 0x140 0x144 0x148>;
-		disable_write_silence = <0>;
+	/*btfw should support bt sleep mode control*/
+	//#ifdef OPLUS_ARCH_ECTENDS
+		disable_write_silence = <1>;/*value 1, audio wouldnt write silence to BT SRAM*/
+	//#else
+		//disable_write_silence = <0>;/*value 0, audio would write silence to BT SRAM*/
+	//#endif
 	};
 
 	mipi_rx_ana_csi0a: mipi_rx_ana_csi0a@11c10000 {
@@ -2661,9 +2711,6 @@ firmware_class.path=/vendor/firmware";
 		};
 		efuse_ly: ly@210 {
 			reg = <0x210 0x4>;
-		};
-		u2_phy_data: u2_phy_data@1ac {
-			reg = <0x1ac 0x4>;
 		};
 	};
 
@@ -2740,13 +2787,15 @@ firmware_class.path=/vendor/firmware";
 		clock-names = "CAM_MDP", "IMG_DL_RELAY", "IMG_DL_ASYNC_TOP";
 	};
 
-	nfc:nfc {
+	//#ifdef OPLUS_FEATURE_NFC_CONSOFT
+	/*nfc:nfc {
 			compatible = "mediatek,nfc-gpio-v2";
 			gpio-rst = <172>;
 			gpio-rst-std = <&pio 172 0x0>;
 			gpio-irq = <10>;
 			gpio-irq-std = <&pio 10 0x0>;
-		};
+		};*/
+	//#endif /* OPLUS_FEATURE_NFC_CONSOFT */
 
 	irq_nfc: irq_nfc {
 		compatible = "mediatek,irq_nfc-eint";
@@ -3321,19 +3370,20 @@ firmware_class.path=/vendor/firmware";
 		compatible = "mediatek,flashlight_core";
 	};
 
-	flashlights_mt6370: flashlights_mt6370 {
-		compatible = "mediatek,flashlights_mt6370";
-		decouple = <0>;
+	flashlights_pascal: flashlights_pascal {
+		compatible = "mediatek,flashlights_pascal";
+		decouple = <1>;
 		channel@1 {
 			type = <0>;
 			ct = <0>;
 			part = <0>;
 		};
+		/*
 		channel@2 {
 			type = <0>;
 			ct = <1>;
 			part = <0>;
-		};
+		};*/
 	};
 
 	gps {
@@ -3479,7 +3529,7 @@ firmware_class.path=/vendor/firmware";
 	charger: charger {
 		compatible = "mediatek,charger";
 		gauge = <&mtk_gauge>;
-		charger = <&mt6370_chg>;
+		//charger = <&mt6370_chg>;
 		bootmode = <&chosen>;
 		pmic = <&main_pmic>;
 
@@ -3531,19 +3581,15 @@ firmware_class.path=/vendor/firmware";
 		max_dmivr_charger_current = <1800000>;
 	};
 
+	//#ifdef OPLUS_CHARGER_BASIC
+	oplus_fast_charger: oplus_fast_charger {
+		compatible = "mediatek,oplus-fastcharger";
+	};
+	//#endif
+
 	pd_adapter: pd_adapter {
 		compatible = "mediatek,pd_adapter";
 		adapter_name = "pd_adapter";
-	};
-
-	extcon_usb: extcon_usb {
-		compatible = "mediatek,extcon-usb";
-		charger = <&mt6370_chg>;
-		vbus-supply = <&otg_vbus>;
-		vbus-voltage = <5000000>;
-		vbus-current = <1800000>;
-		dev-conn = <&usb>;
-		mediatek,bypss-typec-sink = <1>;
 	};
 
 	rt9465_slave_chr: rt9465_slave_chr {
@@ -3572,13 +3618,18 @@ firmware_class.path=/vendor/firmware";
 		/* reserved for overlay by odm */
 	};
 
+	//#ifdef OPLUS_FEATURE_SENSOR
+	oplus_sensorhub:oplus_sensorhub {
+		compatible = "sensorhub,sensor_ldo_vio";
+	};
+	//#endif //OPLUS_FEATURE_SENSOR
 
 	memory_ssmr_features: memory-ssmr-features {
 		compatible = "mediatek,memory-ssmr-features";
 #if defined(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT) || \
 	defined(CONFIG_TRUSTONIC_TEE_SUPPORT) || \
 	defined(CONFIG_MICROTRUST_TEE_SUPPORT)
-		svp-region-based-size = <0 0x10000000>;
+		svp-size = <0 0x10000000>;
 #endif
 #ifdef CONFIG_MTK_CAM_SECURITY_SUPPORT
 		2d_fr-size = <0 0x8000000>;
@@ -3591,7 +3642,7 @@ firmware_class.path=/vendor/firmware";
 		wfd-size = <0 0x4000000>;
 #endif
 #ifdef CONFIG_MTK_PROT_MEM_SUPPORT
-		prot-region-based-size = <0 0x8000000>;
+		prot-sharedmem-size = <0 0x8000000>;
 #endif
 #ifdef CONFIG_MTK_HAPP_MEM_SUPPORT
 		ta-elf-size = <0 0x1000000>;
@@ -3779,6 +3830,13 @@ firmware_class.path=/vendor/firmware";
 		sleep = <&sleep>;
 	};
 
+//#ifdef OPLUS_FEATURE_BOOT_SECURITY
+	oplus_secure_common:oplus_secure_common 
+	{
+		compatible = "oplus,secure_common";
+	};
+//#endif /* OPLUS_FEATURE_BOOT_SECURITY */
+
 	eas {
 		eff_turn_point = <467>;
 		tiny = <50>;
@@ -3824,12 +3882,23 @@ firmware_class.path=/vendor/firmware";
 
 };
 
+#include "mediatek/tcpc_wusb3801x.dtsi"
+#include "mediatek/tcpc_sgm7220.dtsi"
+
 #include "mediatek/cust_mt6765_msdc.dtsi"
 #include "mediatek/mt6357.dtsi"
-#include "mediatek/bat_setting/mt6765_battery_prop.dtsi"
+
+#include "mediatek/bat_setting/mt6765_battery_prop_ext.dtsi"
+
 #include "mediatek/mt6370.dtsi"
 #include "mediatek/mt6370_pd.dtsi"
+#include "mediatek/tcpc_config.dtsi"
 #ifdef CONFIG_CHARGER_RT9471
 #include "mediatek/rt9471.dtsi"
 #endif
 #include "mediatek/trusty.dtsi"
+//#ifdef OPLUS_ARCH_EXTENDS
+#ifdef CONFIG_SIA_PA_ALGO
+#include "mediatek/mt6765-sia81xx.dtsi"
+#endif
+//#endif

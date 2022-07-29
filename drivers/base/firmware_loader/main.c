@@ -277,11 +277,23 @@ static void free_fw_priv(struct fw_priv *fw_priv)
 /* direct firmware loading support */
 static char fw_path_para[256];
 static const char * const fw_path[] = {
+	//#ifdef OPLUS_FEATURE_WIFI_RUSUPGRADE
+	//add for: support auto update function, include mtk fw, mtk wifi.cfg, qcom fw, qcom bdf, qcom ini
+	"/data/misc/firmware/active",
+	//#endif /* OPLUS_FEATURE_WIFI_RUSUPGRADE */
 	fw_path_para,
 	"/lib/firmware/updates/" UTS_RELEASE,
 	"/lib/firmware/updates",
 	"/lib/firmware/" UTS_RELEASE,
-	"/lib/firmware"
+	"/lib/firmware",
+	//#ifndef OPLUS_BUG_COMPATIBILITY
+	//add for: add fw dir to fw_path, make sure driver insmod success in ftm mode
+	"/vendor/firmware",
+	//#endif /* OPLUS_BUG_COMPATIBILITY */
+	//#ifdef OPLUS_BUG_COMPATIBILITY
+	//add for: add fw dir to fw_path, to load audio PA .bin files
+	"/odm/firmware"
+	//#endif /* OPLUS_BUG_COMPATIBILITY */
 };
 
 /*
@@ -292,8 +304,14 @@ static const char * const fw_path[] = {
 module_param_string(path, fw_path_para, sizeof(fw_path_para), 0644);
 MODULE_PARM_DESC(path, "customized firmware image search path with a higher priority than default path");
 
+#ifdef OPLUS_FEATURE_TP_BSPFWUPDATE
+static int fw_get_filesystem_firmware(struct device *device,
+					struct fw_priv *fw_priv,
+					enum fw_opt opt_flags)
+#else
 static int
 fw_get_filesystem_firmware(struct device *device, struct fw_priv *fw_priv)
+#endif /*OPLUS_FEATURE_TP_BSPFWUPDATE*/
 {
 	loff_t size;
 	int i, len;
@@ -301,6 +319,13 @@ fw_get_filesystem_firmware(struct device *device, struct fw_priv *fw_priv)
 	char *path;
 	enum kernel_read_file_id id = READING_FIRMWARE;
 	size_t msize = INT_MAX;
+
+#ifdef OPLUS_FEATURE_TP_BSPFWUPDATE
+	if(opt_flags & FW_OPT_COMPARE) {
+		pr_err("%s opt_flags get FW_OPT_COMPARE!\n", __func__);
+		return rc;
+	}
+#endif/*OPLUS_FEATURE_TP_BSPFWUPDATE*/
 
 	/* Already populated data member means we're loading into a buffer */
 	if (fw_priv->data) {
@@ -584,7 +609,11 @@ _request_firmware(const struct firmware **firmware_p, const char *name,
 	if (ret <= 0) /* error or already assigned */
 		goto out;
 
+#ifdef OPLUS_FEATURE_TP_BSPFWUPDATE
+	ret = fw_get_filesystem_firmware(device, fw->priv, opt_flags);
+#else
 	ret = fw_get_filesystem_firmware(device, fw->priv);
+#endif/*OPLUS_FEATURE_TP_BSPFWUPDATE*/
 	if (ret) {
 		if (!(opt_flags & FW_OPT_NO_WARN))
 			dev_warn(device,
@@ -639,6 +668,40 @@ request_firmware(const struct firmware **firmware_p, const char *name,
 	return ret;
 }
 EXPORT_SYMBOL(request_firmware);
+
+#ifdef OPLUS_FEATURE_TP_BSPFWUPDATE
+int request_firmware_select(const struct firmware **firmware_p, const char *name,
+		 struct device *device)
+{
+	int ret;
+
+	/* Need to pin this module until return */
+	__module_get(THIS_MODULE);
+	ret = _request_firmware(firmware_p, name, device, NULL, 0,
+				FW_OPT_UEVENT | FW_OPT_COMPARE);
+	module_put(THIS_MODULE);
+	return ret;
+}
+EXPORT_SYMBOL(request_firmware_select);
+#endif/*OPLUS_FEATURE_TP_BSPFWUPDATE*/
+
+#ifdef VENDOR_EDIT
+//Add for: reload wlan bdf without using cache
+int
+request_firmware_no_cache(const struct firmware **firmware_p, const char *name,
+		 struct device *device)
+{
+	int ret;
+
+	/* Need to pin this module until return */
+	__module_get(THIS_MODULE);
+	ret = _request_firmware(firmware_p, name, device, NULL, 0,
+				FW_OPT_UEVENT | FW_OPT_NOCACHE);
+	module_put(THIS_MODULE);
+	return ret;
+}
+EXPORT_SYMBOL(request_firmware_no_cache);
+#endif /* VENDOR_EDIT */
 
 /**
  * firmware_request_nowarn() - request for an optional fw module

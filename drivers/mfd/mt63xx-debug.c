@@ -7,12 +7,48 @@
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
+#if !defined(CONFIG_MTK_ECCCI_DRIVER)
+#include <mtk_boot_common.h>
+#endif
 
 struct mt63xx_consumer_data {
 	struct mutex lock;
 	struct regmap *regmap;
 	unsigned int reg_value;
 };
+
+#if !defined(CONFIG_MTK_ECCCI_DRIVER)
+struct tag_bootmode {
+	u32 size;
+	u32 tag;
+	u32 bootmode;
+	u32 boottype;
+};
+
+static int pmic_get_boot_mode(void)
+{
+	struct device_node *np_chosen = NULL;
+	struct tag_bootmode *tag = NULL;
+	static int boot_mode = -1;
+
+	if (boot_mode >= 0)
+		return boot_mode;
+
+	np_chosen = of_find_node_by_path("/chosen");
+	if (!np_chosen)
+		np_chosen = of_find_node_by_path("/chosen@0");
+
+	tag = (struct tag_bootmode *)of_get_property(np_chosen, "atag,boot", NULL);
+	if (!tag) {
+		pr_notice("%s: fail to get atag,boot\n", __func__);
+	} else {
+		pr_debug("%s: boot_mode: 0x%x\n", __func__, tag->bootmode);
+		boot_mode = tag->bootmode;
+	}
+
+	return boot_mode;
+}
+#endif
 
 static ssize_t pmic_access_show(struct device *dev,
 				struct device_attribute *attr,
@@ -83,10 +119,20 @@ static int mt63xx_debug_probe(struct platform_device *pdev)
 	drvdata->regmap = chip->regmap;
 	platform_set_drvdata(pdev, drvdata);
 
+#if !defined(CONFIG_MTK_ECCCI_DRIVER)
+	/* for wifi only projects */
+	if (pmic_get_boot_mode() == META_BOOT) {
+		/* Create sysfs entry only in meta mode*/
+		ret = device_create_file(&pdev->dev, &dev_attr_pmic_access);
+		if (ret < 0)
+			pr_info("%s failed to create sysfs file\n", __func__);
+	}
+#else
 	/* Create sysfs entry */
 	ret = device_create_file(&pdev->dev, &dev_attr_pmic_access);
 	if (ret < 0)
 		pr_info("%s failed to create sysfs file\n", __func__);
+#endif
 
 	return ret;
 }

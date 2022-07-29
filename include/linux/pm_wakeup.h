@@ -62,6 +62,9 @@ struct wakeup_source {
 	struct timer_list	timer;
 	unsigned long		timer_expires;
 	ktime_t total_time;
+	#ifdef OPLUS_FEATURE_POWERINFO_STANDBY
+	ktime_t total_time_backup;
+	#endif /* OPLUS_FEATURE_POWERINFO_STANDBY */
 	ktime_t max_time;
 	ktime_t last_time;
 	ktime_t start_prevent_time;
@@ -98,6 +101,7 @@ static inline void device_set_wakeup_path(struct device *dev)
 }
 
 /* drivers/base/power/wakeup.c */
+extern void wakeup_source_prepare(struct wakeup_source *ws, const char *name);
 extern struct wakeup_source *wakeup_source_create(const char *name);
 extern void wakeup_source_destroy(struct wakeup_source *ws);
 extern void wakeup_source_add(struct wakeup_source *ws);
@@ -116,6 +120,10 @@ extern void __pm_relax(struct wakeup_source *ws);
 extern void pm_relax(struct device *dev);
 extern void pm_wakeup_ws_event(struct wakeup_source *ws, unsigned int msec, bool hard);
 extern void pm_wakeup_dev_event(struct device *dev, unsigned int msec, bool hard);
+/* OPPO 2013-09-17 wangjc Add begin for print wakeup source */
+#ifdef VENDOR_EDIT
+extern void pm_print_active_wakeup_sources(void);
+#endif
 
 #else /* !CONFIG_PM_SLEEP */
 
@@ -133,7 +141,8 @@ static inline struct wakeup_source *wakeup_source_create(const char *name)
 {
 	return NULL;
 }
-
+static inline void wakeup_source_prepare(struct wakeup_source *ws,
+					 const char *name) {}
 static inline void wakeup_source_destroy(struct wakeup_source *ws) {}
 
 static inline void wakeup_source_add(struct wakeup_source *ws) {}
@@ -195,6 +204,14 @@ static inline void pm_wakeup_dev_event(struct device *dev, unsigned int msec,
 				       bool hard) {}
 
 #endif /* !CONFIG_PM_SLEEP */
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+static inline void wakeup_source_init(struct wakeup_source *ws,
+				      const char *name)
+{
+	wakeup_source_prepare(ws, name);
+	wakeup_source_add(ws);
+}
+#endif
 
 static inline void __pm_wakeup_event(struct wakeup_source *ws, unsigned int msec)
 {

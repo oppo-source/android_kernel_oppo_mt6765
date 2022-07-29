@@ -60,3 +60,16 @@ obj-$(CONFIG_OCXL)		+= ocxl/
 obj-$(CONFIG_MISC_RTSX)		+= cardreader/
 obj-$(CONFIG_UID_SYS_STATS)	+= uid_sys_stats.o
 obj-y				+= mediatek/
+#ifdef OPLUS_ARCH_EXTEND
+obj-y				+= oplus/
+#endif
+
+#ifdef OPLUS_FEATURE_TP_BASIC
+obj-$(CONFIG_SIM_DETECT)	+= sim_detect.o
+#endif
+
+#ifdef VENDOR_EDIT
+obj-$(CONFIG_OPPO_MOTOR)		+= motor.o
+obj-$(CONFIG_OPPO_MOTOR)		+= oppo_motor/
+subdir-ccflags-$(CONFIG_OPPO_MOTOR) += -I$(srctree)/drivers/misc/mediatek/include
+#endif

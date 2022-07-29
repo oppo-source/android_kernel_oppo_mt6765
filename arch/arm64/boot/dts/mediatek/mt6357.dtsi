@@ -8,7 +8,9 @@
 	pmic_accdet: pmic_accdet {
 		compatible = "mediatek,mt6357-accdet";
 		accdet-name = "mt63xx-accdet";
-		accdet-mic-vol = <6>;
+        	/*#ifdef OPLUS_ARCH_EXTENDS*/
+		accdet-mic-vol = <7>;
+                /*#endif*/
 		accdet-plugout-debounce = <1>;
 		accdet-mic-mode = <1>;
 		headset-mode-setting = <0x500 0x500 1 0x1f0
@@ -18,7 +20,9 @@
 		headset-eint-num = <0>;
 		headset-eint-trig-mode = <0>;
 		headset-key-mode = <0>;
-		headset-three-key-threshold = <0 80 220 400>;
+                /*#ifdef OPLUS_ARCH_EXTENDS*/
+		headset-three-key-threshold = <0 55 130 400>;
+                /*#endif*/
 		headset-three-key-threshold-CDD = <0 121 192 600>;
 		headset-four-key-threshold = <0 58 121 192 400>;
 		io-channels = <&pmic_auxadc AUXADC_ACCDET>;
@@ -30,7 +34,9 @@
 
 	mt6357keys: mt6357keys {
 		compatible = "mediatek,mt6357-keys";
-		mediatek,long-press-mode = <1>;
+		//#ifdef VENDOR_EDIT
+		mediatek,long-press-mode = <2>;
+		//#endif
 		power-off-time-sec = <0>;
 
 		power {
@@ -108,15 +114,17 @@
 		charger = <&mt6370_chg>;
 		bootmode = <&chosen>;
 		io-channels = <&pmic_auxadc AUXADC_BAT_TEMP>,
-				<&pmic_auxadc AUXADC_ISENSE>,
+				<&pmic_auxadc AUXADC_BATADC>,
 				<&pmic_auxadc AUXADC_VBIF>,
 				<&pmic_auxadc AUXADC_IMP>,
-				<&pmic_auxadc AUXADC_IMIX_R>;
+				<&pmic_auxadc AUXADC_IMIX_R>,
+				<&auxadc 3>;
 		io-channel-names = "pmic_battery_temp",
 				"pmic_battery_voltage",
 				"pmic_bif_voltage",
 				"pmic_ptim_voltage",
-				"pmic_ptim_r";
+				"pmic_ptim_r",
+				"auxadc6-batt_id_v";
 		nvmem-cells = <&fg_init>, <&fg_soc>;
 		nvmem-cell-names = "initialization", "state-of-charge";
 	};

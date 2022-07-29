@@ -262,7 +262,7 @@ static inline struct sk_buff *__alloc_skb_from_kernel(int size, gfp_t gfp_mask)
 struct sk_buff *ccci_skb_dequeue(struct ccci_skb_queue *queue)
 {
 	unsigned long flags;
-	struct sk_buff *result = NULL;
+	struct sk_buff *result;
 
 	spin_lock_irqsave(&queue->skb_list.lock, flags);
 	result = __skb_dequeue(&queue->skb_list);
@@ -452,7 +452,7 @@ void ccci_dump_skb_pool_usage(int md_id)
 
 static void __4K_reload_work(struct work_struct *work)
 {
-	struct sk_buff *skb = NULL;
+	struct sk_buff *skb;
 
 	CCCI_DEBUG_LOG(-1, BM, "refill 4KB skb pool\n");
 	while (skb_pool_4K.skb_list.qlen < SKB_POOL_SIZE_4K) {
@@ -466,7 +466,7 @@ static void __4K_reload_work(struct work_struct *work)
 
 static void __16_reload_work(struct work_struct *work)
 {
-	struct sk_buff *skb = NULL;
+	struct sk_buff *skb;
 
 	CCCI_DEBUG_LOG(-1, BM, "refill 16B skb pool\n");
 	while (skb_pool_16.skb_list.qlen < SKB_POOL_SIZE_16) {
@@ -498,7 +498,7 @@ static void __16_reload_work(struct work_struct *work)
 void ccci_mem_dump(int md_id, void *start_addr, int len)
 {
 	unsigned int *curr_p = (unsigned int *)start_addr;
-	unsigned char *curr_ch_p = NULL;
+	unsigned char *curr_ch_p;
 	int _16_fix_num = len / 16;
 	int tail_num = len % 16;
 	char buf[16];
@@ -541,7 +541,7 @@ void ccci_mem_dump(int md_id, void *start_addr, int len)
 void ccci_cmpt_mem_dump(int md_id, void *start_addr, int len)
 {
 	unsigned int *curr_p = (unsigned int *)start_addr;
-	unsigned char *curr_ch_p = NULL;
+	unsigned char *curr_ch_p;
 	int _64_fix_num = len / 64;
 	int tail_num = len % 64;
 	char buf[64];

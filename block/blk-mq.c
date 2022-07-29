@@ -27,7 +27,7 @@
 #include <linux/prefetch.h>
 
 #include <trace/events/block.h>
-
+#include <uapi/linux/sched/types.h>
 #include <linux/blk-mq.h>
 #include "blk.h"
 #include "blk-mq.h"
@@ -506,8 +506,11 @@ void blk_mq_free_request(struct request *rq)
 
 	if (unlikely(laptop_mode && !blk_rq_is_passthrough(rq)))
 		laptop_io_completion(q->backing_dev_info);
-
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_OPLUS_FEATURE_UXIO_FIRST)
+	rq_qos_done(q, rq,(bool)((rq->cmd_flags & REQ_FG)||(rq->cmd_flags & REQ_UX)));
+#else
 	rq_qos_done(q, rq);
+#endif
 
 	if (blk_rq_rl(rq))
 		blk_put_rl(blk_rq_rl(rq));
@@ -530,7 +533,11 @@ inline void __blk_mq_end_request(struct request *rq, blk_status_t error)
 	blk_account_io_done(rq, now);
 
 	if (rq->end_io) {
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_OPLUS_FEATURE_UXIO_FIRST)
+		rq_qos_done(rq->q, rq,(bool)((rq->cmd_flags & REQ_FG)||(rq->cmd_flags & REQ_UX)));
+#else
 		rq_qos_done(rq->q, rq);
+#endif
 		rq->end_io(rq, error);
 	} else {
 		if (unlikely(blk_bidi_rq(rq)))
@@ -1119,23 +1126,6 @@ static void blk_mq_update_dispatch_busy(struct blk_mq_hw_ctx *hctx, bool busy)
 
 #define BLK_MQ_RESOURCE_DELAY	3		/* ms units */
 
-static void blk_mq_handle_dev_resource(struct request *rq,
-				       struct list_head *list)
-{
-	struct request *next =
-		list_first_entry_or_null(list, struct request, queuelist);
-
-	/*
-	 * If an I/O scheduler has been configured and we got a driver tag for
-	 * the next request already, free it.
-	 */
-	if (next)
-		blk_mq_put_driver_tag(next);
-
-	list_add(&rq->queuelist, list);
-	__blk_mq_requeue_request(rq);
-}
-
 /*
  * Returns true if we did some work AND can potentially do more.
  */
@@ -1203,7 +1193,17 @@ bool blk_mq_dispatch_rq_list(struct request_queue *q, struct list_head *list,
 
 		ret = q->mq_ops->queue_rq(hctx, &bd);
 		if (ret == BLK_STS_RESOURCE || ret == BLK_STS_DEV_RESOURCE) {
-			blk_mq_handle_dev_resource(rq, list);
+			/*
+			 * If an I/O scheduler has been configured and we got a
+			 * driver tag for the next request already, free it
+			 * again.
+			 */
+			if (!list_empty(list)) {
+				nxt = list_first_entry(list, struct request, queuelist);
+				blk_mq_put_driver_tag(nxt);
+			}
+			list_add(&rq->queuelist, list);
+			__blk_mq_requeue_request(rq);
 			break;
 		}
 
@@ -1228,15 +1228,6 @@ bool blk_mq_dispatch_rq_list(struct request_queue *q, struct list_head *list,
 		spin_lock(&hctx->lock);
 		list_splice_init(list, &hctx->dispatch);
 		spin_unlock(&hctx->lock);
-
-		/*
-		 * Order adding requests to hctx->dispatch and checking
-		 * SCHED_RESTART flag. The pair of this smp_mb() is the one
-		 * in blk_mq_sched_restart(). Avoid restart code path to
-		 * miss the new added requests to hctx->dispatch, meantime
-		 * SCHED_RESTART is observed here.
-		 */
-		smp_mb();
 
 		/*
 		 * If SCHED_RESTART was set by the caller of this function and
@@ -1547,7 +1538,7 @@ EXPORT_SYMBOL(blk_mq_start_stopped_hw_queues);
 static void blk_mq_run_work_fn(struct work_struct *work)
 {
 	struct blk_mq_hw_ctx *hctx;
-
+	struct sched_param scheduler_params = {0};
 	hctx = container_of(work, struct blk_mq_hw_ctx, run_work.work);
 
 	/*
@@ -1555,7 +1546,9 @@ static void blk_mq_run_work_fn(struct work_struct *work)
 	 */
 	if (test_bit(BLK_MQ_S_STOPPED, &hctx->state))
 		return;
-
+	/* Set ad RT priority*/
+	scheduler_params.sched_priority = 1;
+	sched_setscheduler(current, SCHED_FIFO, &scheduler_params);
 	__blk_mq_run_hw_queue(hctx);
 }
 
@@ -2325,6 +2318,11 @@ static void blk_mq_map_swqueue(struct request_queue *q)
 	struct blk_mq_ctx *ctx;
 	struct blk_mq_tag_set *set = q->tag_set;
 
+	/*
+	 * Avoid others reading imcomplete hctx->cpumask through sysfs
+	 */
+	mutex_lock(&q->sysfs_lock);
+
 	queue_for_each_hw_ctx(q, hctx, i) {
 		cpumask_clear(hctx->cpumask);
 		hctx->nr_ctx = 0;
@@ -2357,6 +2355,8 @@ static void blk_mq_map_swqueue(struct request_queue *q)
 		ctx->index_hw = hctx->nr_ctx;
 		hctx->ctxs[hctx->nr_ctx++] = ctx;
 	}
+
+	mutex_unlock(&q->sysfs_lock);
 
 	queue_for_each_hw_ctx(q, hctx, i) {
 		/*
@@ -2674,12 +2674,10 @@ EXPORT_SYMBOL(blk_mq_init_allocated_queue);
 /* tags can _not_ be used after returning from blk_mq_exit_queue */
 void blk_mq_exit_queue(struct request_queue *q)
 {
-	struct blk_mq_tag_set *set = q->tag_set;
+	struct blk_mq_tag_set	*set = q->tag_set;
 
-	/* Checks hctx->flags & BLK_MQ_F_TAG_QUEUE_SHARED. */
-	blk_mq_exit_hw_queues(q, set, set->nr_hw_queues);
-	/* May clear BLK_MQ_F_TAG_QUEUE_SHARED in hctx->flags. */
 	blk_mq_del_queue_tag_set(q);
+	blk_mq_exit_hw_queues(q, set, set->nr_hw_queues);
 }
 
 /* Basically redo blk_mq_init_queue with queue frozen */

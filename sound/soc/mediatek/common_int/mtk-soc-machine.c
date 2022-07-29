@@ -85,6 +85,9 @@
 #include <sound/soc-dapm.h>
 #include "mtk-soc-speaker-amp.h"
 
+#if defined(OPLUS_ARCH_EXTENDS) && defined(CONFIG_SIA_PA_ALGO)
+#include "../../codecs/audio/sia81xx/sia81xx_aux_dev_if.h"
+#endif
 #if defined(CONFIG_SND_SOC_CS43130)
 #include "mtk-cs43130-machine-ops.h"
 #endif
@@ -101,6 +104,7 @@ static struct dentry *mt_sco_audio_debugfs;
 
 static int mt_soc_ana_debug_open(struct inode *inode, struct file *file)
 {
+	pr_debug("%s()\n", __func__);
 	return 0;
 }
 
@@ -123,6 +127,8 @@ static ssize_t mt_soc_ana_debug_read(struct file *file, char __user *buf,
 	audckbufEnable(true);
 
 	n = Ana_Debug_Read(buffer, size);
+
+	pr_debug("%s(), len = %d\n", __func__, n);
 
 	audckbufEnable(false);
 	AudDrv_Clk_Off();
@@ -155,6 +161,7 @@ static ssize_t mt_soc_debug_read(struct file *file, char __user *buf,
 	AudDrv_Clk_On();
 
 	n = AudDrv_Reg_Dump(buffer, size);
+	pr_debug("%s(), len = %d\n", __func__, n);
 
 	AudDrv_Clk_Off();
 
@@ -211,7 +218,7 @@ static ssize_t mt_soc_debug_write(struct file *f, const char __user *buf,
 	temp = str_begin;
 
 	pr_debug(
-		"copy_from_user count = %zu, temp = %s, pointer = %p\n",
+		"copy_from_user, count = %zu, temp = %s, pointer = %p\n",
 		count, str_begin, str_begin);
 	token1 = strsep(&temp, delim);
 	token2 = strsep(&temp, delim);
@@ -542,7 +549,7 @@ static struct snd_soc_dai_link mt_soc_dai_common[] = {
 		.codec_name = MT_SOC_CODEC_DUMMY_NAME,
 	},
 #endif
-#ifdef CONFIG_SND_SOC_MTK_AUDIO_DSP
+#ifdef CONFIG_MTK_AUDIO_TUNNELING_SUPPORT
 	{
 		.name = "OFFLOAD",
 		.stream_name = MT_SOC_OFFLOAD_STREAM_NAME,
@@ -698,6 +705,129 @@ static struct snd_soc_card mt_snd_soc_card_mt = {
 	.num_links = ARRAY_SIZE(mt_soc_dai_common),
 };
 
+#ifdef CONFIG_OPLUS_FEATURE_KTV_V2_NONDAPM
+DEFINE_SPINLOCK(ktv_dl_data_lock);
+DEFINE_SPINLOCK(ktv_dl_ctrl_lock);
+
+char ktv_dl_data_unit[3840] = {0};
+struct afe_block_t user_dl_block;
+
+wait_queue_head_t ktvsleep;
+int ktv_running = 0;
+int prevu4read = 0;
+
+int write_access = 0;
+int dl_init_done = 0;
+int dl_drop_size = 25;
+
+static int ktvdevw_open(struct inode *inode, struct file *fp)
+{
+	unsigned long flags;
+	spin_lock_irqsave(&ktv_dl_ctrl_lock, flags);
+	dl_init_done = 0;
+	dl_drop_size = 25; //200ms
+	spin_unlock_irqrestore(&ktv_dl_ctrl_lock, flags);
+
+	pr_info("%s: \n", __func__);
+	return 0;
+}
+
+static long ktvdevw_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
+{
+	int ret = 0;
+
+	switch (cmd) {
+	default: {
+		ret = -1;
+		break;
+	}
+	}
+	return ret;
+}
+
+static ssize_t ktvdev_write(struct file *fp, const char __user *data, size_t count, loff_t *offset)
+{
+	int ret = 0;
+	char *tmp = NULL;
+	char *data_w_ptr = (char *)data;
+	unsigned long flags;
+	int ktvUnitSize = 1920;
+
+	spin_lock_irqsave(&ktv_dl_ctrl_lock, flags);
+	if(write_access == 0) {
+		pr_info("%s: playback not start yet, return\n", __func__);
+		spin_unlock_irqrestore(&ktv_dl_ctrl_lock, flags);
+		return count;
+	}
+	spin_unlock_irqrestore(&ktv_dl_ctrl_lock, flags);
+
+	spin_lock_irqsave(&ktv_dl_ctrl_lock, flags);
+	if(dl_drop_size > 0) {
+		pr_info("%s: Drop periods to avoid pop when init\n", __func__);
+		dl_drop_size--;
+		spin_unlock_irqrestore(&ktv_dl_ctrl_lock, flags);
+		return count;
+	}
+	if(!dl_init_done) {
+		dl_init_done = 1;
+		spin_lock_irqsave(&ktv_dl_data_lock, flags);
+		auddrv_dl1_write_init();
+		spin_unlock_irqrestore(&ktv_dl_data_lock, flags);
+	}
+	spin_unlock_irqrestore(&ktv_dl_ctrl_lock, flags);
+
+
+	tmp = kmalloc(ktvUnitSize, GFP_KERNEL);
+	if (tmp == NULL) {
+		pr_info("%s: kmalloc error, return\n", __func__);
+		return -ENOMEM;
+	}
+
+	if (copy_from_user(tmp, data_w_ptr, count)) {
+		pr_info("%s: copy_from_user error, return\n", __func__);
+		kfree(tmp);
+		return -EFAULT;
+	}
+
+	spin_lock_irqsave(&ktv_dl_data_lock, flags);
+	memcpy(ktv_dl_data_unit, tmp, count);
+	spin_unlock_irqrestore(&ktv_dl_data_lock, flags);
+
+	auddrv_dl1_write_handler(ktvUnitSize);
+
+	if (dl_init_done == 1) {
+		ktv_running = 1;
+	}
+
+	ret = count;
+
+	kfree(tmp);
+
+	return ret;
+}
+
+static int ktvdev_release(struct inode *inode, struct file *file)
+{
+	pr_info("%s: \n", __func__);
+	ktv_running = 0;
+	return 0;
+}
+
+static const struct file_operations ktvdevw_fops = {
+	.owner   = THIS_MODULE,
+	.open    = ktvdevw_open,
+	.unlocked_ioctl   = ktvdevw_ioctl,
+	.write   = ktvdev_write,
+	.release = ktvdev_release,
+};
+
+static struct miscdevice ktvw_device = {
+	.minor = MISC_DYNAMIC_MINOR,
+	.name = "ktvdevw",
+	.fops = &ktvdevw_fops,
+};
+#endif /* CONFIG_OPLUS_FEATURE_KTV_V2_NONDAPM */
+
 static int mt_soc_snd_probe(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = &mt_snd_soc_card_mt;
@@ -706,6 +836,8 @@ static int mt_soc_snd_probe(struct platform_device *pdev)
 #endif
 	int ret;
 	int daiLinkNum = 0;
+#ifdef CONFIG_SIA_PA_ALGO
+#endif
 
 	ret = mtk_spk_update_dai_link(mt_soc_extspk_dai, pdev);
 	if (ret) {
@@ -752,6 +884,15 @@ static int mt_soc_snd_probe(struct platform_device *pdev)
 	card->dev = &pdev->dev;
 	platform_set_drvdata(pdev, card);
 
+#if defined(OPLUS_ARCH_EXTENDS) && defined(CONFIG_SIA_PA_ALGO)
+		ret = soc_aux_init_only_sia81xx(pdev, card);
+			if (ret)
+				dev_err(&pdev->dev,
+					"%s soc_aux_init_only_sia8108 fail %d\n",
+					__func__, ret);
+
+#endif
+
 	ret = devm_snd_soc_register_card(&pdev->dev, card);
 	if (ret)
 		dev_err(&pdev->dev, "%s snd_soc_register_card fail %d\n",
@@ -768,6 +909,19 @@ static int mt_soc_snd_probe(struct platform_device *pdev)
 		DEBUG_ANA_FS_NAME, S_IFREG | 0444, NULL,
 		(void *)DEBUG_ANA_FS_NAME, &mtaudio_ana_debug_ops);
 #endif
+
+#ifdef CONFIG_OPLUS_FEATURE_KTV_V2_NONDAPM
+	/* register KTV MISC device */
+	ret = misc_register(&ktvw_device);
+	if (ret) {
+		pr_debug("ktvw_device misc_register Fail:%d\n", ret);
+		return ret;
+	}
+
+	init_waitqueue_head(&ktvsleep);
+#endif /* CONFIG_OPLUS_FEATURE_KTV_V2_NONDAPM */
+
+	dev_info(&pdev->dev, "%s(), done\n", __func__);
 	return ret;
 }
 

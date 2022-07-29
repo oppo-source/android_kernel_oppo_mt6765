@@ -362,6 +362,71 @@ TRACE_EVENT(rss_stat,
 		__entry->member,
 		__entry->size)
 	);
+
+DECLARE_EVENT_CLASS(ion_alloc,
+
+	TP_PROTO(size_t len,
+		 unsigned int mask,
+		 unsigned int flags,
+		 pid_t client_pid,
+		 char *current_comm,
+		 pid_t current_pid),
+
+	TP_ARGS(len, mask, flags, client_pid,
+		current_comm, current_pid),
+
+	TP_STRUCT__entry(
+		__field(size_t,		len)
+		__field(unsigned int,	mask)
+		__field(unsigned int,	flags)
+		__field(pid_t,		client_pid)
+		__array(char,		current_comm, 16)
+		__field(pid_t,		current_pid)
+	),
+
+	TP_fast_assign(
+		__entry->len		= len;
+		__entry->mask		= mask;
+		__entry->flags		= flags;
+		__entry->client_pid	= client_pid;
+		strlcpy(__entry->current_comm, current_comm, 16);
+		__entry->current_pid	= current_pid;
+	),
+
+	TP_printk("len=%zu mask=0x%x flags=0x%x "
+			"client_pid=%d current_comm=%s current_pid=%d ",
+		__entry->len,
+		__entry->mask,
+		__entry->flags,
+		__entry->client_pid,
+		__entry->current_comm,
+		__entry->current_pid)
+);
+
+DEFINE_EVENT(ion_alloc, ion_alloc_start,
+
+	TP_PROTO(size_t len,
+		 unsigned int mask,
+		 unsigned int flags,
+		 pid_t client_pid,
+		 char *current_comm,
+		 pid_t current_pid),
+
+	TP_ARGS(len, mask, flags, client_pid,
+		current_comm, current_pid)
+);
+
+DEFINE_EVENT(ion_alloc, ion_alloc_end,
+	TP_PROTO(size_t len,
+		 unsigned int mask,
+		 unsigned int flags,
+		 pid_t client_pid,
+		 char *current_comm,
+		 pid_t current_pid),
+
+	TP_ARGS(len, mask, flags, client_pid,
+		current_comm, current_pid)
+);
 #endif /* _TRACE_KMEM_H */
 
 /* This part must be outside protection */

@@ -18,6 +18,16 @@
 
 #define MTK_SUSPEND_FEATURE_ENABLE (1)
 
+#ifdef VENDOR_EDIT
+/*weizhong.Wu@Basic.power add for read AP/MODEM Subsystem sleep time  2020.05.26*/
+#define PCM_32K_TICKS_PER_SEC		(32768)
+#define PCM_TICK_TO_MILLI_SEC(TICK)	((TICK) * (1000) / (PCM_32K_TICKS_PER_SEC))
+#define PCM_TICK_TO_SEC(TICK)	(TICK / PCM_32K_TICKS_PER_SEC)
+/*weizhong.Wu@Basic.power add for read AP/MODEM Subsystem sleep time  2020.05.26*/
+
+#endif
+
+
 enum spm_suspend_step {
 	SPM_SUSPEND_ENTER = 0x00000001,
 	SPM_SUSPEND_ENTER_UART_SLEEP = 0x00000003,
@@ -39,10 +49,16 @@ bool spm_is_md1_sleep(void);
 bool spm_is_md2_sleep(void);
 bool spm_is_conn_sleep(void);
 void spm_ap_mdsrc_req(u8 set);
-ssize_t get_spm_system_stats(char *ToUserBuf
-			, size_t sz, void *priv);
-ssize_t get_spm_subsystem_stats(char *ToUserBuf
-			, size_t sz, void *priv);
+ssize_t get_spm_system_stats(char *ToUserBuf,size_t sz, void *priv);
+ssize_t get_spm_subsystem_stats(char *ToUserBuf,size_t sz, void *priv);
+
+#ifdef VENDOR_EDIT
+/*weizhong.Wu@Basic.power add for read AP/MODEM Subsystem sleep time  2020.05.26*/
+ssize_t get_oplus_rpm_master_stats(char *ToUserBuf,size_t sz, void *priv);
+ssize_t get_oplus_rpm_stats(char *ToUserBuf,size_t sz, void *priv);
+/*weizhong.Wu@Basic.power add for read AP/MODEM Subsystem sleep time  2020.05.26*/
+#endif
+
 ssize_t get_spm_sleep_count(char *ToUserBuf
 			, size_t sz, void *priv);
 ssize_t get_spm_last_wakeup_src(char *ToUserBuf

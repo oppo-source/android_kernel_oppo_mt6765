@@ -8,8 +8,7 @@
 
 #include <linux/types.h>
 #include "sspm_define.h"
-#ifndef _SSPM_MEM_ID_
-#define _SSPM_MEM_ID_
+
 enum {
 	SSPM_MEM_ID = 0,
 	PWRAP_MEM_ID,
@@ -25,7 +24,6 @@ enum {
 	NUMS_MEM_ID,
 };
 
-#endif
 struct sspm_reserve_mblock {
 	u32 num;
 	u64 start_phys;

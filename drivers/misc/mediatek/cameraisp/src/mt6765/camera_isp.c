@@ -97,6 +97,7 @@
 #include <mmdvfs_mgr.h>
 #include <mmdvfs_pmqos.h>
 #include <linux/soc/mediatek/mtk-pm-qos.h>
+#include<soc/oppo/oppo_project.h>
 /* Use this qos request to control camera dynamic frequency change */
 struct mtk_pm_qos_request isp_qos;
 struct mtk_pm_qos_request camsys_qos_request[ISP_IRQ_TYPE_INT_CAM_B_ST+1];
@@ -633,6 +634,12 @@ struct S_START_T {
  * excludes head when enque/deque control
  */
 static unsigned int g_regScen = 0xa5a5a5a5; /* remove later */
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+static unsigned int g_virtual_cq_cnt[2] = {0, 0};
+static unsigned int g_virtual_cq_cnt_a;
+static unsigned int g_virtual_cq_cnt_b;
+static  spinlock_t  virtual_cqcnt_lock;
+#endif
 
 
 static /*volatile*/ wait_queue_head_t P2WaitQueueHead_WaitDeque;
@@ -4415,7 +4422,7 @@ static signed int ISP_WriteReg(struct ISP_REG_IO_STRUCT *pRegIo)
 	/* unsigned char* pData = NULL; */
 	struct ISP_REG_STRUCT *pData = NULL;
 
-	if (pRegIo->Count > 0xFFFFFFFF) {
+	if ((pRegIo->Count * sizeof(struct ISP_REG_STRUCT)) > 0xFFFFF000) {
 		pr_err("pRegIo->Count error");
 		Ret = -EFAULT;
 		goto EXIT;
@@ -5309,7 +5316,7 @@ static int ISP_SetPMQOS(unsigned int cmd, unsigned int module)
  * update current idnex to working frame
  *****************************************************************************/
 static signed int ISP_P2_BufQue_Update_ListCIdx(
-	enum ISP_P2_BUFQUE_PROPERTY propertyU,
+	enum ISP_P2_BUFQUE_PROPERTY property,
 	enum ISP_P2_BUFQUE_LIST_TAG listTag)
 {
 	signed int ret = 0;
@@ -5317,9 +5324,7 @@ static signed int ISP_P2_BufQue_Update_ListCIdx(
 	signed int cnt = 0;
 	bool stop = false;
 	int i = 0;
-	unsigned int property = 0;
 	enum ISP_P2_BUF_STATE_ENUM cIdxSts = ISP_P2_BUF_STATE_NONE;
-	property = propertyU;
 
 	switch (listTag) {
 	case ISP_P2_BUFQUE_LIST_TAG_UNIT:
@@ -5420,23 +5425,14 @@ static signed int ISP_P2_BufQue_Update_ListCIdx(
 /******************************************************************************
  *
  *****************************************************************************/
-static signed int ISP_P2_BufQue_Erase(enum ISP_P2_BUFQUE_PROPERTY propertyU,
-enum ISP_P2_BUFQUE_LIST_TAG listTag, signed int idxU)
+static signed int ISP_P2_BufQue_Erase(enum ISP_P2_BUFQUE_PROPERTY property,
+enum ISP_P2_BUFQUE_LIST_TAG listTag, signed int idx)
 {
 	signed int ret =  -1;
 	bool stop = false;
 	int i = 0;
 	signed int cnt = 0;
 	int tmpIdx = 0;
-	unsigned int property = 0;
-	unsigned int idx = 0;
-
-	if (idxU < 0) {
-		pr_info("idxU abnormal error(%d)\n", idxU);
-		return ret;
-	}
-	idx = idxU;
-	property = propertyU;
 
 	switch (listTag) {
 	case ISP_P2_BUFQUE_LIST_TAG_PACKAGE:
@@ -5448,44 +5444,43 @@ enum ISP_P2_BUFQUE_LIST_TAG listTag, signed int idxU)
 		P2_FramePackage_List[property][idx].frameNum = 0;
 		P2_FramePackage_List[property][idx].dequedNum = 0;
 		/* [2] update first index */
-		if (tmpIdx >= 0) {
-			if (P2_FramePackage_List[property][tmpIdx].dupCQIdx == -1) {
-				/* traverse count needed, cuz user may erase the */
-				/* element but not the one at first idx */
-				/* (pip or vss scenario) */
-				if (P2_FramePack_List_Idx[property].start <=
-				P2_FramePack_List_Idx[property].end) {
-					cnt = P2_FramePack_List_Idx[property].end -
-						P2_FramePack_List_Idx[property].start;
-				} else {
-					cnt = _MAX_SUPPORT_P2_PACKAGE_NUM_ -
-						P2_FramePack_List_Idx[property].start;
-					cnt += P2_FramePack_List_Idx[property].end;
-				}
-				do { /* to find the newest first lindex */
-					tmpIdx = (tmpIdx + 1) %
-						_MAX_SUPPORT_P2_PACKAGE_NUM_;
-					switch (
-					P2_FramePackage_List[property][tmpIdx].dupCQIdx){
-					case (-1):
-						break;
-					default:
-						stop = true;
-						P2_FramePack_List_Idx[property].start =
-							tmpIdx;
-						break;
-					}
-					i++;
-				} while ((i < cnt) && (!stop));
-				/* current last erased element in list is the one */
-				/* firstBufindex point at and all the buffer node */
-				/* are deque done in the current moment, should */
-				/* update first index to the last node */
-				if ((!stop) && (i == cnt))
-					P2_FramePack_List_Idx[property].start =
-						P2_FramePack_List_Idx[property].end;
-
+		if (P2_FramePackage_List[property][tmpIdx].dupCQIdx == -1) {
+			/* traverse count needed, cuz user may erase the */
+			/* element but not the one at first idx */
+			/* (pip or vss scenario) */
+			if (P2_FramePack_List_Idx[property].start <=
+			P2_FramePack_List_Idx[property].end) {
+				cnt = P2_FramePack_List_Idx[property].end -
+					P2_FramePack_List_Idx[property].start;
+			} else {
+				cnt = _MAX_SUPPORT_P2_PACKAGE_NUM_ -
+					P2_FramePack_List_Idx[property].start;
+				cnt += P2_FramePack_List_Idx[property].end;
 			}
+			do { /* to find the newest first lindex */
+				tmpIdx = (tmpIdx + 1) %
+					_MAX_SUPPORT_P2_PACKAGE_NUM_;
+				switch (
+				P2_FramePackage_List[property][tmpIdx].
+				dupCQIdx){
+				case (-1):
+					break;
+				default:
+					stop = true;
+					P2_FramePack_List_Idx[property].start =
+						tmpIdx;
+					break;
+				}
+				i++;
+			} while ((i < cnt) && (!stop));
+			/* current last erased element in list is the one */
+			/* firstBufindex point at and all the buffer node */
+			/* are deque done in the current moment, should */
+			/* update first index to the last node */
+			if ((!stop) && (i == cnt))
+				P2_FramePack_List_Idx[property].start =
+					P2_FramePack_List_Idx[property].end;
+
 		}
 		break;
 	case ISP_P2_BUFQUE_LIST_TAG_UNIT:
@@ -5496,51 +5491,50 @@ enum ISP_P2_BUFQUE_LIST_TAG listTag, signed int idxU)
 		P2_FrameUnit_List[property][idx].cqMask =  0x0;
 		P2_FrameUnit_List[property][idx].bufSts = ISP_P2_BUF_STATE_NONE;
 		/* [2]update first index */
-		if (tmpIdx >= 0) {
-			if (P2_FrameUnit_List[property][tmpIdx].bufSts ==
-			ISP_P2_BUF_STATE_NONE) {
-				/* traverse count needed, cuz user may erase the */
-				/* element but not the one at first idx */
-				if (P2_FrameUnit_List_Idx[property].start <=
-				P2_FrameUnit_List_Idx[property].end) {
-					cnt = P2_FrameUnit_List_Idx[property].end -
-						P2_FrameUnit_List_Idx[property].start;
-				} else {
-					cnt = _MAX_SUPPORT_P2_FRAME_NUM_ -
-						P2_FrameUnit_List_Idx[property].start;
-					cnt += P2_FrameUnit_List_Idx[property].end;
-				}
-				/* to find the newest first lindex */
-				do {
-					tmpIdx = (tmpIdx + 1) %
-						_MAX_SUPPORT_P2_FRAME_NUM_;
-					switch (
-					P2_FrameUnit_List[property][tmpIdx].bufSts) {
-					case ISP_P2_BUF_STATE_ENQUE:
-					case ISP_P2_BUF_STATE_RUNNING:
-					case ISP_P2_BUF_STATE_DEQUE_SUCCESS:
-						stop = true;
-						P2_FrameUnit_List_Idx[property].start =
-							tmpIdx;
-						break;
-					case ISP_P2_BUF_STATE_WAIT_DEQUE_FAIL:
-					case ISP_P2_BUF_STATE_DEQUE_FAIL:
-						/* ASSERT */
-						break;
-					case ISP_P2_BUF_STATE_NONE:
-					default:
-						break;
-					}
-					i++;
-				} while ((i < cnt) && (!stop));
-				/* current last erased element in list is the one */
-				/* firstBufindex point at and all the buffer node are */
-				/* deque done in the current moment, should */
-				/* update first index to the last node */
-				if ((!stop) && (i == (cnt)))
-					P2_FrameUnit_List_Idx[property].start =
-						P2_FrameUnit_List_Idx[property].end;
+		if (P2_FrameUnit_List[property][tmpIdx].bufSts ==
+		ISP_P2_BUF_STATE_NONE) {
+			/* traverse count needed, cuz user may erase the */
+			/* element but not the one at first idx */
+			if (P2_FrameUnit_List_Idx[property].start <=
+			P2_FrameUnit_List_Idx[property].end) {
+				cnt = P2_FrameUnit_List_Idx[property].end -
+					P2_FrameUnit_List_Idx[property].start;
+			} else {
+				cnt = _MAX_SUPPORT_P2_FRAME_NUM_ -
+					P2_FrameUnit_List_Idx[property].start;
+				cnt += P2_FrameUnit_List_Idx[property].end;
 			}
+			/* to find the newest first lindex */
+			do {
+				tmpIdx = (tmpIdx + 1) %
+					_MAX_SUPPORT_P2_FRAME_NUM_;
+				switch (
+				P2_FrameUnit_List[property][tmpIdx].bufSts) {
+				case ISP_P2_BUF_STATE_ENQUE:
+				case ISP_P2_BUF_STATE_RUNNING:
+				case ISP_P2_BUF_STATE_DEQUE_SUCCESS:
+					stop = true;
+					P2_FrameUnit_List_Idx[property].start =
+						tmpIdx;
+					break;
+				case ISP_P2_BUF_STATE_WAIT_DEQUE_FAIL:
+				case ISP_P2_BUF_STATE_DEQUE_FAIL:
+					/* ASSERT */
+					break;
+				case ISP_P2_BUF_STATE_NONE:
+				default:
+					break;
+				}
+				i++;
+			} while ((i < cnt) && (!stop));
+			/* current last erased element in list is the one */
+			/* firstBufindex point at and all the buffer node are */
+			/* deque done in the current moment, should */
+			/* update first index to the last node */
+			if ((!stop) && (i == (cnt)))
+				P2_FrameUnit_List_Idx[property].start =
+					P2_FrameUnit_List_Idx[property].end;
+
 		}
 		break;
 	default:
@@ -5558,7 +5552,7 @@ static signed int ISP_P2_BufQue_GetMatchIdx(struct ISP_P2_BUFQUE_STRUCT param,
 {
 	int idx = -1;
 	int i = 0;
-	unsigned int property;
+	int property;
 
 	if (param.property >= ISP_P2_BUFQUE_PROPERTY_NUM) {
 		pr_err("property err(%d)\n", param.property);
@@ -5775,42 +5769,29 @@ static inline unsigned int ISP_P2_BufQue_WaitEventState(
 {
 	unsigned int ret = MFALSE;
 	signed int index = -1;
-	unsigned int local_idx = 0;
-	unsigned int property;
+	enum ISP_P2_BUFQUE_PROPERTY property;
 
 	if (param.property >= ISP_P2_BUFQUE_PROPERTY_NUM) {
 		pr_err("property err(%d)\n", param.property);
 		return ret;
 	}
-
 	property = param.property;
-
 	/*  */
 	switch (type) {
 	case ISP_P2_BUFQUE_MATCH_TYPE_WAITDQ:
-		index = *idx;
-		if (index < 0) {
-			pr_info("index abnormal error(%d) 1\n", index);
-			return ret;
-		}
 		spin_lock(&(SpinLock_P2FrameList));
-		local_idx = index;
-		if (P2_FrameUnit_List[property][local_idx].bufSts ==
+		index = *idx;
+		if (P2_FrameUnit_List[property][index].bufSts ==
 		    ISP_P2_BUF_STATE_RUNNING)
 			ret = MTRUE;
 
 		spin_unlock(&(SpinLock_P2FrameList));
 		break;
 	case ISP_P2_BUFQUE_MATCH_TYPE_WAITFM:
-		index = *idx;
-		if (index < 0) {
-			pr_info("index abnormal error(%d) 2\n", index);
-			return ret;
-		}
 		spin_lock(&(SpinLock_P2FrameList));
-		local_idx = index;
-		if (P2_FramePackage_List[property][local_idx].dequedNum ==
-		    P2_FramePackage_List[property][local_idx].frameNum)
+		index = *idx;
+		if (P2_FramePackage_List[property][index].dequedNum ==
+		    P2_FramePackage_List[property][index].frameNum)
 			ret = MTRUE;
 
 		spin_unlock(&(SpinLock_P2FrameList));
@@ -5857,7 +5838,7 @@ static signed int ISP_P2_BufQue_CTRL_FUNC(struct ISP_P2_BUFQUE_STRUCT param)
 	int i = 0, q = 0;
 	int idx =  -1, idx2 =  -1;
 	signed int restTime = 0;
-	unsigned int property;
+	int property;
 
 	if (param.property >= ISP_P2_BUFQUE_PROPERTY_NUM) {
 		pr_err("property err(%d)\n", param.property);
@@ -8133,8 +8114,8 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 			unsigned long long reg_trans_Time;
 			unsigned long long sum;
 
-			ccu_get_timestamp(&hwTickCnt_ccu_direct[0],
-				&hwTickCnt_ccu_direct[1]);
+			//ccu_get_timestamp(&hwTickCnt_ccu_direct[0],
+			//	&hwTickCnt_ccu_direct[1]);
 
 			pr_debug("hwTickCnt_ccu_direct[0]:%u,hwTickCnt_ccu_direct[1]:%u",
 				hwTickCnt_ccu_direct[0],
@@ -8793,6 +8774,27 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 			}
 		}
 		break;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	case ISP_SET_VIR_CQCNT:
+		spin_lock((spinlock_t *)(&virtual_cqcnt_lock));
+		if (copy_from_user(&g_virtual_cq_cnt, (void *)Param,
+			sizeof(unsigned int)*2) == 0) {
+			pr_info("From hw_module:%d Virtual CQ count from user land : %d\n",
+			g_virtual_cq_cnt[0], g_virtual_cq_cnt[1]);
+		} else {
+			pr_info(
+				"Virtual CQ count copy_from_user failed\n");
+			Ret = -EFAULT;
+		}
+
+		if (g_virtual_cq_cnt[0] == 0)
+			g_virtual_cq_cnt_a = g_virtual_cq_cnt[1];
+		else if (g_virtual_cq_cnt[0] == 1)
+			g_virtual_cq_cnt_b = g_virtual_cq_cnt[1];
+
+		spin_unlock((spinlock_t *)(&virtual_cqcnt_lock));
+		break;
+#endif
 	default:
 	{
 		pr_err("Unknown Cmd(%d)\n", Cmd);
@@ -9279,6 +9281,7 @@ static long ISP_ioctl_compat(struct file *filp, unsigned int cmd,
 	case ISP_SET_PM_QOS_INFO:
 	case ISP_SET_PM_QOS:
 	case ISP_SET_SEC_DAPC_REG:
+	case ISP_SET_VIR_CQCNT:
 		return filp->f_op->unlocked_ioctl(filp, cmd, arg);
 	default:
 		return -ENOIOCTLCMD;
@@ -10202,6 +10205,9 @@ static signed int ISP_probe(struct platform_device *pDev)
 		spin_lock_init(&(SpinLock_P2FrameList));
 		spin_lock_init(&(SpinLockRegScen));
 		spin_lock_init(&(SpinLock_UserKey));
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+    		    spin_lock_init(&(virtual_cqcnt_lock));
+#endif
 		#ifdef ENABLE_KEEP_ION_HANDLE
 		for (i = 0; i < ISP_DEV_NODE_NUM; i++) {
 			if (gION_TBL[i].node != ISP_DEV_NODE_NUM) {
@@ -14711,9 +14717,27 @@ LB_CAMA_SOF_IGNORE:
 	spin_unlock(&(IspInfo.SpinLockIrq[module]));
 	/*  */
 	if (IrqStatus & SOF_INT_ST) {
-		wake_up_interruptible(&IspInfo.WaitQHeadCam
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+ 			wake_up_interruptible(&IspInfo.WaitQHeadCam
 			[ISP_GetWaitQCamIndex(module)]
 			[ISP_WAITQ_HEAD_IRQ_SOF]);
+#else
+		    if ((ISP_RD32(CAM_REG_CTL_SPARE2(reg_module))%0x100) !=
+			    g_virtual_cq_cnt_a) {
+			    IRQ_LOG_KEEPER(module, m_CurrentPPB, _LOG_INF,
+			    "CAMA PHY cqcnt:%d != VIR cqcnt:%d\n",
+			    (ISP_RD32(CAM_REG_CTL_SPARE2(reg_module))%0x100),
+			    g_virtual_cq_cnt_a);
+		    } else {
+			    IRQ_LOG_KEEPER(module, m_CurrentPPB, _LOG_INF,
+			    "CAMA PHY cqcnt:%d VIR cqcnt:%d\n",
+			    (ISP_RD32(CAM_REG_CTL_SPARE2(reg_module))%0x100),
+			    g_virtual_cq_cnt_a);
+			    wake_up_interruptible(&IspInfo.WaitQHeadCam
+			    [ISP_GetWaitQCamIndex(module)]
+			    [ISP_WAITQ_HEAD_IRQ_SOF]);
+		    }
+#endif
 	}
 	if (IrqStatus & SW_PASS1_DON_ST) {
 		wake_up_interruptible(&IspInfo.WaitQHeadCam
@@ -15335,9 +15359,27 @@ LB_CAMB_SOF_IGNORE:
 	spin_unlock(&(IspInfo.SpinLockIrq[module]));
 	/*  */
 	if (IrqStatus & SOF_INT_ST) {
-		wake_up_interruptible(&IspInfo.WaitQHeadCam
-			[ISP_GetWaitQCamIndex(module)]
-			[ISP_WAITQ_HEAD_IRQ_SOF]);
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+		    wake_up_interruptible(&IspInfo.WaitQHeadCam
+		    [ISP_GetWaitQCamIndex(module)]
+		    [ISP_WAITQ_HEAD_IRQ_SOF]);
+#else
+		    if ((ISP_RD32(CAM_REG_CTL_SPARE2(reg_module))%0x100) !=
+			    g_virtual_cq_cnt_b) {
+			    IRQ_LOG_KEEPER(module, m_CurrentPPB, _LOG_INF,
+			    "CAMB PHY cqcnt:%d != VIR cqcnt:%d\n",
+			    (ISP_RD32(CAM_REG_CTL_SPARE2(reg_module))%0x100),
+			    g_virtual_cq_cnt_b);
+		    } else {
+			    IRQ_LOG_KEEPER(module, m_CurrentPPB, _LOG_INF,
+			    "CAMB PHY cqcnt:%d VIR cqcnt:%d\n",
+			    (ISP_RD32(CAM_REG_CTL_SPARE2(reg_module))%0x100),
+			    g_virtual_cq_cnt_b);
+			    wake_up_interruptible(&IspInfo.WaitQHeadCam
+			    [ISP_GetWaitQCamIndex(module)]
+			    [ISP_WAITQ_HEAD_IRQ_SOF]);
+		    }
+#endif
 	}
 	if (IrqStatus & SW_PASS1_DON_ST) {
 		wake_up_interruptible(&IspInfo.WaitQHeadCam

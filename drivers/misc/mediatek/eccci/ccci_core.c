@@ -18,7 +18,6 @@
 #include "ccci_port.h"
 #include "ccci_hif.h"
 #ifdef FEATURE_SCP_CCCI_SUPPORT
-/*need scp owner review,browse.zhang*/
 #include <scp.h>
 #endif
 
@@ -34,6 +33,9 @@ static int scp_stop;
 #ifndef CCCI_LOG_LEVEL /* for platform override */
 #define CCCI_LOG_LEVEL CCCI_LOG_CRITICAL_UART
 #endif
+
+//#define CCCI_LOG_LEVEL CCCI_LOG_ALL_UART
+
 unsigned int ccci_debug_enable = CCCI_LOG_LEVEL;
 
 int ccci_register_dev_node(const char *name, int major_id, int minor)
@@ -61,7 +63,7 @@ static int apsync_event(struct notifier_block *this,
 		fsm_scp_init0();
 		if (scp_stop == 1) {
 			ccci_port_send_msg_to_md(MD_SYS1,
-				CCCI_SYSTEM_TX, CCISM_SHM_INIT, 0, 1);
+					CCCI_SYSTEM_TX, CCISM_SHM_INIT, 0, 1);
 			CCCI_NORMAL_LOG(0, CORE, "SCP reboot---\n");
 			scp_stop = 0;
 		}

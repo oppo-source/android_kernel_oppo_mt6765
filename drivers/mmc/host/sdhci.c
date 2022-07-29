@@ -53,9 +53,17 @@ static unsigned int debug_quirks2;
 static void sdhci_finish_data(struct sdhci_host *);
 
 static void sdhci_enable_preset_value(struct sdhci_host *host, bool enable);
-
+#ifdef OPLUS_FEATURE_SDCARD
+static int flag = 0;
+#endif
 void sdhci_dumpregs(struct sdhci_host *host)
 {
+#ifdef OPLUS_FEATURE_SDCARD
+	if(!flag)
+		    flag++;
+	else
+		    return;
+#endif
 	SDHCI_DUMP("============ SDHCI REGISTER DUMP ===========\n");
 
 	SDHCI_DUMP("Sys addr:  0x%08x | Version:  0x%08x\n",
@@ -133,7 +141,7 @@ static void sdhci_set_card_detection(struct sdhci_host *host, bool enable)
 	u32 present;
 
 	if ((host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION) ||
-	    !mmc_card_is_removable(host->mmc) || mmc_can_gpio_cd(host->mmc))
+	    !mmc_card_is_removable(host->mmc))
 		return;
 
 	if (enable) {
@@ -1217,6 +1225,16 @@ void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 	if ((host->quirks2 & SDHCI_QUIRK2_STOP_WITH_TC) &&
 	    cmd->opcode == MMC_STOP_TRANSMISSION)
 		cmd->flags |= MMC_RSP_BUSY;
+
+#ifdef OPLUS_FEATURE_MMC_DRIVER
+	if(host->mmc->card_stuck_in_programing_status && ((cmd->opcode == MMC_WRITE_MULTIPLE_BLOCK) || (cmd->opcode == MMC_WRITE_BLOCK)))
+	{
+		pr_info("blocked write cmd:%s\n", mmc_hostname(host->mmc));
+		cmd->error = -EIO;
+		sdhci_finish_mrq(host, cmd->mrq);
+		return;
+	}
+#endif /* OPLUS_FEATURE_MMC_DRIVER */
 
 	/* Wait max 10 ms */
 	timeout = 10;

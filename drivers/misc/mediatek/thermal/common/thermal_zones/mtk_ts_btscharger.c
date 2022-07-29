@@ -19,7 +19,7 @@
 #include <linux/uidgid.h>
 #include <linux/slab.h>
 #include <tmp_btscharger.h>
-#if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
+#if defined(CONFIG_MEDIATEK_MT6577_AUXADC) || defined(CONFIG_MTK_20271) || defined(CONFIG_MTK_20361) || defined(CONFIG_MTK_21281)
 #include <linux/iio/consumer.h>
 #endif
 
@@ -51,7 +51,7 @@ do { \
 #define mtktscharger_pr_notice(fmt, args...) \
 	pr_notice("[Thermal/tzcharger]" fmt, ##args)
 
-#if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
+#if defined(CONFIG_MEDIATEK_MT6577_AUXADC) || defined(CONFIG_MTK_20271) || defined(CONFIG_MTK_20361) || defined(CONFIG_MTK_21281)
 struct iio_channel *thermistor_ch2;
 #endif
 
@@ -306,8 +306,136 @@ static struct BTSCHARGER_TEMPERATURE BTSCHARGER_Temperature_Table5[] = {
 	{60, 11210},		/* FIX_ME */
 	{60, 11210}		/* FIX_ME */
 };
+#if defined(CONFIG_MTK_20271) || defined(CONFIG_MTK_20361) || defined(CONFIG_MTK_21281)
+static struct BTSCHARGER_TEMPERATURE BTSCHARGER_Temperature_Table6[] = {
+	{-400, 4251000},
+	{-350, 3005000},
+	{-300, 2149000},
+	{-250, 1554000},
+	{-200, 1135000},
+	{-150, 837800},
+	{-100, 624100},
+	{-50, 469100},
+	{0, 355600},
+	{50, 271800},
+	{100, 209400},
+	{150, 162500},
+	{200, 127000},
+	{250, 100000},		/* 100K */
+	{300, 79230},
+	{350, 63180},
+	{400, 50680},
+	{450, 40900},
+	{500, 33190},
+	{550, 27090},
+	{600, 22220},
+	{650, 18320},
+	{700, 15180},
+	{750, 12640},
+	{800, 10580},
+	{850, 8887},
+	{900, 7500},
+	{950, 6357},
+	{1000, 5410},
+	{1050, 4623},
+	{1100, 3965},
+	{1150, 3415},
+	{1200, 2951},
+	{1250, 2560}
+};
 
-
+/* NCP15WF104F03RC(100K) */
+static struct BTSCHARGER_TEMPERATURE BTSCHARGER_Temperature_Table7[] = {
+	{-400, 4397119},
+	{-350, 3088599},
+	{-300, 2197225},
+	{-250, 1581881},
+	{-200, 1151037},
+	{-150, 846579},
+	{-100, 628988},
+	{-50, 471632},
+	{0, 357012},
+	{50, 272500},
+	{100, 209710},
+	{150, 162651},
+	{200, 127080},
+	{250, 100000},		/* 100K */
+	{300, 79222},
+	{350, 63167},
+#if defined(APPLY_PRECISE_NTC_TABLE)
+	{400, 50677},
+	{410, 48528},
+	{420, 46482},
+	{430, 44533},
+	{440, 42675},
+	{450, 40904},
+	{460, 39213},
+	{470, 37601},
+	{480, 36063},
+	{490, 34595},
+	{500, 33195},
+	{510, 31859},
+	{520, 30584},
+	{530, 29366},
+	{540, 28203},
+	{550, 27091},
+	{560, 26028},
+	{570, 25013},
+	{580, 24042},
+	{590, 23113},
+	{600, 22224},
+	{610, 21374},
+	{620, 20560},
+	{630, 19782},
+	{640, 19036},
+	{650, 18322},
+	{660, 17640},
+	{670, 16986},
+	{680, 16360},
+	{690, 15759},
+	{700, 15184},
+	{710, 14631},
+	{720, 14100},
+	{730, 13591},
+	{740, 13103},
+	{750, 12635},
+	{760, 12187},
+	{770, 11756},
+	{780, 11343},
+	{790, 10946},
+	{800, 10565},
+	{810, 10199},
+	{820,  9847},
+	{830,  9509},
+	{840,  9184},
+	{850,  8872},
+	{860,  8572},
+	{870,  8283},
+	{880,  8005},
+	{890,  7738},
+	{900,  7481},
+#else
+	{400, 50677},
+	{450, 40904},
+	{500, 33195},
+	{550, 27091},
+	{600, 22224},
+	{650, 18323},
+	{700, 15184},
+	{750, 12635},
+	{800, 10566},
+	{850, 8873},
+	{900, 7481},
+#endif
+	{950, 6337},
+	{1000, 5384},
+	{1050, 4594},
+	{1100, 3934},
+	{1150, 3380},
+	{1200, 2916},
+	{1250, 2522}
+};
+#else
 /* NTCG104EF104F(100K) */
 static struct BTSCHARGER_TEMPERATURE BTSCHARGER_Temperature_Table6[] = {
 	{-40, 4251000},
@@ -437,7 +565,7 @@ static struct BTSCHARGER_TEMPERATURE BTSCHARGER_Temperature_Table7[] = {
 	{120, 2916},
 	{125, 2522}
 };
-
+#endif
 
 /* convert register to temperature  */
 static __s16 mtkts_btscharger_thermistor_conver_temp(__s32 Res)
@@ -535,7 +663,7 @@ static __s16 mtk_ts_btscharger_volt_to_temp(__u32 dwVolt)
 
 static int mtktscharger_get_hw_temp(void)
 {
-#if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
+#if defined(CONFIG_MEDIATEK_MT6577_AUXADC) || defined(CONFIG_MTK_20271) || defined(CONFIG_MTK_20361) || defined(CONFIG_MTK_21281)
 	int val = 0;
 	int ret = 0, output;
 #else
@@ -547,7 +675,7 @@ static int mtktscharger_get_hw_temp(void)
 	#endif
 #endif
 
-#if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
+#if defined(CONFIG_MEDIATEK_MT6577_AUXADC) || defined(CONFIG_MTK_20271) || defined(CONFIG_MTK_20361) || defined(CONFIG_MTK_21281)
 	ret = iio_read_channel_processed(thermistor_ch2, &val);
 	if (ret < 0) {
 		mtktscharger_dprintk_always(
@@ -630,7 +758,11 @@ static int mtktscharger_get_hw_temp(void)
 
 static int mtktscharger_get_temp(struct thermal_zone_device *thermal, int *t)
 {
+#if defined(CONFIG_MTK_20271) || defined(CONFIG_MTK_20361) || defined(CONFIG_MTK_21281)
+	*t = mtktscharger_get_hw_temp() * 100;
+#else
 	*t = mtktscharger_get_hw_temp() * 1000;
+#endif
 	mtktscharger_dprintk("%s %d\n", __func__, *t);
 
 	if (*t >= 85000)
@@ -1236,7 +1368,7 @@ static const struct file_operations mtkts_btscharger_param_fops = {
 };
 
 
-#if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
+#if defined(CONFIG_MEDIATEK_MT6577_AUXADC) || defined(CONFIG_MTK_20271) || defined(CONFIG_MTK_20361) || defined(CONFIG_MTK_21281)
 static int mtktscharger_pdrv_probe(struct platform_device *pdev)
 {
 	int err = 0;
@@ -1325,7 +1457,7 @@ static struct platform_driver mtktscharger_driver = {
 static int __init mtktscharger_init(void)
 {
 	int err = 0;
-#if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
+#if defined(CONFIG_MEDIATEK_MT6577_AUXADC) || defined(CONFIG_MTK_20271) || defined(CONFIG_MTK_20361) || defined(CONFIG_MTK_21281)
 	/* Move this segment to probe function
 	 * in case mtktscharger reads temperature
 	 * before mtk_charger allows it.
@@ -1340,7 +1472,7 @@ static int __init mtktscharger_init(void)
 	if (err)
 		return err;
 
-#if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
+#if defined(CONFIG_MEDIATEK_MT6577_AUXADC) || defined(CONFIG_MTK_20271) || defined(CONFIG_MTK_20361) || defined(CONFIG_MTK_21281)
 	err = platform_driver_register(&mtktscharger_driver);
 	if (err) {
 		mtktscharger_dprintk("%s fail to reg driver\n", __func__);

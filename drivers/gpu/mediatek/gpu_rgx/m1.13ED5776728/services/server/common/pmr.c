@@ -373,6 +373,13 @@ _PMRCreate(PMR_SIZE_T uiLogicalSize,
 	psPMR = (PMR *) pvPMRLinAddr;
 	psMappingTable = IMG_OFFSET_ADDR(pvPMRLinAddr, sizeof(*psPMR));
 
+	eError = OSLockCreate(&psPMR->hLock);
+	if (eError != PVRSRV_OK)
+	{
+		OSFreeMem(psPMR);
+		return eError;
+	}
+
 	/* Setup the mapping table */
 	psMappingTable->uiChunkSize = uiChunkSize;
 	psMappingTable->ui32NumVirtChunks = ui32NumVirtChunks;
@@ -382,22 +389,7 @@ _PMRCreate(PMR_SIZE_T uiLogicalSize,
 	for (i=0; i<ui32NumPhysChunks; i++)
 	{
 		ui32Temp = pui32MappingTable[i];
-		if (ui32Temp < ui32NumVirtChunks)
-		{
-			psMappingTable->aui32Translation[ui32Temp] = ui32Temp;
-		}
-		else
-		{
-			OSFreeMem(psPMR);
-			return PVRSRV_ERROR_PMR_INVALID_MAP_INDEX_ARRAY;
-		}
-	}
-
-	eError = OSLockCreate(&psPMR->hLock);
-	if (eError != PVRSRV_OK)
-	{
-		OSFreeMem(psPMR);
-		return eError;
+		psMappingTable->aui32Translation[ui32Temp] = ui32Temp;
 	}
 
 	/* Setup the PMR */

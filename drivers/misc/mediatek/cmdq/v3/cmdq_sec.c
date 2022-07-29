@@ -221,14 +221,12 @@ int32_t cmdq_sec_init_session_unlocked(struct cmdqSecContextStruct *handle)
 				break;
 #endif
 #ifdef CMDQ_SECURE_MTEE_SUPPORT
-#ifndef CMDQ_LATE_INIT_SUPPORT
 			if (handle->mtee_iwcMessage) {
 				CMDQ_ERR(
 					"[SEC]SESSION_INIT: mtee wsm message is not NULL\n");
 				status = -EINVAL;
 				break;
 			}
-#endif
 			/* allocate world shared memory */
 			status = cmdq_sec_mtee_allocate_wsm(&handle->mtee,
 				&handle->mtee_iwcMessage,
@@ -513,10 +511,6 @@ s32 cmdq_sec_fill_iwc_command_msg_unlocked(
 	/* assign extension and read back parameter */
 	iwc->command.extension = task->secData.extension;
 	iwc->command.readback_pa = task->reg_values_pa;
-
-
-	iwc->command.sec_id = task->secData.sec_id;
-	CMDQ_LOG("%s, sec_id:%d\n", __func__, iwc->command.sec_id);
 
 	last_buf = list_last_entry(&task->pkt->buf, typeof(*last_buf),
 		list_entry);
@@ -2459,35 +2453,3 @@ static __init int cmdq_init(void)
 }
 
 arch_initcall(cmdq_init);
-
-static s32 __init cmdq_late_init(void)
-{
-#ifdef CMDQ_LATE_INIT_SUPPORT
-	struct cmdqSecContextStruct *handle;
-
-	gCmdqSecContextHandle = cmdq_sec_context_handle_create(current->tgid);
-	handle = gCmdqSecContextHandle;
-	CMDQ_LOG("handle:%p %p\n", gCmdqSecContextHandle, handle);
-
-	handle->mtee_iwcMessage = kzalloc(
-		sizeof(struct iwcCmdqMessage_t), GFP_KERNEL);
-	if (!handle->mtee_iwcMessage)
-		return -ENOMEM;
-
-	handle->mtee_iwcMessageEx = kzalloc(
-		sizeof(struct iwcCmdqMessageEx_t), GFP_KERNEL);
-	if (!handle->mtee_iwcMessageEx)
-		return -ENOMEM;
-
-	handle->mtee_iwcMessageEx2 = kzalloc(
-		sizeof(struct iwcCmdqMessageEx2_t), GFP_KERNEL);
-	if (!handle->mtee_iwcMessageEx2)
-		return -ENOMEM;
-	CMDQ_LOG("iwc:%p(%#x) ex:%p(%#x) ex2:%p(%#x)\n",
-		handle->mtee_iwcMessage, sizeof(struct iwcCmdqMessage_t),
-		handle->mtee_iwcMessageEx, sizeof(struct iwcCmdqMessageEx_t),
-		handle->mtee_iwcMessageEx2, sizeof(struct iwcCmdqMessageEx2_t));
-#endif
-	return 0;
-}
-late_initcall(cmdq_late_init);

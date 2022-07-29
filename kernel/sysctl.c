@@ -68,10 +68,14 @@
 #include <linux/mount.h>
 #include <linux/pipe_fs_i.h>
 
-#include "../lib/kstrtox.h"
-
 #include <linux/uaccess.h>
 #include <asm/processor.h>
+
+#ifdef OPLUS_FEATURE_TASK_CPUSTATS
+#ifdef CONFIG_OPLUS_CTP
+#include <linux/task_cpustats.h>
+#endif
+#endif /* OPLUS_FEATURE_TASK_CPUSTATS */
 
 #ifdef CONFIG_X86
 #include <asm/nmi.h>
@@ -98,7 +102,19 @@
 #include <linux/nmi.h>
 #endif
 
+#if defined(OPLUS_FEATURE_MULTI_KSWAPD) && defined(CONFIG_OPLUS_MULTI_KSWAPD)
+#include <linux/multi_kswapd.h>
+#endif /*OPLUS_FEATURE_MULTI_KSWAPD*/
+
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+extern unsigned int sysctl_sched_walt_init_task_load_pct;
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
+
 #if defined(CONFIG_SYSCTL)
+
+#if defined(CONFIG_OPLUS_FEATURE_HUNG_TASK_ENHANCE) && defined(CONFIG_OPLUS_FEATURE_DEATH_HEALER)
+#include <soc/oplus/system/hung_task_enhance.h>
+#endif
 
 /* External variables not in a header file. */
 extern int suid_dumpable;
@@ -132,8 +148,20 @@ static unsigned long zero_ul;
 static unsigned long one_ul = 1;
 static unsigned long long_max = LONG_MAX;
 static int one_hundred = 100;
+
+#if defined(OPLUS_FEATURE_ZRAM_OPT) && defined(CONFIG_OPLUS_ZRAM_OPT)
+extern int direct_vm_swappiness;
 static int two_hundred = 200;
+#endif /*OPLUS_FEATURE_ZRAM_OPT*/
+
 static int one_thousand = 1000;
+#if defined(OPLUS_FEATURE_FG_IO_OPT) && defined(CONFIG_OPLUS_FG_IO_OPT)
+unsigned int sysctl_fg_io_opt = 1;
+#endif /*OPLUS_FEATURE_FG_IO_OPT*/
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_OPLUS_FEATURE_UXIO_FIRST)
+unsigned int sysctl_uxio_io_opt = true;
+bool sysctl_wbt_enable = true;
+#endif
 #ifdef CONFIG_PRINTK
 static int ten_thousand = 10000;
 #endif
@@ -312,6 +340,36 @@ static int max_sched_tunable_scaling = SCHED_TUNABLESCALING_END-1;
 #endif /* CONFIG_SMP */
 #endif /* CONFIG_SCHED_DEBUG */
 
+#ifdef OPLUS_FEATURE_UIFIRST
+int sysctl_uifirst_enabled = 1;
+int sysctl_launcher_boost_enabled = 0;
+#endif /* OPLUS_FEATURE_UIFIRST */
+
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+int sysctl_slide_boost_enabled = 0;
+int sysctl_boost_task_threshold = 51;
+#ifdef CONFIG_CAMERA_OPT
+int sysctl_camera_opt_enabled = 0;
+#endif
+int sysctl_frame_rate = 60;
+
+#ifdef CONFIG_OPLUS_FEATURE_AUDIO_OPT
+extern sysctl_sched_impt_tgid;
+#endif
+
+int sched_frame_rate_handler(struct ctl_table *table, int write, void __user *buffer, size_t *lenp, loff_t *ppos)
+{
+	int ret;
+
+	if (write && *ppos)
+		*ppos = 0;
+
+	ret = proc_dointvec(table, write, buffer, lenp, ppos);
+
+	return ret;
+}
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
+
 #ifdef CONFIG_COMPACTION
 static int min_extfrag_threshold;
 static int max_extfrag_threshold = 1000;
@@ -325,6 +383,31 @@ static struct ctl_table kern_table[] = {
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec,
 	},
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_OPLUS_FEATURE_UXIO_FIRST)
+{
+		.procname	= "uxio_first_opt",
+		.data		= &sysctl_uxio_io_opt,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec,
+},
+{
+		.procname	= "wbt_enable",
+		.data		= &sysctl_wbt_enable,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec,
+},
+#endif
+#if defined(OPLUS_FEATURE_FG_IO_OPT) && defined(CONFIG_OPLUS_FG_IO_OPT)
+{
+		.procname	= "fg_io_opt",
+		.data		= &sysctl_fg_io_opt,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec,
+},
+#endif /*OPLUS_FEATURE_FG_IO_OPT*/
 #ifdef CONFIG_SCHED_DEBUG
 	{
 		.procname       = "sched_cstate_aware",
@@ -1156,6 +1239,36 @@ static struct ctl_table kern_table[] = {
 		.proc_handler	= proc_dointvec_minmax,
 		.extra1		= &neg_one,
 	},
+#ifdef CONFIG_OPLUS_FEATURE_HUNG_TASK_ENHANCE
+	{
+		.procname	= "hung_task_selective_monitoring",
+		.data		= &sysctl_hung_task_selective_monitoring,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1		= &zero,
+		.extra2		= &one,
+	},
+#endif
+#if defined(CONFIG_OPLUS_FEATURE_HUNG_TASK_ENHANCE) && defined(CONFIG_OPLUS_FEATURE_DEATH_HEALER)
+/* record the hung task killing */
+	{
+		.procname	= "hung_task_kill",
+		.data		= &sysctl_hung_task_oppo_kill,
+		.maxlen		= 128,
+		.mode		= 0666,
+		.proc_handler	= proc_dostring,
+	},
+/* Foreground background optimization,change max io count */
+	{
+		.procname	= "hung_task_maxiowait_count",
+		.data		= &sysctl_hung_task_maxiowait_count,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1		= &five,
+	},
+#endif
 #endif
 #ifdef CONFIG_RT_MUTEXES
 	{
@@ -1280,6 +1393,85 @@ static struct ctl_table kern_table[] = {
 		.extra2		= &one,
 	},
 #endif
+#ifdef OPLUS_FEATURE_UIFIRST
+	{
+		.procname	= "uifirst_enabled",
+		.data		= &sysctl_uifirst_enabled,
+		.maxlen 	= sizeof(int),
+		.mode		= 0666,
+		.proc_handler	= proc_dointvec,
+	},
+	{
+		.procname	= "launcher_boost_enabled",
+		.data		= &sysctl_launcher_boost_enabled,
+		.maxlen 	= sizeof(int),
+		.mode		= 0666,
+		.proc_handler = proc_dointvec,
+	},
+#endif /* OPLUS_FEATURE_UIFIRST */
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+	{
+		.procname	= "sched_walt_init_task_load_pct",
+		.data		= &sysctl_sched_walt_init_task_load_pct,
+		.maxlen		= sizeof(unsigned int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec,
+	},
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
+#if defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT)
+	{
+		.procname	= "slide_boost_enabled",
+		.data		= &sysctl_slide_boost_enabled,
+		.maxlen 	= sizeof(int),
+		.mode		= 0666,
+		.proc_handler = proc_dointvec,
+	},
+#ifdef CONFIG_CAMERA_OPT
+	{
+		.procname       = "camera_opt_enable",
+                .data           = &sysctl_camera_opt_enabled,
+                .maxlen         = sizeof(int),
+                .mode           = 0666,
+                .proc_handler = proc_dointvec,
+	},
+#endif
+	{
+		.procname	= "boost_task_threshold",
+		.data		= &sysctl_boost_task_threshold,
+		.maxlen 	= sizeof(int),
+		.mode		= 0666,
+		.proc_handler = proc_dointvec,
+	},
+	{
+		.procname	= "frame_rate",
+		.data		= &sysctl_frame_rate,
+		.maxlen 	= sizeof(int),
+		.mode		= 0666,
+		.proc_handler = sched_frame_rate_handler,
+	},
+#endif /* defined(OPLUS_FEATURE_UIFIRST) && defined(CONFIG_SCHED_WALT) */
+#ifdef OPLUS_FEATURE_TASK_CPUSTATS
+#ifdef CONFIG_OPLUS_CTP
+	{
+		.procname	= "task_cpustats_enable",
+		.data		= &sysctl_task_cpustats_enable,
+		.maxlen		= sizeof(unsigned int),
+		.mode		= 0666,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1		= &zero,
+		.extra2		= &one,
+	},
+#endif
+#endif /* OPLUS_FEATURE_TASK_CPUSTATS */
+#ifdef CONFIG_OPLUS_FEATURE_AUDIO_OPT
+	{
+		.procname	= "sched_impt_tgid",
+		.data		= &sysctl_sched_impt_tgid,
+		.maxlen 	= sizeof(int),
+		.mode		= 0666,
+		.proc_handler = proc_dointvec,
+	},
+#endif
 	{ }
 };
 
@@ -1326,6 +1518,13 @@ static struct ctl_table vm_table[] = {
 		.proc_handler	= proc_dointvec,
 	},
 	{
+		.procname       = "reap_mem_on_sigkill",
+		.data           = &sysctl_reap_mem_on_sigkill,
+		.maxlen         = sizeof(sysctl_reap_mem_on_sigkill),
+		.mode           = 0644,
+		.proc_handler   = proc_dointvec,
+	},
+	{
 		.procname	= "overcommit_ratio",
 		.data		= &sysctl_overcommit_ratio,
 		.maxlen		= sizeof(sysctl_overcommit_ratio),
@@ -1340,7 +1539,7 @@ static struct ctl_table vm_table[] = {
 		.proc_handler	= overcommit_kbytes_handler,
 	},
 	{
-		.procname	= "page-cluster", 
+		.procname	= "page-cluster",
 		.data		= &page_cluster,
 		.maxlen		= sizeof(int),
 		.mode		= 0644,
@@ -1411,7 +1610,31 @@ static struct ctl_table vm_table[] = {
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec_minmax,
 		.extra1		= &zero,
+#if defined(OPLUS_FEATURE_ZRAM_OPT) && defined(CONFIG_OPLUS_ZRAM_OPT)
 		.extra2		= &two_hundred,
+#else
+		.extra2		= &one_hundred,
+#endif /*OPLUS_FEATURE_ZRAM_OPT*/
+	},
+#if defined(OPLUS_FEATURE_ZRAM_OPT) && defined(CONFIG_OPLUS_ZRAM_OPT)
+	{
+		.procname	= "direct_swappiness",
+		.data		= &direct_vm_swappiness,
+		.maxlen 	= sizeof(direct_vm_swappiness),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1 	= &zero,
+		.extra2 	= &two_hundred,
+	},
+#endif
+	{
+		.procname       = "want_old_faultaround_pte",
+		.data           = &want_old_faultaround_pte,
+		.maxlen         = sizeof(want_old_faultaround_pte),
+		.mode           = 0644,
+		.proc_handler   = proc_dointvec_minmax,
+		.extra1         = &zero,
+		.extra2         = &one,
 	},
 #ifdef CONFIG_HUGETLB_PAGE
 	{
@@ -1475,7 +1698,12 @@ static struct ctl_table vm_table[] = {
 		.procname	= "compact_memory",
 		.data		= &sysctl_compact_memory,
 		.maxlen		= sizeof(int),
+#ifdef VENDOR_EDIT
+		.mode		= 0222,
+#else
 		.mode		= 0200,
+
+#endif /*VENDOR_EDIT*/
 		.proc_handler	= sysctl_compaction_handler,
 	},
 	{
@@ -1506,6 +1734,17 @@ static struct ctl_table vm_table[] = {
 		.proc_handler	= min_free_kbytes_sysctl_handler,
 		.extra1		= &zero,
 	},
+#if defined(OPLUS_FEATURE_MULTI_KSWAPD) && defined(CONFIG_OPLUS_MULTI_KSWAPD)
+	{
+	.procname	= "kswapd_threads",
+	.data		= &kswapd_threads,
+	.maxlen		= sizeof(kswapd_threads),
+	.mode		= 0644,
+	.proc_handler	= kswapd_threads_sysctl_handler,
+	.extra1		= &one,
+	.extra2		= &max_kswapd_threads,
+},
+#endif /*OPLUS_FEATURE_MULTI_KSWAPD*/
 	{
 		.procname	= "watermark_scale_factor",
 		.data		= &watermark_scale_factor,
@@ -1846,7 +2085,7 @@ static struct ctl_table fs_table[] = {
 		.mode		= 0555,
 		.child		= inotify_table,
 	},
-#endif	
+#endif
 #ifdef CONFIG_EPOLL
 	{
 		.procname	= "epoll",
@@ -2131,41 +2370,6 @@ static void proc_skip_char(char **buf, size_t *size, const char v)
 	}
 }
 
-/**
- * strtoul_lenient - parse an ASCII formatted integer from a buffer and only
- *                   fail on overflow
- *
- * @cp: kernel buffer containing the string to parse
- * @endp: pointer to store the trailing characters
- * @base: the base to use
- * @res: where the parsed integer will be stored
- *
- * In case of success 0 is returned and @res will contain the parsed integer,
- * @endp will hold any trailing characters.
- * This function will fail the parse on overflow. If there wasn't an overflow
- * the function will defer the decision what characters count as invalid to the
- * caller.
- */
-static int strtoul_lenient(const char *cp, char **endp, unsigned int base,
-			   unsigned long *res)
-{
-	unsigned long long result;
-	unsigned int rv;
-
-	cp = _parse_integer_fixup_radix(cp, &base);
-	rv = _parse_integer(cp, base, &result);
-	if ((rv & KSTRTOX_OVERFLOW) || (result != (unsigned long)result))
-		return -ERANGE;
-
-	cp += rv;
-
-	if (endp)
-		*endp = (char *)cp;
-
-	*res = (unsigned long)result;
-	return 0;
-}
-
 #define TMPBUFLEN 22
 /**
  * proc_get_long - reads an ASCII formatted integer from a user buffer
@@ -2209,8 +2413,7 @@ static int proc_get_long(char **buf, size_t *size,
 	if (!isdigit(*p))
 		return -EINVAL;
 
-	if (strtoul_lenient(p, &p, 0, val))
-		return -EINVAL;
+	*val = simple_strtoul(p, &p, 0);
 
 	len = p - tmp;
 
@@ -2327,12 +2530,12 @@ static int __do_proc_dointvec(void *tbl_data, struct ctl_table *table,
 	int *i, vleft, first = 1, err = 0;
 	size_t left;
 	char *kbuf = NULL, *p;
-	
+
 	if (!tbl_data || !table->maxlen || !*lenp || (*ppos && !write)) {
 		*lenp = 0;
 		return 0;
 	}
-	
+
 	i = (int *) tbl_data;
 	vleft = table->maxlen / sizeof(*i);
 	left = *lenp;
@@ -2558,7 +2761,7 @@ static int do_proc_douintvec(struct ctl_table *table, int write,
  * @ppos: file position
  *
  * Reads/writes up to table->maxlen/sizeof(unsigned int) integer
- * values from/to the user buffer, treated as an ASCII string. 
+ * values from/to the user buffer, treated as an ASCII string.
  *
  * Returns 0 on success.
  */
@@ -3060,7 +3263,7 @@ static int do_proc_dointvec_ms_jiffies_conv(bool *negp, unsigned long *lvalp,
  * @ppos: file position
  *
  * Reads/writes up to table->maxlen/sizeof(unsigned int) integer
- * values from/to the user buffer, treated as an ASCII string. 
+ * values from/to the user buffer, treated as an ASCII string.
  * The values read are assumed to be in seconds, and are converted into
  * jiffies.
  *
@@ -3082,8 +3285,8 @@ int proc_dointvec_jiffies(struct ctl_table *table, int write,
  * @ppos: pointer to the file position
  *
  * Reads/writes up to table->maxlen/sizeof(unsigned int) integer
- * values from/to the user buffer, treated as an ASCII string. 
- * The values read are assumed to be in 1/USER_HZ seconds, and 
+ * values from/to the user buffer, treated as an ASCII string.
+ * The values read are assumed to be in 1/USER_HZ seconds, and
  * are converted into jiffies.
  *
  * Returns 0 on success.
@@ -3105,8 +3308,8 @@ int proc_dointvec_userhz_jiffies(struct ctl_table *table, int write,
  * @ppos: the current position in the file
  *
  * Reads/writes up to table->maxlen/sizeof(unsigned int) integer
- * values from/to the user buffer, treated as an ASCII string. 
- * The values read are assumed to be in 1/1000 seconds, and 
+ * values from/to the user buffer, treated as an ASCII string.
+ * The values read are assumed to be in 1/1000 seconds, and
  * are converted into jiffies.
  *
  * Returns 0 on success.

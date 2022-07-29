@@ -6,9 +6,6 @@
 #include <linux/kernel.h>
 #include <linux/rtc.h>
 #include <linux/timer.h>
-#ifdef CCCI_PLATFORM_MT6781
-#include "modem_reg_base.h"
-#endif
 #if defined(CONFIG_MTK_AEE_FEATURE)
 #include <mt-plat/aee.h>
 #endif
@@ -18,8 +15,10 @@
 #include "ccci_fsm_sys.h"
 #include "ccci_platform.h"
 #include "md_sys1_platform.h"
-#include "modem_sys.h"
-
+#ifdef VENDOR_EDIT
+//Add for monitor modem crash
+#include <soc/oppo/mmkey_log.h>
+#endif /*VENDOR_EDIT*/
 
 
 #ifndef DB_OPT_DEFAULT
@@ -53,6 +52,15 @@ static void ccci_aed_v3(struct ccci_fsm_ee *mdee, unsigned int dump_flag,
 	struct ccci_per_md *per_md_data = ccci_get_per_md_data(mdee->md_id);
 	int md_dbg_dump_flag = per_md_data->md_dbg_dump_flag;
 #endif
+
+#ifdef VENDOR_EDIT
+//Add for monitor modem crash
+    int temp_i;
+	unsigned int hashId = 0;
+	char *logBuf;
+	char *aed_str_for_hash = NULL;
+#endif /*VENDOR_EDIT*/
+
 	int ret = 0;
 
 	if (!mem_layout) {
@@ -80,6 +88,37 @@ static void ccci_aed_v3(struct ccci_fsm_ee *mdee, unsigned int dump_flag,
 		CCCI_ERROR_LOG(md_id, FSM, "%s-%d:snprintf fail,ret = %d\n",
 			__func__, __LINE__, ret);
 	memset(mdee->ex_start_time, 0x0, sizeof(mdee->ex_start_time));
+	#ifdef VENDOR_EDIT
+	//Add for monitor modem crash
+		#define MCU_CORE_MSG "(MCU_core"
+		aed_str_for_hash = aed_str;
+        if( aed_str_for_hash != NULL ) {
+            if( (strncmp(aed_str_for_hash, MCU_CORE_MSG, strlen(MCU_CORE_MSG)) == 0) ) {
+                while(aed_str_for_hash[0] != '\n') {
+                    ++aed_str_for_hash;
+                }
+                ++aed_str_for_hash; //skip '\n'
+            }
+            hashId = BKDRHash(aed_str_for_hash, strlen(aed_str_for_hash));
+        }
+		else {
+			CCCI_ERROR_LOG(md_id, FSM, "aed_str_for_hash is null!!");
+		}
+		logBuf = vmalloc(BUF_LOG_LENGTH);
+		if (logBuf != NULL) {
+			for (temp_i = 0 ; (temp_i < BUF_LOG_LENGTH) && (temp_i < strlen(aed_str_for_hash)) ; temp_i++) {
+				if(aed_str_for_hash[temp_i] == '\n') {
+					logBuf[temp_i] = '\0';
+					break;
+				}
+				logBuf[temp_i] = aed_str_for_hash[temp_i];
+			}
+			logBuf[BUF_LOG_LENGTH - 1] = '\0';
+			CCCI_NORMAL_LOG(md_id, FSM, "modem crash wirte to critical log. hashid = %u, cause = %s.", hashId, logBuf);
+			mm_keylog_write_modemdump(hashId, logBuf, MODEM_MONITOR_ID);
+			vfree(logBuf);
+		}
+	#endif /*VENDOR_EDIT*/
 	/* MD ID must sync with aee_dump_ccci_debug_info() */
  err_exit1:
 	if (dump_flag & CCCI_AED_DUMP_CCIF_REG) {
@@ -270,32 +309,6 @@ static void mdee_info_dump_v3(struct ccci_fsm_ee *mdee)
 		ccci_get_per_md_data(mdee->md_id);
 	int md_dbg_dump_flag = per_md_data->md_dbg_dump_flag;
 	int ret = 0;
-#ifdef CCCI_PLATFORM_MT6781
-	struct ccci_modem *md = NULL;
-	struct md_sys1_info *md_info = NULL;
-	struct md_pll_reg *md_reg = NULL;
-
-	md = ccci_md_get_modem_by_id(md_id);
-	if (md)
-		md_info = (struct md_sys1_info *)md->private_data;
-	else {
-		CCCI_ERROR_LOG(md_id, FSM,
-			"%s: get md fail\n", __func__);
-		return;
-	}
-	if (md_info)
-		md_reg = md_info->md_pll_base;
-	else {
-		CCCI_ERROR_LOG(md_id, FSM,
-			"%s: get md private_data fail\n", __func__);
-		return;
-	}
-	if (!md_reg) {
-		CCCI_ERROR_LOG(md_id, FSM,
-			"%s: get md_reg fail\n", __func__);
-		return;
-	}
-#endif
 
 	ex_info = kmalloc(AED_STR_LEN, GFP_ATOMIC);
 	if (ex_info == NULL) {
@@ -366,16 +379,6 @@ static void mdee_info_dump_v3(struct ccci_fsm_ee *mdee)
 			mdccci_dbg->base_ap_view_vir, mdccci_dbg->size);
 		ccci_util_mem_dump(md_id, CCCI_DUMP_MEM_DUMP,
 			mdss_dbg->base_ap_view_vir, mdss_dbg->size);
-#ifdef CCCI_PLATFORM_MT6781
-		if (md_reg->md_l2sram_base) {
-			md_cd_lock_modem_clock_src(1);
-
-			ccci_util_mem_dump(md_id, CCCI_DUMP_MEM_DUMP,
-				md_reg->md_l2sram_base, MD_L2SRAM_SIZE);
-
-			md_cd_lock_modem_clock_src(0);
-		}
-#endif
 	}
 
 err_exit:
@@ -852,36 +855,6 @@ static void mdee_dumper_v3_dump_ee_info(struct ccci_fsm_ee *mdee,
 		ccci_get_per_md_data(mdee->md_id);
 	int md_dbg_dump_flag = per_md_data->md_dbg_dump_flag;
 	int ret = 0;
-#ifdef CCCI_PLATFORM_MT6781
-	struct ccci_modem *md = NULL;
-	struct md_sys1_info *md_info = NULL;
-	struct md_pll_reg *md_reg = NULL;
-
-	md = ccci_md_get_modem_by_id(md_id);
-	if (md)
-		md_info = (struct md_sys1_info *)md->private_data;
-	else {
-		CCCI_ERROR_LOG(md_id, FSM,
-			"%s: get md fail\n", __func__);
-		return;
-	}
-	if (md_info)
-		md_reg = md_info->md_pll_base;
-	else {
-		CCCI_ERROR_LOG(md_id, FSM,
-			"%s: get md private_data fail\n", __func__);
-		return;
-	}
-	if (!md_reg) {
-		CCCI_ERROR_LOG(md_id, FSM,
-			"%s: get md_reg fail\n", __func__);
-		return;
-	}
-	if (!md_reg->md_l2sram_base) {
-		CCCI_ERROR_LOG(md_id, FSM,
-			"%s: get md_l2sram_base fail\n", __func__);
-	}
-#endif
 
 	dumper->more_info = more_info;
 	if (level == MDEE_DUMP_LEVEL_BOOT_FAIL) {
@@ -908,13 +881,6 @@ static void mdee_dumper_v3_dump_ee_info(struct ccci_fsm_ee *mdee,
 				ccci_util_mem_dump(md_id, CCCI_DUMP_MEM_DUMP,
 					mdss_dbg->base_ap_view_vir,
 						mdss_dbg->size);
-#ifdef CCCI_PLATFORM_MT6781
-				md_cd_lock_modem_clock_src(1);
-				ccci_util_mem_dump(md_id, CCCI_DUMP_MEM_DUMP,
-					md_reg->md_l2sram_base, MD_L2SRAM_SIZE);
-				md_cd_lock_modem_clock_src(0);
-
-#endif
 			}
 
 			ccci_aed_v3(mdee,
@@ -928,12 +894,6 @@ static void mdee_dumper_v3_dump_ee_info(struct ccci_fsm_ee *mdee,
 				mdccci_dbg->base_ap_view_vir, mdccci_dbg->size);
 			ccci_util_mem_dump(md_id, CCCI_DUMP_MEM_DUMP,
 				mdss_dbg->base_ap_view_vir, mdss_dbg->size);
-#ifdef CCCI_PLATFORM_MT6781
-			md_cd_lock_modem_clock_src(1);
-			ccci_util_mem_dump(md_id, CCCI_DUMP_MEM_DUMP,
-				md_reg->md_l2sram_base, MD_L2SRAM_SIZE);
-			md_cd_lock_modem_clock_src(0);
-#endif
 		}
 		/*dump md register on no response EE*/
 		if (more_info == MD_EE_CASE_NO_RESPONSE)
@@ -964,4 +924,22 @@ int mdee_dumper_v3_alloc(struct ccci_fsm_ee *mdee)
 	mdee->ops = &mdee_ops_v3;
 	return 0;
 }
+#ifdef VENDOR_EDIT
+//Add for monitor modem crash
+unsigned int BKDRHash(const char* str, unsigned int len)
+{
+     unsigned int seed = 131; /* 31 131 1313 13131 131313 etc.. */
+     unsigned int hash = 0;
+     int i    = 0;
 
+    if (str == NULL) {
+        return 0;
+    }
+
+    for(i = 0; i < len; str++, i++) {
+        hash = (hash * seed) + (*str);
+    }
+
+    return hash;
+}
+#endif /*VENDOR_EDIT*/

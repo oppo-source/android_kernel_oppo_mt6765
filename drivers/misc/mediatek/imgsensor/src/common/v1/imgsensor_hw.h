@@ -35,5 +35,10 @@ enum IMGSENSOR_RETURN imgsensor_hw_power(
 	char *curr_sensor_name,
 	enum IMGSENSOR_HW_POWER_STATUS pwr_status);
 
+extern struct IMGSENSOR_HW_CFG imgsensor_custom_config_20701_D[];
+extern struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence_20701_D[];
+
+extern struct IMGSENSOR_HW_CFG imgsensor_custom_config_yogurta[];
+extern struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence_yogurta[];
 #endif
 

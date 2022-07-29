@@ -19,8 +19,6 @@ endif
 
 ifeq ($(CONFIG_MACH_MT6761),y)
 obj-y += mt6765/
-else ifeq ($(CONFIG_MACH_MT6833),y)
-obj-y += mt6833/
 else
 obj-y += $(subst ",,$(CONFIG_MTK_PLATFORM))/
 endif
