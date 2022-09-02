@@ -19,6 +19,8 @@
 #define LB_WAKE_AFFINE   (0x2  << LB_POLICY_SHIFT)
 #define LB_IDLEST        (0x4  << LB_POLICY_SHIFT)
 #define LB_IDLE_SIBLING  (0x8  << LB_POLICY_SHIFT)
+#define LB_UX_BOOST      (0x88  << LB_POLICY_SHIFT)
+#define LB_SCHED_SPREAD  (0x11  << LB_POLICY_SHIFT)
 #ifdef CONFIG_MTK_SCHED_CPU_PREFER
 #define LB_CPU_PREFER   (0x10  << LB_POLICY_SHIFT)
 #endif

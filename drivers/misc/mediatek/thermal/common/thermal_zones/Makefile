@@ -68,6 +68,8 @@ ifeq ($(CONFIG_MACH_MT6877),y)
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/mcupm/mt6853/
 endif
 
+obj-$(CONFIG_THERMAL) += oplus_ts_tempntc.o
+
 ifneq (,$(filter $(CONFIG_MTK_LEGACY_THERMAL_PLATFORM), "mt6779"))
 obj-$(CONFIG_THERMAL) += mtk_ts_battery.o
 obj-$(CONFIG_THERMAL) += mtk_ts_bts.o

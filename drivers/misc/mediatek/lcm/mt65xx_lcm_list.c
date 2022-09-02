@@ -45,6 +45,27 @@ struct LCM_DRIVER *lcm_driver_list[] = {
 	&nt35523_wxga_dsi_vdo_8163_lcm_drv,
 #endif
 
+#if defined(OPLUS21251_BOE_ILI9882N_HDP_DSI_VDO_LCM)
+	&oplus21251_boe_ili9882n_hdp_dsi_vdo_lcm_drv,
+#endif
+
+#if defined(OPLUS21251_CSOT_ILI7807S_HDP_DSI_VDO_LCM)
+	&oplus21251_csot_ili7807s_hdp_dsi_vdo_lcm_drv,
+#endif
+
+/*add for jelly lcm*/
+#if defined(ILT7807S_HLT_JELLY_HDP_DSI_VDO_LCM)
+	&ilt7807s_hlt_jelly_hdp_dsi_vdo_lcm_drv,
+#endif
+
+#if defined(HX83102D_TXD_JELLY_HDP_DSI_VDO_LCM)
+	&hx83102d_txd_jelly_hdp_dsi_vdo_lcm_drv,
+#endif
+
+#if defined(ILT9882Q_INNOLUX_JELLY_HDP_DSI_VDO_LCM)
+	&ilt9882q_innolux_jelly_hdp_dsi_vdo_lcm_drv,
+#endif
+
 #if defined(EK79007_WSVGALNL_DSI_VDO)
 	&ek79007_wsvgalnl_dsi_vdo_lcm_drv,
 #endif
@@ -1222,6 +1243,55 @@ struct LCM_DRIVER *lcm_driver_list[] = {
 	&oppo_tianma_td4310_fhdp_dsi_vdo_rt5081_lcm_drv,
 #endif
 
+/* #ifdef OPLUS_BUG_STABILITY */
+#if defined(OPPO20291_SAMSUNG_AMS643XY01_1080P_DSI_VDO)
+	&oppo20291_samsung_ams643xy01_1080p_dsi_vdo_lcm_drv,
+#endif
+
+#if defined(OPPO19537_SAMSUNG_AMS643XF01_1080P_DSI_CMD)
+	&oppo19537_samsung_ams643xf01_1080p_dsi_cmd_lcm_drv,
+#endif
+
+#if defined(OPPO19357_SAMSUNG_AMS644VA04_1080P_DSI_CMD)
+	&oppo19357_samsung_ams644va04_1080p_dsi_cmd_lcm_drv,
+#endif
+
+#if defined(OPPO19551_SAMSUNG_AMS644VK01_1080P_DSI_CMD)
+	&oppo19551_samsung_ams644vk01_1080p_dsi_cmd_lcm_drv,
+#endif
+
+#if defined(OPLUS21331_TD4160_INX_HDP_DSI_VDO_LCM)
+	&oplus21331_td4160_inx_hdp_dsi_vdo_lcm_drv,
+#endif
+
+#if defined(OPLUS21331_ILI9883C_HLT_HDP_DSI_VDO_LCM)
+	&oplus21331_ili9883c_hlt_hdp_dsi_vdo_lcm_drv,
+#endif
+
+#if defined(OPLUS21331_ILI9883C_BOE_HDP_DSI_VDO_LCM)
+	&oplus21331_ili9883c_boe_hdp_dsi_vdo_lcm_drv,
+#endif
+
+#if defined(OPLUS21361_TD4160_INX_HDP_DSI_VDO_LCM)
+	&oplus21361_td4160_inx_hdp_dsi_vdo_lcm_drv,
+#endif
+
+#if defined(OPLUS21361_TD4160_TRULY_HDP_DSI_VDO_LCM)
+	&oplus21361_td4160_truly_hdp_dsi_vdo_lcm_drv,
+#endif
+
+#if defined(OPLUS21361_ILI9883C_HLT_HDP_DSI_VDO_LCM)
+	&oplus21361_ili9883c_hlt_hdp_dsi_vdo_lcm_drv,
+#endif
+
+#if defined(OPLUS21361_ILI9883C_BOE_HDP_DSI_VDO_LCM)
+	&oplus21361_ili9883c_boe_hdp_dsi_vdo_lcm_drv,
+#endif
+
+#if defined(VIRTUAL_DSI_JELLY_VDO_DEFAULT)
+	&virtual_dsi_jelly_vdo_default,
+#endif
+/* #endif */ /* OPLUS_BUG_STABILITY */
 #if defined(NT36672C_FHDP_DSI_VDO_60HZ_SHENCHAO)
 	&nt36672c_fhdp_dsi_vdo_60hz_shenchao_lcm_drv,
 #endif

@@ -1451,6 +1451,7 @@ static unsigned int msdc_command_start(struct msdc_host   *host,
 	case MMC_SEND_TUNING_BLOCK_HS200:
 		rawcmd |= (1 << 11);
 		break;
+	case MMC_LOCK_UNLOCK:
 	case MMC_WRITE_BLOCK:
 		rawcmd |= ((1 << 11) | (1 << 13));
 		break;
@@ -3558,12 +3559,9 @@ int msdc_error_tuning(struct mmc_host *mmc,  struct mmc_request *mrq)
 	}
 
 	/* send stop command if device not in transfer state */
-	if (R1_CURRENT_STATE(status) == R1_STATE_DATA ||
-		R1_CURRENT_STATE(status) == R1_STATE_RCV) {
-		ret = msdc_stop_and_wait_busy(host);
-		if (ret)
-			goto recovery;
-	}
+	if (R1_CURRENT_STATE(status) != R1_STATE_TRAN &&
+		msdc_stop_and_wait_busy(host))
+		goto recovery;
 
 start_tune:
 	msdc_pmic_force_vcore_pwm(true);
@@ -4328,6 +4326,7 @@ static int msdc_ops_get_cd(struct mmc_host *mmc)
 #endif
 		host->card_inserted = (host->hw->cd_level == level) ? 1 : 0;
 	}
+	pr_debug("gpio_get_value==%d, card_inserted==%d, cd_level==%d\n", level, host->card_inserted, host->hw->cd_level);
 
 	if (host->block_bad_card)
 		host->card_inserted = 0;
@@ -5293,7 +5292,7 @@ static int msdc_suspend(struct device *dev)
 	int ret = 0;
 
 	if (pm_runtime_suspended(dev)) {
-		pr_debug("%s: %s: already runtime suspended\n",
+		pr_err("%s: %s: already runtime suspended\n",
 				mmc_hostname(host->mmc), __func__);
 		goto out;
 	}

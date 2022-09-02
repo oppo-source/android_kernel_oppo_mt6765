@@ -72,4 +72,10 @@ mainaf-y  += common/bu63169af/OIS_func.o
 mainaf-y  += common/bu63169af/OIS_main.o
 mainaf-y  += common/bu63169af/OIS_user.o
 mainaf-y  += common/bu64253gwzaf/BU64253GWZAF.o
-
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+mainaf-y  += common/fp5516af/FP5516AF.o
+mainaf-y  += common/bu64253af/BU64253AF.o
+#endif
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+mainaf-y  += common/dw9718taf_zhaoyun/DW9718TAF_ZHAOYUN.o
+#endif

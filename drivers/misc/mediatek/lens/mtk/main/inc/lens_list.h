@@ -8,7 +8,9 @@
 #ifndef _LENS_LIST_H
 
 #define _LENS_LIST_H
-
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+#define OPLUS_FEATURE_CAMERA_COMMON
+#endif
 extern void MAIN2AF_PowerDown(void);
 
 #define AK7371AF_SetI2Cclient AK7371AF_SetI2Cclient_Main
@@ -36,6 +38,44 @@ extern long BU6424AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
 extern int BU6424AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
 extern int BU6424AF_GetFileName(unsigned char *pFileName);
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#define BU64253AF_SetI2Cclient BU64253AF_SetI2Cclient_Main
+#define BBU64253AF_Ioctl BU64253AF_Ioctl_Main
+#define BBU64253AF_Release BU64253AF_Release_Main
+#define BU64253AF_GetFileName BU64253AF_GetFileName_Main
+extern int BU64253AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+				 spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long BU64253AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+			   unsigned long a_u4Param);
+extern int BU64253AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int BU64253AF_GetFileName(unsigned char *pFileName);
+
+#define DW9718TAF_ZHAOYUN_SetI2Cclient DW9718TAF_ZHAOYUN_SetI2Cclient_Main
+#define DW9718TAF_ZHAOYUN_Ioctl DW9718TAF_ZHAOYUN_Ioctl_Main
+#define DW9718TAF_ZHAOYUN_Release DW9718TAF_ZHAOYUN_Release_Main
+#define DW9718TAF_ZHAOYUN_GetFileName DW9718TAF_ZHAOYUN_GetFileName_Main
+extern int DW9718TAF_ZHAOYUN_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+				 spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long DW9718TAF_ZHAOYUN_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+			   unsigned long a_u4Param);
+extern int DW9718TAF_ZHAOYUN_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int DW9718TAF_ZHAOYUN_GetFileName(unsigned char *pFileName);
+
+#endif
+
+#define FP5516AF_SetI2Cclient FP5516AF_SetI2Cclient_Main
+#define FP5516AF_Ioctl FP5516AF_Ioctl_Main
+#define FP5516AF_Release FP5516AF_Release_Main
+#define FP5516AF_PowerDown FP5516AF_PowerDown_Main
+#define FP5516AF_GetFileName FP5516AF_GetFileName_Main
+extern int FP5516AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+				 spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long FP5516AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+			   unsigned long a_u4Param);
+extern int FP5516AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int FP5516AF_PowerDown(struct i2c_client *pstAF_I2Cclient,
+				int *pAF_Opened);
+extern int FP5516AF_GetFileName(unsigned char *pFileName);
 extern int bu64748af_SetI2Cclient_Main(struct i2c_client *pstAF_I2Cclient,
 				       spinlock_t *pAF_SpinLock,
 				       int *pAF_Opened);

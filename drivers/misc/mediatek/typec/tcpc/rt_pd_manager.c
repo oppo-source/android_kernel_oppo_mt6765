@@ -667,14 +667,19 @@ err_get_tcpc_dev:
 #ifdef ADAPT_CHARGER_V1
 err_get_chg_consumer:
 #else
-#ifdef CONFIG_WATER_DETECTIO
+#ifdef CONFIG_WATER_DETECTION
 	power_supply_put(rpmd->chg_psy);
 err_get_chg_psy:
 #endif /* CONFIG_WATER_DETECTION */
 #endif /* ADAPT_CHARGER_V1 */
 err_get_chg_dev:
 #endif /* CONFIG_MTK_CHARGER */
+#ifdef OPLUS_FEATURE_CHG_BASIC
+/* add for typec init fail && vts test fail */
+	return -EPROBE_DEFER;
+#else
 	return ret;
+#endif
 }
 
 static int rt_pd_manager_remove(struct platform_device *pdev)

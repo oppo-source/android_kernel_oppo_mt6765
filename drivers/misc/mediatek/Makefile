@@ -180,6 +180,10 @@ ifeq ($(CONFIG_MACH_MT6833),y)
 obj-$(CONFIG_THERMAL)   += thermal/
 endif
 obj-y += timer/
+
+#ifdef OPLUS_BUG_STABILITY
+obj-$(CONFIG_MTK_BOOT) += boot/
+#endif
 obj-$(CONFIG_MTK_DBGTOP) += dbgtop/
 obj-$(CONFIG_MTK_DFD_INTERNAL_DUMP) += dfd/
 obj-$(CONFIG_MTK_GIC_EXT) += ext_gic/

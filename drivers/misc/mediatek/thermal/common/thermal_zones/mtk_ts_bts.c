@@ -478,6 +478,7 @@ static __s32 mtkts_bts_thermistor_conver_temp(__s32 Res)
 	int asize = 0;
 	__s32 RES1 = 0, RES2 = 0;
 	__s32 TAP_Value = -200, TMP1 = 0, TMP2 = 0;
+
 #ifdef APPLY_PRECISE_BTS_TEMP
 	TAP_Value = TAP_Value * 1000;
 #endif
@@ -579,6 +580,8 @@ static __s32 mtk_ts_bts_volt_to_temp(__u32 dwVolt)
 	return BTS_TMP;
 }
 
+extern bool is_kthread_get_adc(void);
+extern int get_bb_ntc_volt(void);
 static int get_hw_bts_temp(void)
 {
 
@@ -593,10 +596,14 @@ static int get_hw_bts_temp(void)
 #endif
 
 #if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
-	ret = iio_read_channel_processed(thermistor_ch0, &val);
-	if (ret < 0) {
-		mtkts_bts_printk("Busy/Timeout, IIO ch read failed %d\n", ret);
-		return ret;
+	if (!is_kthread_get_adc()) {
+		ret = iio_read_channel_processed(thermistor_ch0, &val);
+		if (ret < 0) {
+			mtkts_bts_printk("Busy/Timeout, IIO ch read failed %d\n", ret);
+			return ret;
+		}
+	} else {
+		val = get_bb_ntc_volt();
 	}
 
 #ifdef APPLY_PRECISE_BTS_TEMP

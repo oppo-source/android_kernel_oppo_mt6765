@@ -12,7 +12,7 @@
 #include "lens_list.h"
 #include <linux/ioctl.h>
 
-#define MAX_NUM_OF_LENS 32
+#define MAX_NUM_OF_LENS 34
 
 #define AF_MAGIC 'A'
 
@@ -65,6 +65,11 @@
 #define AFDRV_OV8825AF "OV8825AF"
 #define AFDRV_WV511AAF "WV511AAF"
 #define AFDRV_DW9718TAF "DW9718TAF"
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#define AFDRV_BU64253AF "BU64253AF"
+#define AFDRV_FP5516AF "FP5516AF"
+#define AFDRV_DW9718TAF_ZHAOYUN "DW9718TAF_ZHAOYUN"
+#endif
 
 #define CONVERT_CCU_TIMESTAMP 0x1000
 

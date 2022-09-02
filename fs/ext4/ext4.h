@@ -42,7 +42,9 @@
 
 #include <linux/fscrypt.h>
 #include <linux/fsverity.h>
-
+#if defined(CONFIG_EXT4_ASYNC_DISCARD_SUPPORT)
+#include "discard.h"
+#endif
 #include <linux/compiler.h>
 
 /* Until this gets included into linux/compiler-gcc.h */
@@ -1141,6 +1143,10 @@ struct ext4_inode_info {
 #define EXT4_MOUNT_JOURNAL_ASYNC_COMMIT	0x1000000 /* Journal Async Commit */
 #define EXT4_MOUNT_WARN_ON_ERROR	0x2000000 /* Trigger WARN_ON on error */
 #define EXT4_MOUNT_INLINECRYPT		0x4000000 /* Inline encryption support */
+#if defined(CONFIG_EXT4_ASYNC_DISCARD_SUPPORT)
+
+#define EXT4_MOUNT_ASYNC_DISCARD	0x4000000 /* Async issue discard request */
+#endif
 #define EXT4_MOUNT_DELALLOC		0x8000000 /* Delalloc support */
 #define EXT4_MOUNT_DATA_ERR_ABORT	0x10000000 /* Abort on file data write */
 #define EXT4_MOUNT_BLOCK_VALIDITY	0x20000000 /* Block validity checking */
@@ -1356,8 +1362,39 @@ struct ext4_super_block {
 
 /* Number of quota types we support */
 #define EXT4_MAXQUOTAS 3
-
 #define EXT4_ENC_UTF8_12_1	1
+
+#if defined(CONFIG_EXT4_ASYNC_DISCARD_SUPPORT)
+struct discard_policy {
+	int type;			/* type of discard */
+	unsigned int min_interval;	/* used for candidates exist */
+	unsigned int mid_interval;	/* used for device busy */
+	unsigned int max_interval;	/* used for candidates not exist */
+	unsigned int max_requests;	/* # of discards issued per round */
+	unsigned int io_aware_gran;	/* minimum granularity discard not be aware of I/O */
+	unsigned int granularity;	/* discard granularity */
+	bool io_aware;				/* issue discard in idle time */
+	bool sync;					/* submit discard with REQ_SYNC flag */
+};
+
+struct discard_cmd_control {
+	struct task_struct *ext4_issue_discard_thread;	/* discard thread */
+	wait_queue_head_t discard_wait_queue;	/* waiting queue for wake-up */
+	unsigned int discard_wake;				/* to wake up discard thread */
+	struct mutex cmd_lock;
+	unsigned long long max_discards;		/* max. discards to be issued */
+	unsigned int discard_granularity;		/* discard granularity */
+	unsigned int dpolicy_param_tune;		/* tune dpolicy param*/
+	unsigned long long issued_discard;		/* # of issued discard */
+	ext4_group_t group_start;				/*current trim point, start group num*/
+	ext4_grpblk_t blk_offset;				/*current trim point, group internal block offset*/
+	unsigned long long cnt_io_interrupted;	/* # of interrupted by IO */
+	unsigned int total_trimed_groups;		/* # of total trimed groups */
+	void * groups_block_bitmap;				/* backup trimmed groups block bitmap */
+	struct discard_policy dpolicy;			/* discard policy */
+	bool io_interrupted;					/*if the discard thread interrupted by IO*/
+};
+#endif
 
 /*
  * fourth extended-fs super-block data in memory
@@ -1536,6 +1573,11 @@ struct ext4_sb_info {
 	 */
 	struct percpu_rw_semaphore s_writepages_rwsem;
 	struct dax_device *s_daxdev;
+#if defined(CONFIG_EXT4_ASYNC_DISCARD_SUPPORT)
+	struct discard_cmd_control *dcc_info;
+	unsigned long last_time;	/* to store time in jiffies */
+	long interval_time;		/* to store thresholds */
+#endif
 };
 
 static inline struct ext4_sb_info *EXT4_SB(struct super_block *sb)
@@ -3125,6 +3167,47 @@ static inline void ext4_unlock_group(struct super_block *sb,
 	spin_unlock(ext4_group_lock_ptr(sb, group));
 }
 
+#if defined(CONFIG_EXT4_ASYNC_DISCARD_SUPPORT)
+static inline int ext4_utilization(struct ext4_sb_info *sbi)
+{
+	return div_u64((u64)ext4_free_blocks_count(sbi->s_es) * 100,
+					ext4_blocks_count(sbi->s_es));
+}
+
+static inline bool ext4_readonly(struct super_block *sb)
+{
+	return sb->s_flags & MS_RDONLY;
+}
+
+static inline void ext4_update_time(struct ext4_sb_info *sbi)
+{
+	sbi->last_time = jiffies;
+}
+
+static inline bool ext4_time_over(struct ext4_sb_info *sbi)
+{
+	struct timespec ts = {sbi->interval_time, 0};
+	unsigned long interval = timespec_to_jiffies(&ts);
+
+	return time_after(jiffies, sbi->last_time + interval);
+}
+
+static inline bool is_ext4_idle(struct ext4_sb_info *sbi)
+{
+	struct block_device *bdev = sbi->s_sb->s_bdev;
+	struct request_queue *q = bdev_get_queue(bdev);
+	struct request_list *rl = &q->root_rl;
+
+	if (rl->count[BLK_RW_SYNC] || rl->count[BLK_RW_ASYNC])
+		return 0;
+
+	return ext4_time_over(sbi);
+}
+
+extern int ext4_trim_groups(struct super_block *sb,  struct discard_cmd_control *dcc);
+extern int create_discard_cmd_control(struct ext4_sb_info *sbi);
+extern void destroy_discard_cmd_control(struct ext4_sb_info *sbi);
+#endif
 /*
  * Block validity checking
  */

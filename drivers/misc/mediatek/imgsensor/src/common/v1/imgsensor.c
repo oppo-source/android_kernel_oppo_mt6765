@@ -30,6 +30,12 @@
 #include <linux/compat.h>
 #endif
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#include <soc/oplus/system/oplus_project.h>
+#include "imgsensor_hwcfg_custom.h"
+#include "imgsensor_eeprom.h"
+#endif //OPLUS_FEATURE_CAMERA_COMMON
+
 #ifdef CONFIG_MTK_CCU
 #include "ccu_inc.h"
 #endif
@@ -503,9 +509,14 @@ int imgsensor_set_driver(struct IMGSENSOR_SENSOR *psensor)
 	char *driver_name = NULL;
 
 	imgsensor_mutex_init(psensor_inst);
+
+	#ifndef OPLUS_FEATURE_CAMERA_COMMON
 	imgsensor_i2c_init(&psensor_inst->i2c_cfg,
 	imgsensor_custom_config[
 	(unsigned int)psensor_inst->sensor_idx].i2c_dev);
+	#else //OPLUS_FEATURE_CAMERA_COMMON
+	Oplusimgsensor_i2c_init(psensor_inst);
+	#endif //OPLUS_FEATURE_CAMERA_COMMON
 	imgsensor_i2c_filter_msg(&psensor_inst->i2c_cfg, true);
 
 	if (get_search_list) {
@@ -2297,6 +2308,13 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 	case SENSOR_FEATURE_SET_SENSOR_SYNC_MODE:
 		break;
 	/* copy to user */
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	case SENSOR_FEATURE_GET_EEPROM_COMDATA:
+	{
+		enum IMGSENSOR_SENSOR_IDX sensor_idx = psensor->inst.sensor_idx;
+		ret = Eeprom_Control(sensor_idx, pFeatureCtrl->FeatureId,(unsigned char *)pFeaturePara, 0);
+	}
+#endif/* OPLUS_FEATURE_CAMERA_COMMON */
 	case SENSOR_FEATURE_SET_DRIVER:
 	case SENSOR_FEATURE_GET_EV_AWB_REF:
 	case SENSOR_FEATURE_GET_SHUTTER_GAIN_AWB_GAIN:
@@ -2945,6 +2963,9 @@ static int imgsensor_probe(struct platform_device *pdev)
 
 	gpimgsensor_hw_platform_device = pdev;
 
+	#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	oplus_imgsensor_hwcfg();
+	#endif //OPLUS_FEATURE_CAMERA_COMMON
 #ifndef CONFIG_FPGA_EARLY_PORTING
 	imgsensor_clk_init(&pgimgsensor->clk);
 #endif

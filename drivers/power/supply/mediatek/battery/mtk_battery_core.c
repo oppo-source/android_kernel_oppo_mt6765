@@ -1254,6 +1254,9 @@ void fg_custom_init_from_dts(struct platform_device *dev)
 	unsigned int val;
 	int bat_id, multi_battery, active_table, i, j, ret, column;
 	int r_pseudo100_raw = 0, r_pseudo100_col = 0;
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	int dim2_table_distinguish = 0;
+#endif
 	char node_name[128];
 
 	fgauge_get_profile_id();
@@ -1802,6 +1805,35 @@ void fg_custom_init_from_dts(struct platform_device *dev)
 			);
 	}
 	/* read dtsi from pseudo100 */
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	fg_read_dts_val(np, "DIM2_TABLE_DISTINGUISH",
+		&(dim2_table_distinguish), 1);
+	if (dim2_table_distinguish) {
+		sprintf(node_name, "battery%d_g_FG_charge_PSEUDO100", bat_id);
+		for (i = 0; i < MAX_TABLE; i++) {
+			for (j = 0; j < r_pseudo100_raw; j++) {
+				fg_read_dts_val_by_idx(np, node_name,
+					i*r_pseudo100_raw+j,
+					&(fg_table_cust_data.fg_profile[i].r_pseudo100.pseudo[j+1]),
+						UNIT_TRANS_100);
+			}
+		}
+
+		bm_err("battery%d_g_FG_charge_PSEUDO100 g_FG_charge_PSEUDO100_row:%d g_FG_charge_PSEUDO100_col:%d\n", bat_id, r_pseudo100_raw, r_pseudo100_col);
+	} else {
+		for (i = 0; i < MAX_TABLE; i++) {
+			for (j = 0; j < r_pseudo100_raw; j++) {
+				fg_read_dts_val_by_idx(np, "g_FG_charge_PSEUDO100",
+					i*r_pseudo100_raw+j,
+					&(fg_table_cust_data.fg_profile[i].r_pseudo100.pseudo[j+1]),
+						UNIT_TRANS_100);
+			}
+		}
+
+		bm_err("g_FG_charge_PSEUDO100_row:%d g_FG_charge_PSEUDO100_col:%d\n",
+			r_pseudo100_raw, r_pseudo100_col);
+	}
+#else
 	for (i = 0; i < MAX_TABLE; i++) {
 		for (j = 0; j < r_pseudo100_raw; j++) {
 			fg_read_dts_val_by_idx(np, "g_FG_charge_PSEUDO100",
@@ -1814,6 +1846,7 @@ void fg_custom_init_from_dts(struct platform_device *dev)
 
 	bm_err("g_FG_charge_PSEUDO100_row:%d g_FG_charge_PSEUDO100_col:%d\n",
 		r_pseudo100_raw, r_pseudo100_col);
+#endif
 
 	for (i = 0; i < MAX_TABLE; i++) {
 		bm_err("%6d %6d %6d %6d %6d\n",

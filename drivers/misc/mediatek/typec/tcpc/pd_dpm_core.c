@@ -83,6 +83,12 @@ static const struct svdm_svid_ops svdm_svid_ops[] = {
 		.reset_state = dc_reset_state,
 	},
 #endif	/* CONFIG_USB_PD_ALT_MODE_RTDC */
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	{
+		.name = "Oplus",
+		.svid = USB_VID_OPLUS,
+	},
+#endif
 };
 
 int dpm_check_supported_modes(void)
@@ -1038,9 +1044,10 @@ void pd_dpm_ufp_request_id_info(struct pd_port *pd_port)
 void pd_dpm_ufp_request_svid_info(struct pd_port *pd_port)
 {
 	bool ack = false;
-
-	if (pd_is_support_modal_operation(pd_port))
-		ack = (dpm_vdm_get_svid(pd_port) == USB_SID_PD);
+#ifdef OPLUS_FEATURE_CHG_BASIC
+		if (pd_port->svid_data_cnt > 0)
+#endif
+			ack = (dpm_vdm_get_svid(pd_port) == USB_SID_PD);
 
 	if (!ack) {
 		dpm_vdm_reply_svdm_nak(pd_port);
@@ -2183,8 +2190,10 @@ int pd_dpm_notify_pe_startup(struct pd_port *pd_port)
 #else
 	if (pd_port->dpm_caps & DPM_CAP_ATTEMP_DISCOVER_ID)
 		reactions |= DPM_REACTION_DISCOVER_ID;
+#ifdef OPLUS_FEATURE_CHG_BASIC
 	if (pd_port->dpm_caps & DPM_CAP_ATTEMP_DISCOVER_SVID)
 		reactions |= DPM_REACTION_DISCOVER_SVID;
+#endif
 #endif	/* CONFIG_USB_PD_ATTEMP_ENTER_MODE */
 
 #ifdef CONFIG_USB_PD_REV30

@@ -229,8 +229,7 @@ static int get_devinfo(void)
 		eem_error("%s fail to get device node\n", __func__);
 		return 0;
 	}
-
-	pdev = of_platform_device_create(node, NULL, NULL);
+	pdev = of_device_alloc(node, NULL, NULL);
 	if (pdev == NULL)
 		goto get_devinfo_end;
 

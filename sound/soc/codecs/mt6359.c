@@ -46,6 +46,26 @@
 
 #include "mt6359.h"
 
+#ifdef OPLUS_BUG_COMPATIBILITY
+extern unsigned char aw87339_audio_spk_if_kspk(void);
+extern unsigned char aw87339_audio_rcv_if_kspk(void);
+extern unsigned char aw87339_audio_rcv_if_drcv(void);
+extern unsigned char aw87339_audio_spk_if_off(void);
+extern unsigned char aw87339_audio_rcv_if_off(void);
+
+extern void aw87339_voice_setting(int bStatus);
+extern int aw87339_voice_status;
+extern void aw87339_audio_spk_low_voltage_status(bool bStatus);
+extern int aw87339_spk_low_voltage_status;
+
+extern int sia81xx_pa_init(void);
+extern int sia81xx_audio_extern_config;
+
+static int aw87339_kspk_control_spk = 0;
+static int aw87339_kspk_control_rcv = 0;
+static int aw87339_drcv_control_rcv = 0;
+#endif /* OPLUS_BUG_COMPATIBILITY */
+
 enum {
 	MT6359_AIF_1 = 0,	/* dl: hp, rcv, hp+lo */
 	MT6359_AIF_2,		/* dl: lo only */
@@ -925,6 +945,116 @@ static int dl_pga_set(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+#ifdef OPLUS_BUG_COMPATIBILITY
+static int ext_kspk_amp_get_spk(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
+{
+    ucontrol->value.integer.value[0] = aw87339_kspk_control_spk;
+    pr_debug("%s: aw87339_kspk_control = %d\n", __func__, aw87339_kspk_control_spk);
+    return 0;
+}
+static int ext_kspk_amp_put_spk(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
+{
+    if(ucontrol->value.integer.value[0] == aw87339_kspk_control_spk)
+        return 1;
+    aw87339_kspk_control_spk = ucontrol->value.integer.value[0];
+    if(ucontrol->value.integer.value[0]) {
+        aw87339_audio_spk_if_kspk();
+    } else {
+        aw87339_audio_spk_if_off();
+    }
+    pr_debug("%s: value.integer.value = %d\n", __func__, ucontrol->value.integer.value[0]);
+    return 0;
+}
+static int ext_kspk_amp_get_rcv(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
+{
+    ucontrol->value.integer.value[0] = aw87339_kspk_control_rcv;
+    pr_debug("%s: aw87339_kspk_control = %d\n", __func__, aw87339_kspk_control_rcv);
+    return 0;
+}
+static int ext_kspk_amp_put_rcv(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
+{
+    if(ucontrol->value.integer.value[0] == aw87339_kspk_control_rcv)
+        return 1;
+    aw87339_kspk_control_rcv = ucontrol->value.integer.value[0];
+    if(ucontrol->value.integer.value[0]) {
+        aw87339_audio_rcv_if_kspk();
+    } else {
+        aw87339_audio_rcv_if_off();
+    }
+    pr_debug("%s: value.integer.value = %d\n", __func__, ucontrol->value.integer.value[0]);
+    return 0;
+}
+
+static int ext_drcv_amp_get_rcv(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
+{
+    ucontrol->value.integer.value[0] = aw87339_drcv_control_rcv;
+    pr_debug("%s: aw87339_drcv_control = %d\n", __func__, aw87339_drcv_control_rcv);
+    return 0;
+}
+
+static int ext_drcv_amp_put_rcv(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
+{
+    if(ucontrol->value.integer.value[0] == aw87339_drcv_control_rcv)
+        return 1;
+    aw87339_drcv_control_rcv = ucontrol->value.integer.value[0];
+    if(ucontrol->value.integer.value[0]) {
+        aw87339_audio_rcv_if_drcv();
+    } else {
+        aw87339_audio_rcv_if_off();
+    }
+    pr_debug("%s: value.integer.value = %d\n", __func__, ucontrol->value.integer.value[0]);
+    return 0;
+}
+
+static int ext_amp_low_voltage_get(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
+{
+        ucontrol->value.integer.value[0] = aw87339_spk_low_voltage_status;
+        pr_info("%s: aw87339_spk_low_voltage_status = %d\n", __func__, aw87339_spk_low_voltage_status);
+        return 0;
+}
+
+static int ext_amp_low_voltage_set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
+{
+        if (ucontrol->value.integer.value[0] == aw87339_spk_low_voltage_status)
+                return 1;
+        if (ucontrol->value.integer.value[0] == 1) {
+                aw87339_audio_spk_low_voltage_status(1);
+        } else {
+                aw87339_audio_spk_low_voltage_status(0);
+        }
+
+        pr_info("%s: value.integer.value = %ld\n", __func__, ucontrol->value.integer.value[0]);
+        return 0;
+}
+
+static int ext_amp_voice_get(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = aw87339_voice_status;
+	pr_info("%s: aw87339_voice_status = %d\n", __func__, aw87339_voice_status);
+	return 0;
+}
+
+static int ext_amp_voice_set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
+{
+	if (ucontrol->value.integer.value[0] == aw87339_voice_status)
+		return 1;
+	if (ucontrol->value.integer.value[0] == 1) {
+		aw87339_voice_setting(1);
+	} else {
+		aw87339_voice_setting(0);
+	}
+
+	pr_info("%s: value.integer.value = %ld\n", __func__, ucontrol->value.integer.value[0]);
+	return 0;
+}
+
+static const char *const ext_kspk_amp_function_spk[] = { "Off", "On" };
+static const char *const ext_kspk_amp_function_rcv[] = { "Off", "On" };
+static const char *const ext_drcv_amp_function_rcv[] = { "Off", "On" };
+static const char *const ext_amp_low_vol_function[] = { "Off", "On" };
+
+static const char *const ext_amp_voice_function[] = { "Off", "On" };
+#endif /* OPLUS_BUG_COMPATIBILITY */
 static int mt6359_put_volsw(struct snd_kcontrol *kcontrol,
 			    struct snd_ctl_elem_value *ucontrol)
 {
@@ -992,6 +1122,13 @@ static const DECLARE_TLV_DB_SCALE(capture_tlv, 0, 600, 0);
 static const struct soc_enum dl_pga_enum[] = {
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(dl_pga_gain), dl_pga_gain),
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(hp_dl_pga_gain), hp_dl_pga_gain),
+	#ifdef OPLUS_BUG_COMPATIBILITY
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(ext_kspk_amp_function_spk), ext_kspk_amp_function_spk),
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(ext_kspk_amp_function_rcv), ext_kspk_amp_function_rcv),
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(ext_drcv_amp_function_rcv), ext_drcv_amp_function_rcv),
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(ext_amp_low_vol_function), ext_amp_low_vol_function),
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(ext_amp_voice_function), ext_amp_voice_function),
+	#endif /* OPLUS_BUG_COMPATIBILITY */
 };
 
 #define MT_SOC_ENUM_EXT_ID(xname, xenum, xhandler_get, xhandler_put, id) \
@@ -999,6 +1136,56 @@ static const struct soc_enum dl_pga_enum[] = {
 	.info = snd_soc_info_enum_double, \
 	.get = xhandler_get, .put = xhandler_put, \
 	.private_value = (unsigned long)&xenum }
+
+#ifdef OPLUS_BUG_COMPATIBILITY
+static const char *const power_function[] = { "Off", "On" };
+static const char *const algo_enable[] = { "Off", "On" };
+static const char *const audio_scene[] = { "Playback", "Voice" };
+static const char *const volume_boost[] = { "Voltage8_5","Voltage7", "Voltage6_5","Voltage5" };
+
+static const struct soc_enum power_enum =
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(power_function), power_function);
+static const struct soc_enum algo_enum =
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(algo_enable), algo_enable);
+static const struct soc_enum audio_scene_enum =
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(audio_scene), audio_scene);
+static const struct soc_enum volume_boost_enum =
+        SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(volume_boost), volume_boost);
+
+
+extern int sia81xx_volume_boost_power_get(
+	struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol);
+
+extern int sia81xx_volume_boost_power_set(
+	struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol);
+
+extern int sia81xx_volume_boost_audio_scene_get(
+	struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol);
+
+extern int sia81xx_volume_boost_audio_scene_set(
+	struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol);
+
+extern int sia81xx_volume_boost_algo_en_get(
+	struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol);
+
+extern int sia81xx_volume_boost_algo_en_set(
+	struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol);
+
+extern int sia81xx_volme_boost_get(
+        struct snd_kcontrol *kcontrol,
+        struct snd_ctl_elem_value *ucontrol);
+
+extern int sia81xx_volme_boost_set(
+        struct snd_kcontrol *kcontrol,
+        struct snd_ctl_elem_value *ucontrol);
+
+#endif /* OPLUS_BUG_COMPATIBILITY */
 
 static const struct snd_kcontrol_new mt6359_snd_controls[] = {
 	/* dl pga gain */
@@ -1027,7 +1214,30 @@ static const struct snd_kcontrol_new mt6359_snd_controls[] = {
 	MT_SOC_ENUM_EXT_ID("Lineout_PGAR_GAIN", dl_pga_enum[0],
 			   dl_pga_get, dl_pga_set,
 			   AUDIO_ANALOG_VOLUME_LINEOUTR),
+
+	#ifdef OPLUS_BUG_COMPATIBILITY
+	SOC_ENUM_EXT("Ext_Speaker_Amp_spkmode", dl_pga_enum[2], ext_kspk_amp_get_spk, ext_kspk_amp_put_spk),
+	SOC_ENUM_EXT("Ext_Receiver_Amp_spkmode", dl_pga_enum[3], ext_kspk_amp_get_rcv, ext_kspk_amp_put_rcv),
+	SOC_ENUM_EXT("Ext_Receiver_Amp_rcvmode", dl_pga_enum[4], ext_drcv_amp_get_rcv, ext_drcv_amp_put_rcv),
+	SOC_ENUM_EXT("Ext_AMP_LOW_VOLTAGE", dl_pga_enum[5], ext_amp_low_voltage_get, ext_amp_low_voltage_set),
+	SOC_ENUM_EXT("EXT_AMP_VOICE_SETTING", dl_pga_enum[6], ext_amp_voice_get, ext_amp_voice_set),
+	#endif
+
 };
+
+#ifdef OPLUS_BUG_COMPATIBILITY
+static const struct snd_kcontrol_new sia81xx_volume_boost_controls[] = {
+		SOC_ENUM_EXT("SpkrLeft Sia81xx Power", power_enum,
+				sia81xx_volume_boost_power_get, sia81xx_volume_boost_power_set),
+		SOC_ENUM_EXT("SpkrLeft Sia81xx Alog", algo_enum,
+				sia81xx_volume_boost_algo_en_get, sia81xx_volume_boost_algo_en_set),
+		SOC_ENUM_EXT("SpkrLeft Sia81xx Audio Scene", audio_scene_enum,
+				sia81xx_volume_boost_audio_scene_get, sia81xx_volume_boost_audio_scene_set),
+		SOC_ENUM_EXT("SpkrLeft Sia81xx Volme Boost", volume_boost_enum,
+						sia81xx_volme_boost_get, sia81xx_volme_boost_set),
+
+};
+#endif /* OPLUS_BUG_COMPATIBILITY */
 
 /* ul pga gain */
 static const char *const ul_pga_gain[] = {
@@ -2488,8 +2698,15 @@ static int mt_mic_bias_1_event(struct snd_soc_dapm_widget *w,
 			regmap_write(priv->regmap,
 				     MT6359_AUDENC_ANA_CON16, 0x0160);
 		else
+
+#ifndef OPLUS_BUG_STABILITY
+
 			regmap_write(priv->regmap,
 				     MT6359_AUDENC_ANA_CON16, 0x0060);
+#else /* OPLUS_BUG_STABILITY */
+			regmap_write(priv->regmap,
+				     MT6359_AUDENC_ANA_CON16, 0x3060);
+#endif /* OPLUS_BUG_STABILITY */
 
 		/* vow low power select */
 		regmap_update_bits(priv->regmap, MT6359_AUDENC_ANA_CON16,
@@ -6698,6 +6915,14 @@ static int mt6359_codec_probe(struct snd_soc_component *cmpnt)
 	snd_soc_add_component_controls(cmpnt,
 				       mt6359_snd_vow_controls,
 				       ARRAY_SIZE(mt6359_snd_vow_controls));
+#ifdef OPLUS_BUG_COMPATIBILITY
+	if (sia81xx_audio_extern_config == 2) {
+		pr_err("add kcontrol for Darwin,other project no need run this code");
+		snd_soc_add_component_controls(cmpnt,
+					       sia81xx_volume_boost_controls,
+					       ARRAY_SIZE(sia81xx_volume_boost_controls));
+	}
+#endif /* OPLUS_BUG_COMPATIBILITY */
 
 	mt6359_codec_init_reg(priv);
 
@@ -7633,6 +7858,15 @@ static ssize_t mt6359_debugfs_read(struct file *file, char __user *buf,
 	n += scnprintf(buffer + n, size - n,
 		       "MT6359_ZCD_CON5 = 0x%x\n", value);
 
+
+#ifdef OPLUS_BUG_DEBUG
+	regmap_read(priv->regmap, MT6359_AFE_ADDA6_L_SRC_CON0_H, &value);
+	n += scnprintf(buffer + n, size - n,
+		       "MT6359_AFE_ADDA6_L_SRC_CON0_H = 0x%x\n", value);
+	regmap_read(priv->regmap, MT6359_AFE_ADDA6_UL_SRC_CON0_L, &value);
+	n += scnprintf(buffer + n, size - n,
+		       "MT6359_AFE_ADDA6_UL_SRC_CON0_L = 0x%x\n", value);
+#endif /* OPLUS_BUG_DEBUG */
 	ret = simple_read_from_buffer(buf, count, pos, buffer, n);
 	kfree(buffer);
 	return ret;
@@ -7887,6 +8121,9 @@ static int mt6359_platform_driver_probe(struct platform_device *pdev)
 	struct device_node *pwrap_node;
 #endif
 
+#ifdef OPLUS_BUG_COMPATIBILITY
+	sia81xx_pa_init();
+#endif /* OPLUS_BUG_COMPATIBILITY */
 	priv = devm_kzalloc(&pdev->dev,
 			    sizeof(struct mt6359_priv),
 			    GFP_KERNEL);
@@ -7910,7 +8147,9 @@ static int mt6359_platform_driver_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "get pwrap node fail\n");
 		return -EINVAL;
 	}
-
+#ifdef OPLUS_BUG_COMPATIBILITY
+	pr_info("sia81xx_audio_extern_config = %d\r\n", sia81xx_audio_extern_config);
+#endif /* OPLUS_BUG_COMPATIBILITY */
 	/* get pmic efuse handler */
 	priv->hp_efuse = devm_nvmem_device_get(&pdev->dev,
 					       "pmic-hp-efuse");

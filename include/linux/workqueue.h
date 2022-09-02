@@ -145,7 +145,9 @@ struct workqueue_attrs {
 	 * @nice: nice level
 	 */
 	int nice;
-
+#ifdef OPLUS_FEATURE_SCHED_ASSIST
+	int ux_state;
+#endif
 	/**
 	 * @cpumask: allowed CPUs
 	 */
@@ -345,7 +347,9 @@ enum {
 	 * http://thread.gmane.org/gmane.linux.kernel/1480396
 	 */
 	WQ_POWER_EFFICIENT	= 1 << 7,
-
+#ifdef OPLUS_FEATURE_SCHED_ASSIST
+	WQ_UX	= 1 << 15,
+#endif
 	__WQ_DRAINING		= 1 << 16, /* internal: workqueue is draining */
 	__WQ_ORDERED		= 1 << 17, /* internal: workqueue is ordered */
 	__WQ_LEGACY		= 1 << 18, /* internal: create*_workqueue() */
@@ -390,6 +394,9 @@ enum {
  */
 extern struct workqueue_struct *system_wq;
 extern struct workqueue_struct *system_highpri_wq;
+#ifdef OPLUS_FEATURE_SCHED_ASSIST
+extern struct workqueue_struct *system_ux_wq;
+#endif
 extern struct workqueue_struct *system_long_wq;
 extern struct workqueue_struct *system_unbound_wq;
 extern struct workqueue_struct *system_freezable_wq;

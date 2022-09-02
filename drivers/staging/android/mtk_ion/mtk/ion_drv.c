@@ -442,8 +442,15 @@ static long ion_sys_cache_sync(struct ion_client *client,
 	}
 
 	if (kernel_handle->buffer->size < param->size) {
-		IONMSG("%s error, sync size is larger than buf_sz:%zu\n",
-		       __func__, kernel_handle->buffer->size);
+#ifndef OPLUS_BUG_STABILITY
+        IONMSG("%s error, sync size is larger than buf_sz:%zu\n",
+               __func__, kernel_handle->buffer->size);
+#else /* OPLUS_BUG_STABILITY */
+        if ((client->name) && (0==strstr(client->dbg_name, "val_public"))) {
+            IONMSG("%s error, sync size is larger than buf_sz:%zu\n",
+                   __func__, kernel_handle->buffer->size);
+        }
+#endif /*OPLUS_BUG_STABILITY */
 		goto err;
 	}
 
@@ -565,11 +572,21 @@ out:
 	return ret;
 
 err:
-	IONMSG("%s sync err:%d|k%d|hdl:%d-%p|addr:0x%lx|iova:0x%llx|sz:%d|%s\n",
-	       __func__, sync_type, from_kernel,
-	       param->handle, param->kernel_handle,
-	       (unsigned long)param->va, param->iova, param->size,
-	       (*client->dbg_name) ? client->dbg_name : client->name);
+#ifndef OPLUS_BUG_STABILITY
+    IONMSG("%s sync err:%d|k%d|hdl:%d-%p|addr:0x%lx|iova:0x%llx|sz:%d|%s\n",
+           __func__, sync_type, from_kernel,
+           param->handle, param->kernel_handle,
+           (unsigned long)param->va, param->iova, param->size,
+           (*client->dbg_name) ? client->dbg_name : client->name);
+#else /* OPLUS_BUG_STABILITY */
+    if ((client->name) && (0==strstr(client->dbg_name, "val_public"))) {
+        IONMSG("%s sync err:%d|k%d|hdl:%d-%p|addr:0x%lx|iova:0x%llx|sz:%d|%s\n",
+               __func__, sync_type, from_kernel,
+               param->handle, param->kernel_handle,
+               (unsigned long)param->va, param->iova, param->size,
+               (*client->dbg_name) ? client->dbg_name : client->name);
+    }
+#endif /*OPLUS_BUG_STABILITY */
 	ion_drv_put_kernel_handle(kernel_handle);
 	return ret;
 }
@@ -826,14 +843,22 @@ int ion_device_destroy_heaps(struct ion_device *dev)
 {
 	struct ion_heap *heap, *tmp;
 
+#ifdef OPLUS_FEATURE_MTK_ION_SEPARATE_LOCK
+	down_write(&dev->heap_lock);
+#else /* OPLUS_FEATURE_MTK_ION_SEPARATE_LOCK */
 	down_write(&dev->lock);
+#endif /* OPLUS_FEATURE_MTK_ION_SEPARATE_LOCK */
 
 	plist_for_each_entry_safe(heap, tmp, &dev->heaps, node) {
 		plist_del((struct plist_node *)heap, &dev->heaps);
 		ion_mtk_heap_destroy(heap);
 	}
 
+#ifdef OPLUS_FEATURE_MTK_ION_SEPARATE_LOCK
+	up_write(&dev->heap_lock);
+#else /* OPLUS_FEATURE_MTK_ION_SEPARATE_LOCK */
 	up_write(&dev->lock);
+#endif /* OPLUS_FEATURE_MTK_ION_SEPARATE_LOCK */
 
 	return 0;
 }
@@ -849,7 +874,11 @@ static int ion_clients_summary_show(struct seq_file *s, void *unused)
 	enum mtk_ion_heap_type cam_heap = ION_HEAP_TYPE_MULTIMEDIA_FOR_CAMERA;
 	enum mtk_ion_heap_type mm_heap = ION_HEAP_TYPE_MULTIMEDIA;
 
+#ifdef OPLUS_FEATURE_MTK_ION_SEPARATE_LOCK
+	if (!down_read_trylock(&dev->client_lock))
+#else /* OPLUS_FEATURE_MTK_ION_SEPARATE_LOCK */
 	if (!down_read_trylock(&dev->lock))
+#endif /* OPLUS_FEATURE_MTK_ION_SEPARATE_LOCK */
 		return 0;
 	seq_printf(s, "%-16.s %-8.s %-8.s\n", "client_name", "pid", "size");
 	seq_puts(s, "------------------------------------------\n");
@@ -883,7 +912,11 @@ static int ion_clients_summary_show(struct seq_file *s, void *unused)
 	}
 
 	seq_puts(s, "-------------------------------------------\n");
+#ifdef OPLUS_FEATURE_MTK_ION_SEPARATE_LOCK
+	up_read(&dev->client_lock);
+#else /* OPLUS_FEATURE_MTK_ION_SEPARATE_LOCK */
 	up_read(&dev->lock);
+#endif /* OPLUS_FEATURE_MTK_ION_SEPARATE_LOCK */
 
 	return 0;
 }
@@ -917,6 +950,10 @@ static const struct file_operations proc_client_fops = {
 #endif
 #endif
 
+#ifdef CONFIG_OPLUS_ION_BOOSTPOOL
+struct proc_dir_entry *boost_root_dir;
+#endif /* CONFIG_OPLUS_ION_BOOSTPOOL */
+
 #ifdef CONFIG_MTK_IOMMU_V2
 struct device *g_iommu_device;
 #endif
@@ -945,6 +982,9 @@ static int ion_drv_probe(struct platform_device *pdev)
 
 	num_heaps = pdata->nr;
 	g_ion_device = ion_device_create(ion_custom_ioctl);
+#ifdef CONFIG_OPLUS_ION_BOOSTPOOL
+	boost_root_dir = proc_mkdir("boost_pool", NULL);
+#endif /* CONFIG_OPLUS_ION_BOOSTPOOL */
 	if (IS_ERR_OR_NULL(g_ion_device)) {
 		IONMSG("ion_device_create() error! device=%p\n", g_ion_device);
 		return PTR_ERR(g_ion_device);

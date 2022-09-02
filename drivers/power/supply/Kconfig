@@ -555,7 +555,7 @@ config CHARGER_BQ24257
 	tristate "TI BQ24250/24251/24257 battery charger driver"
 	depends on I2C
 	depends on GPIOLIB || COMPILE_TEST
-	select REGMAP_I2C
+	depends on REGMAP_I2C
 	help
 	  Say Y to enable support for the TI BQ24250, BQ24251, and BQ24257 battery
 	  chargers.
@@ -566,6 +566,14 @@ config CHARGER_BQ24735
 	depends on GPIOLIB || COMPILE_TEST
 	help
 	  Say Y to enable support for the TI BQ24735 battery charger.
+
+config CHARGER_BQ2560X
+	tristate "TI BQ2560X battery charger driver"
+	depends on I2C
+	depends on GPIOLIB || COMPILE_TEST
+	select REGMAP_I2C
+	help
+	  Say Y to enable support for the TI BQ2560X battery charger.
 
 config CHARGER_BQ25890
 	tristate "TI BQ25890 battery charger driver"
@@ -655,16 +663,18 @@ config MTK_BATTERY
 	  battery information from hardware to calculate
 	  Battery percentage.
 
-config BATTERY_MT6357
-	tristate "MT6357 fuel gauge support"
-	depends on MFD_MT6397
-	depends on NET
-	default m
-	help
-	  Say Y to enable support for MT6357 battery driver.
-	  it measure battery current and temperature to provide
-	  battery information , It issues interrupt when trigger
-	  threshold is met.
+#ifndef OPLUS_FEATURE_CHG_BASIC
+#config BATTERY_MT6357
+#	tristate "MT6357 fuel gauge support"
+#	depends on MFD_MT6397
+#	depends on NET
+#	default m
+#	help
+#	  Say Y to enable support for MT6357 battery driver.
+#	  it measure battery current and temperature to provide
+#	  battery information , It issues interrupt when trigger
+#	  threshold is met.
+#endif
 
 config BATTERY_MT6359
 	tristate "MT6359 fuel gauge support"

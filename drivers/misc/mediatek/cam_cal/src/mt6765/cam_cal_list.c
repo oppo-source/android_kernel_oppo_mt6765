@@ -9,6 +9,15 @@
 #include "kd_imgsensor.h"
 
 struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	{ZHAOYUN_QTECH_MAIN_OV13B10_SENSOR_ID, 0xA0, Common_read_region},
+	{ZHAOYUNLITE_QTECH_MAIN_OV13B10_SENSOR_ID, 0xA0, Common_read_region},
+	{ZHAOYUN_SHINETECH_MAIN_S5KJN103_SENSOR_ID, 0xA0, Common_read_region},
+	{ZHAOYUN_SHINETECH_FRONT_OV08D10_SENSOR_ID, 0xA0, Common_read_region},
+	{ZHAOYUN_SHINETECH_MAIN_S5K3L6_SENSOR_ID, 0xA0, Common_read_region},
+	{ZHAOYUNLITE_QTECH_MAIN_S5K3L6_SENSOR_ID, 0xA0, Common_read_region},
+	{ZHAOYUN_OPTICS_FRONT_GC5035_SENSOR_ID, 0xA8, Common_read_region},
+#endif /* OPLUS_FEATURE_CAMERA_COMMON */
 	/*Below is commom sensor */
 	{IMX230_SENSOR_ID, 0xA0, Common_read_region},
 	{S5K2T7SP_SENSOR_ID, 0xA4, Common_read_region},

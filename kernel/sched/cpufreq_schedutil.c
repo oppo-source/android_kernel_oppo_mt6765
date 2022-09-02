@@ -19,6 +19,12 @@
 #include <trace/events/power.h>
 #include "cpufreq_schedutil.h"
 
+#if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT)
+extern int sysctl_slide_boost_enabled;
+extern int sysctl_sched_assist_enabled;
+extern u64 ux_task_load[];
+#endif /* OPLUS_FEATURE_SCHED_ASSIST */
+
 void (*cpufreq_notifier_fp)(int cluster_id, unsigned long freq);
 EXPORT_SYMBOL(cpufreq_notifier_fp);
 
@@ -53,6 +59,9 @@ struct sugov_policy {
 
 	bool			limits_changed;
 	bool			need_freq_update;
+#if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT)
+	unsigned int flags;
+#endif
 };
 
 struct sugov_cpu {
@@ -111,7 +120,10 @@ static bool sugov_should_update_freq(struct sugov_policy *sg_policy, u64 time)
 	 * limit once frequency change direction is decided, according
 	 * to the separate rate limits.
 	 */
-
+#if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT)
+	if (sg_policy->flags & SCHED_CPUFREQ_BOOST)
+		return true;
+#endif /* OPLUS_FEATURE_SCHED_ASSIST */
 	delta_ns = time - sg_policy->last_freq_update_time;
 	return delta_ns >= sg_policy->min_rate_limit_ns;
 }
@@ -122,7 +134,10 @@ static bool sugov_up_down_rate_limit(struct sugov_policy *sg_policy, u64 time,
 	s64 delta_ns;
 
 	delta_ns = time - sg_policy->last_freq_update_time;
-
+#if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT)
+	if (sg_policy->flags & SCHED_CPUFREQ_BOOST)
+		return false;
+#endif /* OPLUS_FEATURE_SCHED_ASSIST */
 	if (next_freq > sg_policy->next_freq &&
 	    delta_ns < sg_policy->up_rate_delay_ns)
 			return true;
@@ -642,6 +657,10 @@ sugov_update_shared(struct update_util_data *hook, u64 time, unsigned int flags)
 
 	raw_spin_lock(&sg_policy->update_lock);
 
+#if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT)
+	sg_policy->flags = flags;
+#endif /* OPLUS_FEATURE_SCHED_ASSIST */
+
 	sugov_iowait_boost(sg_cpu, time, flags);
 	sg_cpu->last_update = time;
 
@@ -1092,6 +1111,9 @@ static int sugov_start(struct cpufreq_policy *policy)
 	sg_policy->limits_changed		= false;
 	sg_policy->need_freq_update		= false;
 	sg_policy->cached_raw_freq		= 0;
+#if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT)
+	sg_policy->flags	= 0;
+#endif /* OPLUS_FEATURE_SCHED_ASSIST */
 	sg_policy->prev_cached_raw_freq		= 0;
 
 	for_each_cpu(cpu, policy->cpus) {

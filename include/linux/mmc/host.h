@@ -168,6 +168,11 @@ struct mmc_host_ops {
 	 */
 	int	(*multi_io_quirk)(struct mmc_card *card,
 				  unsigned int direction, int blk_size);
+
+#ifdef CONFIG_MMC_PASSWORDS
+	int	(*sd_lock_reset)(struct mmc_host *host);
+#endif
+
 };
 
 struct mmc_cqe_ops {
@@ -465,6 +470,7 @@ struct mmc_host {
 	spinlock_t		lock;		/* lock for claim and bus ops */
 
 	struct mmc_ios		ios;		/* current io bus settings */
+	struct mmc_ios		cached_ios; /* backup host ios for awake */
 
 	/* group bitfields together to minimize padding */
 	unsigned int		use_spi_crc:1;
@@ -506,6 +512,10 @@ struct mmc_host {
 	struct delayed_work	sdio_irq_work;
 	bool			sdio_irq_pending;
 	atomic_t		sdio_irq_thread_abort;
+
+#ifdef OPLUS_FEATURE_MMC_DRIVER
+	bool                    card_stuck_in_programing_status;
+#endif
 
 	mmc_pm_flag_t		pm_flags;	/* requested pm features */
 
@@ -600,6 +610,17 @@ void mmc_remove_host(struct mmc_host *);
 void mmc_free_host(struct mmc_host *);
 int mmc_of_parse(struct mmc_host *host);
 int mmc_of_parse_voltage(struct device_node *np, u32 *mask);
+
+#ifdef CONFIG_MMC_IPC_LOGGING
+#define NUM_LOG_PAGES	10
+#define mmc_log_string(mmc_host, fmt, ...)	do {	\
+	if ((mmc_host)->ipc_log_ctxt && !(mmc_host)->stop_tracing)	\
+		ipc_log_string((mmc_host)->ipc_log_ctxt,	\
+			"%s: " fmt, __func__, ##__VA_ARGS__);	\
+	} while (0)
+#else
+#define mmc_log_string(mmc_host, fmt, ...)	do { } while (0)
+#endif
 
 static inline void *mmc_priv(struct mmc_host *host)
 {

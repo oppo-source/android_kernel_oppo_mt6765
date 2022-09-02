@@ -220,7 +220,8 @@ static int get_devinfo(void)
 		return 0;
 	}
 
-	pdev = of_platform_device_create(node, NULL, NULL);
+	//pdev = of_platform_device_create(node, NULL, NULL);
+	pdev = of_device_alloc(node, NULL, NULL);
 	if (pdev == NULL)
 		goto get_devinfo_end;
 

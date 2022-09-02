@@ -524,6 +524,7 @@ static void rt1711_irq_work_handler(struct kthread_work *work)
 	int regval = 0;
 	int gpio_val;
 
+	printk("%s: start.\n", __func__);
 	rt1711_poll_ctrl(chip);
 	/* make sure I2C bus had resumed */
 	down(&chip->suspend_lock);

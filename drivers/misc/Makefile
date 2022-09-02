@@ -60,3 +60,10 @@ obj-$(CONFIG_OCXL)		+= ocxl/
 obj-$(CONFIG_MISC_RTSX)		+= cardreader/
 obj-$(CONFIG_UID_SYS_STATS)	+= uid_sys_stats.o
 obj-y				+= mediatek/
+#ifdef OPLUS_ARCH_EXTEND
+obj-$(CONFIG_MTK_LCM)		+= oplus/
+#endif
+
+#ifdef OPLUS_FEATURE_TP_BASIC
+obj-$(CONFIG_SIM_DETECT)	+= sim_detect.o
+#endif

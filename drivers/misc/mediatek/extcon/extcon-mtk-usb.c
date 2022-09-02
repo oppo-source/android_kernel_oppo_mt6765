@@ -26,6 +26,10 @@
 #include "tcpm.h"
 #endif
 
+#if (defined OPLUS_FEATURE_CHG_BASIC) && (defined CONFIG_OPLUS_CHARGER_MTK6765S)
+extern int set_chr_enable_otg(unsigned int enable);
+#endif
+
 #ifdef CONFIG_MTK_USB_TYPEC_U3_MUX
 #include "mux_switch.h"
 #endif
@@ -115,22 +119,6 @@ static int mtk_usb_extcon_set_role(struct mtk_extcon_info *extcon,
 	return 0;
 }
 
-#if !defined(CONFIG_USB_MTK_HDRC)
-void mt_usb_connect()
-{
-	/* if (g_extcon)
-		mtk_usb_extcon_set_role(extcon, DUAL_PROP_DR_DEVICE); */
-}
-EXPORT_SYMBOL(mt_usb_connect);
-
-void mt_usb_disconnect()
-{
-	/* if (g_extcon)
-		mtk_usb_extcon_set_role(extcon, DUAL_PROP_DR_NONE); */
-}
-EXPORT_SYMBOL(mt_usb_disconnect);
-#endif
-
 static int mtk_usb_extcon_psy_notifier(struct notifier_block *nb,
 				unsigned long event, void *data)
 {
@@ -195,7 +183,11 @@ static int mtk_usb_extcon_psy_init(struct mtk_extcon_info *extcon)
 	union power_supply_propval ival;
 	union power_supply_propval tval;
 
+#ifdef CONFIG_CHARGER_BQ2560X
+	extcon->usb_psy = power_supply_get_by_name("bq2560x");
+#else
 	extcon->usb_psy = devm_power_supply_get_by_phandle(dev, "charger");
+#endif
 	if (IS_ERR_OR_NULL(extcon->usb_psy)) {
 		dev_err(dev, "fail to get usb_psy\n");
 		extcon->usb_psy = NULL;
@@ -353,7 +345,11 @@ static int mtk_extcon_tcpc_notifier(struct notifier_block *nb,
 		dev_info(dev, "source vbus = %dmv\n",
 				 noti->vbus_state.mv);
 		vbus_on = (noti->vbus_state.mv) ? true : false;
+#if (defined OPLUS_FEATURE_CHG_BASIC) && (defined CONFIG_OPLUS_CHARGER_MTK6765S)
+		set_chr_enable_otg(vbus_on);
+#else
 		mtk_usb_extcon_set_vbus(extcon, vbus_on);
+#endif
 		break;
 	case TCP_NOTIFY_TYPEC_STATE:
 		dev_info(dev, "old_state=%d, new_state=%d\n",

@@ -73,6 +73,11 @@
 #define PA6_RG_U2_PHY_REV6_VAL(x)	((0x3 & (x)) << 30)
 #define PA6_RG_U2_PHY_REV6_MASK	(0x3)
 #define PA6_RG_U2_PHY_REV6_OFET	(30)
+#define PA6_RG_U2_PHY_REV4		BIT(28)
+#define PA6_RG_U2_PHY_REV4_VAL(x)	((0x1 & (x)) << 28)
+#define PA6_RG_U2_PHY_REV4_MASK	(0x1)
+#define PA6_RG_U2_PHY_REV4_OFET	(28)
+#define PA6_RG_U2_PHY_REV1		BIT(25)
 #define PA6_RG_U2_BC11_SW_EN		BIT(23)
 #define PA6_RG_U2_OTG_VBUSCMP_EN	BIT(20)
 #define PA6_RG_U2_DISCTH	GENMASK(7, 4)
@@ -327,6 +332,8 @@
 
 #define PHY_MODE_BC11_SW_SET 1
 #define PHY_MODE_BC11_SW_CLR 2
+#define PHY_MODE_DPDMPULLDOWN_SET 3
+#define PHY_MODE_DPDMPULLDOWN_CLR 4
 
 #define PROC_FILE_TERM_SEL "term_sel"
 #define PROC_FILE_VRT_SEL "vrt_sel"
@@ -1227,8 +1234,50 @@ static void u2_phy_instance_power_on(struct mtk_tphy *tphy,
 	u32 tmp;
 
 	tmp = readl(com + U3P_U2PHYDTM0);
+	tmp |= P2C_FORCE_SUSPENDM;
+	writel(tmp, com + U3P_U2PHYDTM0);
+
+	tmp = readl(com + U3P_U2PHYDTM0);
+	tmp &= ~P2C_RG_SUSPENDM;
+	writel(tmp, com + U3P_U2PHYDTM0);
+
+	tmp = readl(com + U3P_U2PHYDTM0);
+	tmp |= P2C_RG_SUSPENDM;
+	writel(tmp, com + U3P_U2PHYDTM0);
+
+	udelay(30);
+
+	tmp = readl(com + U3P_U2PHYDTM0);
+	tmp &= ~P2C_FORCE_SUSPENDM;
+	writel(tmp, com + U3P_U2PHYDTM0);
+
+	tmp = readl(com + U3P_U2PHYDTM0);
+	tmp &= ~P2C_RG_SUSPENDM;
+	writel(tmp, com + U3P_U2PHYDTM0);
+
+	tmp = readl(com + U3P_U2PHYDTM0);
+	tmp &= ~(P2C_FORCE_UART_EN);
+	writel(tmp, com + U3P_U2PHYDTM0);
+
+	tmp = readl(com + U3P_U2PHYDTM1);
+	tmp &= ~P2C_RG_UART_EN;
+	writel(tmp, com + U3P_U2PHYDTM1);
+
+	tmp = readl(com + U3P_U2PHYACR4);
+	tmp &= ~P2C_U2_GPIO_CTR_MSK;
+	writel(tmp, com + U3P_U2PHYACR4);
+
+	tmp = readl(com + U3P_U2PHYDTM0);
+	tmp &= ~P2C_FORCE_SUSPENDM;
+	writel(tmp, com + U3P_U2PHYDTM0);
+
+	tmp = readl(com + U3P_U2PHYDTM0);
 	tmp &= ~(P2C_RG_XCVRSEL | P2C_RG_DATAIN | P2C_DTM0_PART_MASK);
 	writel(tmp, com + U3P_U2PHYDTM0);
+
+	tmp = readl(com + U3P_USBPHYACR6);
+	tmp &= ~PA6_RG_U2_BC11_SW_EN;
+	writel(tmp, com + U3P_USBPHYACR6);
 
 	/* OTG Enable */
 	tmp = readl(com + U3P_USBPHYACR6);
@@ -1240,6 +1289,13 @@ static void u2_phy_instance_power_on(struct mtk_tphy *tphy,
 	tmp &= ~P2C_RG_SESSEND;
 	writel(tmp, com + U3P_U2PHYDTM1);
 
+	tmp = readl(com + U3P_USBPHYACR6);
+	tmp &= ~PA6_RG_U2_PHY_REV6;
+	tmp |= PA6_RG_U2_PHY_REV6_VAL(1);
+	writel(tmp, com + U3P_USBPHYACR6);
+
+	udelay(800);
+
 	if (tphy->pdata->avoid_rx_sen_degradation && index) {
 		tmp = readl(com + U3D_U2PHYDCR0);
 		tmp |= P2C_RG_SIF_U2PLL_FORCE_ON;
@@ -1249,10 +1305,6 @@ static void u2_phy_instance_power_on(struct mtk_tphy *tphy,
 		tmp |= P2C_RG_SUSPENDM | P2C_FORCE_SUSPENDM;
 		writel(tmp, com + U3P_U2PHYDTM0);
 	}
-
-	/* set SW_BC11_EN as 0 which is usb control DPDM */
-	u2_phy_instance_set_mode_ext(tphy, instance,
-				PHY_MODE_BC11_SW_CLR);
 
 #ifdef CONFIG_USB_MTK_HDRC
 	/* Used by phone products */
@@ -1275,13 +1327,20 @@ static void u2_phy_instance_power_off(struct mtk_tphy *tphy,
 	u32 tmp;
 
 	tmp = readl(com + U3P_U2PHYDTM0);
-	tmp &= ~(P2C_RG_XCVRSEL | P2C_RG_DATAIN);
-	tmp |= P2C_RG_XCVRSEL_VAL(1) | P2C_DTM0_PART_MASK2;
-#if defined(CONFIG_MACH_MT6739)
-	dev_info(tphy->dev, "%s, write DTM0 SUSPENDM\n", __func__);
-	tmp |= P2C_RG_SUSPENDM;
-#endif
+	tmp &= ~(P2C_FORCE_UART_EN);
 	writel(tmp, com + U3P_U2PHYDTM0);
+
+	tmp = readl(com + U3P_U2PHYDTM1);
+	tmp &= ~P2C_RG_UART_EN;
+	writel(tmp, com + U3P_U2PHYDTM1);
+
+	tmp = readl(com + U3P_U2PHYACR4);
+	tmp &= ~P2C_U2_GPIO_CTR_MSK;
+	writel(tmp, com + U3P_U2PHYACR4);
+
+	tmp = readl(com + U3P_USBPHYACR6);
+	tmp &= ~PA6_RG_U2_BC11_SW_EN;
+	writel(tmp, com + U3P_USBPHYACR6);
 
 	/* OTG Disable */
 	tmp = readl(com + U3P_USBPHYACR6);
@@ -1293,6 +1352,29 @@ static void u2_phy_instance_power_off(struct mtk_tphy *tphy,
 	tmp |= P2C_RG_SESSEND;
 	writel(tmp, com + U3P_U2PHYDTM1);
 
+	tmp = readl(com + U3P_U2PHYDTM0);
+	tmp |= P2C_RG_SUSPENDM | P2C_FORCE_SUSPENDM;
+	writel(tmp, com + U3P_U2PHYDTM0);
+
+	mdelay(2);
+
+	tmp = readl(com + U3P_U2PHYDTM0);
+	tmp &= ~P2C_RG_DATAIN;
+	tmp |= (P2C_RG_XCVRSEL_VAL(1) | P2C_DTM0_PART_MASK);
+	writel(tmp, com + U3P_U2PHYDTM0);
+
+	tmp = readl(com + U3P_USBPHYACR6);
+	tmp |= PA6_RG_U2_PHY_REV6_VAL(1);
+	writel(tmp, com + U3P_USBPHYACR6);
+
+	udelay(800);
+
+	tmp = readl(com + U3P_U2PHYDTM0);
+	tmp &= ~P2C_RG_SUSPENDM;
+	writel(tmp, com + U3P_U2PHYDTM0);
+
+	udelay(1);
+
 	if (tphy->pdata->avoid_rx_sen_degradation && index) {
 		tmp = readl(com + U3P_U2PHYDTM0);
 		tmp &= ~(P2C_RG_SUSPENDM | P2C_FORCE_SUSPENDM);
@@ -1303,12 +1385,6 @@ static void u2_phy_instance_power_off(struct mtk_tphy *tphy,
 		writel(tmp, com + U3D_U2PHYDCR0);
 	}
 
-	/*
-	 * set SW_BC11_EN as 0 which is charger control DPDM
-	 * to disable USB DPDM
-	 */
-	u2_phy_instance_set_mode_ext(tphy, instance,
-				PHY_MODE_BC11_SW_SET);
 	dev_info(tphy->dev, "%s(%d)\n", __func__, index);
 }
 
@@ -1430,8 +1506,16 @@ static void u2_phy_instance_set_mode(struct mtk_tphy *tphy,
 				     enum phy_mode mode)
 {
 	struct u2phy_banks *u2_banks = &instance->u2_banks;
+
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	static struct device_node *of_node;
+#endif
 	struct device *dev = &instance->phy->dev;
 	u32 tmp;
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	of_node = of_find_compatible_node(NULL, NULL, "mediatek,phy_tuning");
+	dev_info(tphy->dev, "%s mode(%d)\n", __func__, mode);
+#endif
 
 	tmp = readl(u2_banks->com + U3P_U2PHYDTM1);
 	switch (mode) {
@@ -1450,6 +1534,16 @@ static void u2_phy_instance_set_mode(struct mtk_tphy *tphy,
 				 &instance->eye_rev6);
 		device_property_read_u32(dev, "mediatek,eye-disc",
 				 &instance->eye_disc);
+
+#ifdef OPLUS_FEATURE_CHG_BASIC
+		if (of_node) {
+			of_property_read_u32(of_node, "eye-vrt", &instance->eye_vrt);
+			of_property_read_u32(of_node, "eye-term", &instance->eye_term);
+			of_property_read_u32(of_node, "eye-rev6", &instance->eye_rev6);
+			of_property_read_u32(of_node, "eye-disc", &instance->eye_disc);
+		}
+#endif
+
 		u2_phy_props_set(tphy, instance);
 		break;
 	case PHY_MODE_USB_HOST:
@@ -1470,6 +1564,20 @@ static void u2_phy_instance_set_mode(struct mtk_tphy *tphy,
 				 &instance->eye_rev6);
 		device_property_read_u32(dev, "mediatek,host-eye-disc",
 				 &instance->eye_disc);
+
+#ifdef OPLUS_FEATURE_CHG_BASIC
+		if (of_node) {
+			of_property_read_u32(of_node, "host-eye-vrt",
+					&instance->eye_vrt);
+			of_property_read_u32(of_node, "host-eye-term",
+					&instance->eye_term);
+			of_property_read_u32(of_node, "host-eye-rev6",
+					&instance->eye_rev6);
+			of_property_read_u32(of_node, "host-eye-disc",
+					&instance->eye_disc);
+		}
+#endif
+
 		u2_phy_props_set(tphy, instance);
 		break;
 	case PHY_MODE_USB_OTG:
@@ -1512,6 +1620,32 @@ static void u2_phy_instance_set_mode_ext(struct mtk_tphy *tphy,
 	case PHY_MODE_BC11_SW_CLR:
 		tmp = readl(u2_banks->com + U3P_USBPHYACR6);
 		tmp &= ~PA6_RG_U2_BC11_SW_EN;
+		writel(tmp, u2_banks->com + U3P_USBPHYACR6);
+		break;
+	case PHY_MODE_DPDMPULLDOWN_SET:
+		tmp = readl(u2_banks->com + U3P_U2PHYDTM0);
+		tmp |= P2C_RG_DPPULLDOWN | P2C_RG_DMPULLDOWN;
+		writel(tmp, u2_banks->com + U3P_U2PHYDTM0);
+
+		tmp = readl(u2_banks->com + U3P_USBPHYACR6);
+		tmp &= ~PA6_RG_U2_PHY_REV1;
+		writel(tmp, u2_banks->com + U3P_USBPHYACR6);
+
+		tmp = readl(u2_banks->com + U3P_USBPHYACR6);
+		tmp &= ~PA6_RG_U2_BC11_SW_EN;
+		writel(tmp, u2_banks->com + U3P_USBPHYACR6);
+		break;
+	case PHY_MODE_DPDMPULLDOWN_CLR:
+		tmp = readl(u2_banks->com + U3P_U2PHYDTM0);
+		tmp &= ~(P2C_RG_DPPULLDOWN | P2C_RG_DMPULLDOWN);
+		writel(tmp, u2_banks->com + U3P_U2PHYDTM0);
+
+		tmp = readl(u2_banks->com + U3P_USBPHYACR6);
+		tmp |= PA6_RG_U2_PHY_REV1;
+		writel(tmp, u2_banks->com + U3P_USBPHYACR6);
+
+		tmp = readl(u2_banks->com + U3P_USBPHYACR6);
+		tmp |= PA6_RG_U2_BC11_SW_EN;
 		writel(tmp, u2_banks->com + U3P_USBPHYACR6);
 		break;
 	default:

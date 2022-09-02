@@ -32,6 +32,16 @@
 #include <mt-plat/mtk_qos_prefetch_common.h>
 #endif /* CONFIG_MTK_QOS_FRAMEWORK */
 
+#ifdef OPLUS_FEATURE_SCHED_ASSIST
+#include <linux/sched_assist/sched_assist_common.h>
+#endif /* OPLUS_FEATURE_SCHED_ASSIST */
+#if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT)
+#include <linux/sched_assist/sched_assist_slide.h>
+#endif /* defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT) */
+#if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT)
+#include "walt.h"
+#endif /* defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT) */
+
 DEFINE_PER_CPU_SHARED_ALIGNED(struct rq, runqueues);
 
 #ifdef CONFIG_SCHED_DEBUG
@@ -871,11 +881,23 @@ uclamp_eff_get(struct task_struct *p, enum uclamp_id clamp_id)
 
 	return uc_req;
 }
-
+extern int sysctl_set_ux_uclamp_enable;
 unsigned long uclamp_eff_value(struct task_struct *p, enum uclamp_id clamp_id)
 {
 	struct uclamp_se uc_eff;
-
+	unsigned int uc_value;
+	if (p->ux_state & SA_TYPE_TURBO && clamp_id == UCLAMP_MIN && sysctl_set_ux_uclamp_enable) {
+		uc_value = ux_uclamp_value;
+		if (p->uclamp[clamp_id].active) {
+			if (p->uclamp[clamp_id].value > uc_value)
+				uc_value = p->uclamp[clamp_id].value;
+		 } else {
+			uc_eff =  uclamp_eff_get(p, clamp_id);
+			if (uc_eff.value > uc_value)
+				uc_value = uc_eff.value;
+		}
+		return (unsigned long)uc_value;
+	}
 	/* Task currently refcounted: use back-annotated (effective) value */
 	if (p->uclamp[clamp_id].active)
 		return (unsigned long)p->uclamp[clamp_id].value;
@@ -901,6 +923,7 @@ static inline void uclamp_rq_inc_id(struct rq *rq, struct task_struct *p,
 	struct uclamp_rq *uc_rq = &rq->uclamp[clamp_id];
 	struct uclamp_se *uc_se = &p->uclamp[clamp_id];
 	struct uclamp_bucket *bucket;
+	unsigned int tmp_value;
 
 	lockdep_assert_held(&rq->lock);
 
@@ -913,15 +936,19 @@ static inline void uclamp_rq_inc_id(struct rq *rq, struct task_struct *p,
 
 	uclamp_idle_reset(rq, clamp_id, uc_se->value);
 
+	tmp_value = uc_se->value;
+	if (p->ux_state & SA_TYPE_TURBO && clamp_id == UCLAMP_MIN && sysctl_set_ux_uclamp_enable)
+		tmp_value = ux_uclamp_value;
+
 	/*
 	 * Local max aggregation: rq buckets always track the max
 	 * "requested" clamp value of its RUNNABLE tasks.
 	 */
-	if (bucket->tasks == 1 || uc_se->value > bucket->value)
-		bucket->value = uc_se->value;
+	if (bucket->tasks == 1 || tmp_value > bucket->value)
+		bucket->value = tmp_value;
 
-	if (uc_se->value > READ_ONCE(uc_rq->value))
-		WRITE_ONCE(uc_rq->value, uc_se->value);
+	if (tmp_value > READ_ONCE(uc_rq->value))
+		WRITE_ONCE(uc_rq->value, tmp_value);
 }
 
 /*
@@ -1565,8 +1592,18 @@ static struct rq *move_queued_task(struct rq *rq, struct rq_flags *rf,
 
 	WRITE_ONCE(p->on_rq, TASK_ON_RQ_MIGRATING);
 	dequeue_task(rq, p, DEQUEUE_NOCLOCK);
+#if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT)
+	rq_unpin_lock(rq, rf);
+	double_lock_balance(rq, cpu_rq(new_cpu));
+	if (!(rq->clock_update_flags & RQCF_UPDATED))
+		update_rq_clock(rq);
+#endif /* defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT) */
 	set_task_cpu(p, new_cpu);
+#if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT)
+	double_rq_unlock(cpu_rq(new_cpu), rq);
+#else
 	rq_unlock(rq, rf);
+#endif /* defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT) */
 
 	rq = cpu_rq(new_cpu);
 
@@ -1869,6 +1906,10 @@ void set_task_cpu(struct task_struct *p, unsigned int new_cpu)
 		p->se.nr_migrations++;
 		rseq_migrate(p);
 		perf_event_task_migrate(p);
+          
+#if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT)
+	walt_fixup_busy_time(p, new_cpu);
+#endif /* defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT) */
 	}
 
 	__set_task_cpu(p, new_cpu);
@@ -2700,6 +2741,21 @@ static void ttwu_queue(struct task_struct *p, int cpu, int wake_flags)
  * Return: %true if @p->state changes (an actual wakeup was done),
  *	   %false otherwise.
  */
+#if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT)
+/* utility function to update walt signals at wakeup */
+static inline void walt_try_to_wake_up(struct task_struct *p)
+{
+	struct rq *rq = cpu_rq(task_cpu(p));
+	struct rq_flags rf;
+	u64 wallclock;
+
+	rq_lock_irqsave(rq, &rf);
+	wallclock = walt_ktime_clock();
+	walt_update_task_ravg(rq->curr, rq, TASK_UPDATE, wallclock, 0);
+	walt_update_task_ravg(p, rq, TASK_WAKE, wallclock, 0);
+	rq_unlock_irqrestore(rq, &rf);
+}
+#endif /* defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT) */
 static int
 try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags,
 	       int sibling_count_hint)
@@ -2781,6 +2837,10 @@ try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags,
 	 */
 	smp_cond_load_acquire(&p->on_cpu, !VAL);
 
+#if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT)
+	walt_try_to_wake_up(p);
+#endif /* defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT) */
+
 	p->sched_contributes_to_load = !!task_contributes_to_load(p);
 	p->state = TASK_WAKING;
 
@@ -2852,6 +2912,12 @@ static void try_to_wake_up_local(struct task_struct *p, struct rq_flags *rf)
 	trace_sched_waking(p);
 
 	if (!task_on_rq_queued(p)) {
+#if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT)
+	u64 wallclock = walt_ktime_clock();
+
+	walt_update_task_ravg(rq->curr, rq, TASK_UPDATE, wallclock, 0);
+	walt_update_task_ravg(p, rq, TASK_WAKE, wallclock, 0);
+#endif /* defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT) */
 		if (p->in_iowait) {
 			delayacct_blkio_end(p);
 			atomic_dec(&rq->nr_iowait);
@@ -2914,6 +2980,10 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
 	memset(&p->se.statistics, 0, sizeof(p->se.statistics));
 #endif
 
+#if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT)
+	p->last_sleep_ts	=  0;
+	walt_init_new_task_load(p);
+#endif /* defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT) */
 	RB_CLEAR_NODE(&p->dl.rb_node);
 	init_dl_task_timer(&p->dl);
 	init_dl_inactive_task_timer(&p->dl);
@@ -3176,6 +3246,9 @@ void wake_up_new_task(struct task_struct *p)
 	struct rq *rq;
 
 	raw_spin_lock_irqsave(&p->pi_lock, rf.flags);
+#if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT)
+	walt_init_new_task_load(p);
+#endif /* defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT) */
 	p->state = TASK_RUNNING;
 #ifdef CONFIG_SMP
 	/*
@@ -3196,6 +3269,9 @@ void wake_up_new_task(struct task_struct *p)
 
 	p->last_enqueued_ts = ktime_get_ns();
 	activate_task(rq, p, ENQUEUE_NOCLOCK);
+#if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT)
+	walt_mark_task_starting(p);
+#endif /* defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT) */
 	p->on_rq = TASK_ON_RQ_QUEUED;
 	trace_sched_wakeup_new(p);
 	check_preempt_curr(rq, p, WF_FORK);
@@ -3816,6 +3892,11 @@ unsigned long long task_sched_runtime(struct task_struct *p)
 	return ns;
 }
 
+#if defined(OPLUS_FEATURE_CORE_CTL) && defined(CONFIG_SCHED_CORE_CTL)
+extern int tick_do_timer_cpu __read_mostly;
+#include <linux/sched/core_ctl.h>
+#endif /* OPLUS_FEATURE_CORE_CTL */
+
 /*
  * This function gets called by the timer code, with HZ frequency.
  * We call it with interrupts disabled.
@@ -3826,12 +3907,24 @@ void scheduler_tick(void)
 	struct rq *rq = cpu_rq(cpu);
 	struct task_struct *curr = rq->curr;
 	struct rq_flags rf;
+#if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT)
+	unsigned int flag = 0;
+#endif /* defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT) */
 
 	sched_clock_tick();
 
 	rq_lock(rq, &rf);
 
+#if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT)
+	walt_set_window_start(rq, &rf);
+	walt_update_task_ravg(rq->curr, rq, TASK_UPDATE,
+			walt_ktime_clock(), 0);
+#endif /* defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT) */
 	update_rq_clock(rq);
+#if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT)
+	slide_calc_boost_load(rq, &flag, cpu);
+	cpufreq_update_util(rq, flag);
+#endif
 	curr->sched_class->task_tick(rq, curr, 0);
 	cpu_load_update_active(rq);
 	calc_global_load_tick(rq);
@@ -3855,6 +3948,10 @@ void scheduler_tick(void)
 	if (curr->sched_class == &fair_sched_class)
 		check_for_migration(curr);
 #endif
+#if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_OPLUS_FEATURE_SCHED_SPREAD)
+        update_rq_nr_imbalance(cpu);
+#endif
+
 #ifdef CONFIG_MTK_QOS_FRAMEWORK
 	qos_prefetch_tick(cpu);
 #endif /* CONFIG_MTK_QOS_FRAMEWORK */
@@ -4228,6 +4325,9 @@ static void __sched notrace __schedule(bool preempt)
 	struct rq_flags rf;
 	struct rq *rq;
 	int cpu;
+#if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT)
+	u64 wallclock;
+#endif /* defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT) */
 
 	cpu = smp_processor_id();
 	rq = cpu_rq(cpu);
@@ -4284,12 +4384,23 @@ static void __sched notrace __schedule(bool preempt)
 		}
 		switch_count = &prev->nvcsw;
 	}
-
+#ifdef OPLUS_FEATURE_SCHED_ASSIST
+	prev->enqueue_time = rq->clock;
+#endif /* OPLUS_FEATURE_SCHED_ASSIST */
 	next = pick_next_task(rq, prev, &rf);
+#if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT)
+	wallclock = walt_ktime_clock();
+#endif /* defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT) */
 	clear_tsk_need_resched(prev);
 	clear_preempt_need_resched();
 
 	if (likely(prev != next)) {
+#if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT)
+		if (!prev->on_rq)
+			prev->last_sleep_ts = wallclock;
+		walt_update_task_ravg(prev, rq, PUT_PREV_TASK, wallclock, 0);
+		walt_update_task_ravg(next, rq, PICK_NEXT_TASK, wallclock, 0);
+#endif /* defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT) */
 		rq->nr_switches++;
 		rq->curr = next;
 		/*
@@ -4313,6 +4424,9 @@ static void __sched notrace __schedule(bool preempt)
 		/* Also unlocks the rq: */
 		rq = context_switch(rq, prev, next, &rf);
 	} else {
+#if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT)
+		walt_update_task_ravg(prev, rq, TASK_UPDATE, wallclock, 0);
+#endif /* defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT) */
 		rq->clock_update_flags &= ~(RQCF_ACT_SKIP|RQCF_REQ_SKIP);
 		rq_unlock_irq(rq, &rf);
 	}
@@ -6797,6 +6911,13 @@ int sched_cpu_deactivate(unsigned int cpu)
 static void sched_rq_cpu_starting(unsigned int cpu)
 {
 	struct rq *rq = cpu_rq(cpu);
+#if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT)
+	struct rq_flags rf;
+
+	rq_lock(rq, &rf);
+	walt_set_window_start(rq, &rf);
+	rq_unlock(rq, &rf);
+#endif /* defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT) */
 
 	rq->calc_load_update = calc_load_update;
 	update_max_interval();
@@ -6820,6 +6941,9 @@ int sched_cpu_dying(unsigned int cpu)
 	sched_tick_stop(cpu);
 
 	rq_lock_irqsave(rq, &rf);
+#if defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT)
+	walt_migrate_sync_cpu(cpu);
+#endif /* defined(OPLUS_FEATURE_SCHED_ASSIST) && defined(CONFIG_SCHED_WALT) */
 	if (rq->rd) {
 		BUG_ON(!cpumask_test_cpu(cpu, rq->rd->span));
 		set_rq_offline(rq);
@@ -6860,7 +6984,9 @@ void __init sched_init_smp(void)
 	if (set_cpus_allowed_ptr(current, housekeeping_cpumask(HK_FLAG_DOMAIN)) < 0)
 		BUG();
 	sched_init_granularity();
-
+#ifdef OPLUS_FEATURE_SCHED_ASSIST
+	ux_init_cpu_data();
+#endif /* OPLUS_FEATURE_SCHED_ASSIST */
 	init_sched_rt_class();
 	init_sched_dl_class();
 
@@ -6988,6 +7114,9 @@ void __init sched_init(void)
 		init_cfs_rq(&rq->cfs);
 		init_rt_rq(&rq->rt);
 		init_dl_rq(&rq->dl);
+#ifdef OPLUS_FEATURE_SCHED_ASSIST
+		ux_init_rq_data(rq);
+#endif /* OPLUS_FEATURE_SCHED_ASSIST */
 #ifdef CONFIG_FAIR_GROUP_SCHED
 		root_task_group.shares = ROOT_TASK_GROUP_LOAD;
 		INIT_LIST_HEAD(&rq->leaf_cfs_rq_list);

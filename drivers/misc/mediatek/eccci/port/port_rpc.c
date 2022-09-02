@@ -71,7 +71,21 @@ static struct gpio_item gpio_mapping_table[] = {
 
 static int get_md_gpio_val(unsigned int num)
 {
-	return gpio_get_value(num);
+    //#ifdef OPLUS_FEATURE_THREESTATE_GPIO
+    if(is_project(20375) || is_project(20376) || is_project(20377) || is_project(20378) || is_project(20379) || is_project(0x2037A)
+        || is_project(20361) || is_project(20362) || is_project(20363) || is_project(20364) || is_project(20365) || is_project(20366)
+        || is_project(20271) || is_project(20272) || is_project(20273) || is_project(20274)
+        || is_project(0x2027A) || is_project(0x2027B) || is_project(0x2027C) || is_project(0x2027D)
+        || is_project(21281) || is_project(21282) || is_project(21283)
+        || is_project(21331) || is_project(21332) || is_project(21333) || is_project(21334) || is_project(21335) || is_project(21336) || is_project(21337) || is_project(21338) || is_project(21339)||is_project(21361) || is_project(21362) || is_project(21363) || is_project(21107) || is_project(22875) || is_project(22876))
+    {
+        return gpio_get_tristate_input(num);
+    }
+    else
+    {
+        return gpio_get_value(num);
+    }
+    //#endif OPLUS_FEATURE_THREESTATE_GPIO
 }
 
 static int get_md_adc_val(__attribute__((unused))unsigned int num)

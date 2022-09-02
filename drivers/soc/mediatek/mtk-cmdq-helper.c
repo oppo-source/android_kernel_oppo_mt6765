@@ -11,7 +11,9 @@
 #include <linux/dma-mapping.h>
 #include <linux/dmapool.h>
 #include <linux/sched/clock.h>
-
+#ifdef OPLUS_FEATURE_DISPLAY
+#include <soc/oplus/system/oplus_mm_kevent_fb.h>
+#endif
 #if IS_ENABLED(CONFIG_MTK_CMDQ_MBOX_EXT)
 #include "cmdq-util.h"
 
@@ -1681,6 +1683,11 @@ void cmdq_pkt_err_dump_cb(struct cmdq_cb_data data)
 
 	cmdq_util_user_err(client->chan, "Begin of Error %u", err_num);
 
+	#ifdef OPLUS_FEATURE_DISPLAY
+	if (err_num < 5) {
+		mm_fb_display_kevent("DisplayDriverID@@508$$", MM_FB_KEY_RATELIMIT_1H, "cmdq timeout Begin of Error %u", err_num);
+	}
+	#endif
 	cmdq_dump_core(client->chan);
 
 #if IS_ENABLED(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT) || \

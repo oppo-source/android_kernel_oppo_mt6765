@@ -92,6 +92,9 @@ int chr_get_debug_level(void)
 
 void _wake_up_charger(struct mtk_charger *info)
 {
+#if (defined CONFIG_OPLUS_CHARGER_MTK6765S) && (defined OPLUS_FEATURE_CHG_BASIC)
+	return;
+#else
 	unsigned long flags;
 
 	if (info == NULL)
@@ -103,6 +106,7 @@ void _wake_up_charger(struct mtk_charger *info)
 	spin_unlock_irqrestore(&info->slock, flags);
 	info->charger_thread_timeout = true;
 	wake_up(&info->wait_que);
+#endif
 }
 
 bool is_disable_charger(struct mtk_charger *info)
