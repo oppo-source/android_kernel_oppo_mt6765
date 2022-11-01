@@ -15,6 +15,9 @@
 MTK_PLATFORM := $(subst ",,$(CONFIG_MTK_PLATFORM))
 ifeq (y, $(filter y, $(CONFIG_MACH_MT6893)))
 MMC_FOLDER := mt6885
+else ifeq (y, $(filter y, $(CONFIG_MACH_MT6833)))
+MTK_PLATFORM := mt6853
+MMC_FOLDER := mt6853
 else
 MMC_FOLDER := $(MTK_PLATFORM)
 endif
@@ -27,6 +30,8 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/pmic/
 #workaround for include mmc/card/queue.h and mmc/core/core.h
 ccflags-y += -I$(srctree)/drivers
 ccflags-y += -I$(srctree)/drivers/mmc/host/mediatek/ComboA/$(MMC_FOLDER)
+msdc-y += $(MMC_FOLDER)/msdc_cust.o
+msdc-y += $(MMC_FOLDER)/autok_dvfs.o
 
 ifeq ($(CONFIG_MTK_PLATFORM), "mt6761")
 
@@ -36,17 +41,16 @@ ccflags-y += -I$(srctree)/drivers/devfreq
 msdc-y += mt6765/msdc_cust.o
 msdc-y += mt6765/autok_dvfs.o
 
-else
-
-ccflags-y += -I$(srctree)/drivers/mmc/host/mediatek/ComboA/$(MMC_FOLDER)
-msdc-y += $(MMC_FOLDER)/msdc_cust.o
-msdc-y += $(MTK_PLATFORM)/autok_dvfs.o
-
 endif
 
 ifeq ($(CONFIG_MTK_PLATFORM), "mt6765")
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/pmic/include/mt6357
 ccflags-y += -I$(srctree)/drivers/devfreq
+endif
+
+ifeq ($(CONFIG_MTK_PLATFORM), "mt6779")
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/pmic/include/mt6359
+ccflags-y += -I$(srctree)/drivers/devfreq/
 endif
 
 ifeq ($(CONFIG_MTK_HW_FDE_AES),y)
@@ -67,4 +71,8 @@ endif
 
 ifeq ($(CONFIG_FPGA_EARLY_PORTING),y)
 msdc-y += $(MTK_PLATFORM)/msdc_fpga_io.o
+endif
+
+ifeq ($(CONFIG_MTK_EMMC_HW_CQ),y)
+msdc-y += cmdq_hci.o
 endif

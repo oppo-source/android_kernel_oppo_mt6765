@@ -54,7 +54,6 @@ bool imx586_is_seamless;
 
 
 
-#undef VENDOR_EDIT
 
 #define USE_BURST_MODE 1
 
@@ -393,12 +392,25 @@ static struct SEAMLESS_SYS_DELAY seamless_sys_delays[] = {
 	{ MSDK_SCENARIO_ID_CUSTOM2, MSDK_SCENARIO_ID_CUSTOM4, 1 },
 };
 
+static struct IMGSENSOR_I2C_CFG *get_i2c_cfg(void)
+{
+	return &(((struct IMGSENSOR_SENSOR_INST *)
+		  (imgsensor.psensor_func->psensor_inst))->i2c_cfg);
+}
+
 static kal_uint16 read_cmos_sensor(kal_uint32 addr)
 {
 	kal_uint16 get_byte = 0;
 	char pusendcmd[2] = {(char)(addr >> 8), (char)(addr & 0xFF)};
 
-	iReadRegI2C(pusendcmd, 2, (u8 *)&get_byte, 2, imgsensor.i2c_write_id);
+	imgsensor_i2c_read(
+		get_i2c_cfg(),
+		pusendcmd,
+		2,
+		(u8 *)&get_byte,
+		2,
+		imgsensor.i2c_write_id,
+		IMGSENSOR_I2C_SPEED);
 	return ((get_byte<<8)&0xff00) | ((get_byte>>8)&0x00ff);
 }
 
@@ -409,7 +421,13 @@ static void write_cmos_sensor(kal_uint16 addr, kal_uint16 para)
 
 	/*kdSetI2CSpeed(imgsensor_info.i2c_speed);*/
 	/* Add this func to set i2c speed by each sensor */
-	iWriteRegI2C(pusendcmd, 4, imgsensor.i2c_write_id);
+	imgsensor_i2c_write(
+		get_i2c_cfg(),
+		pusendcmd,
+		4,
+		4,
+		imgsensor.i2c_write_id,
+		IMGSENSOR_I2C_SPEED);
 }
 
 static kal_uint16 read_cmos_sensor_8(kal_uint16 addr)
@@ -417,7 +435,14 @@ static kal_uint16 read_cmos_sensor_8(kal_uint16 addr)
 	kal_uint16 get_byte = 0;
 	char pusendcmd[2] = {(char)(addr >> 8), (char)(addr & 0xFF) };
 
-	iReadRegI2C(pusendcmd, 2, (u8 *)&get_byte, 1, imgsensor.i2c_write_id);
+	imgsensor_i2c_read(
+		get_i2c_cfg(),
+		pusendcmd,
+		2,
+		(u8 *)&get_byte,
+		1,
+		imgsensor.i2c_write_id,
+		IMGSENSOR_I2C_SPEED);
 	return get_byte;
 }
 
@@ -426,7 +451,13 @@ static void write_cmos_sensor_8(kal_uint16 addr, kal_uint8 para)
 	char pusendcmd[3] = {(char)(addr >> 8), (char)(addr & 0xFF),
 			(char)(para & 0xFF)};
 
-	iWriteRegI2C(pusendcmd, 3, imgsensor.i2c_write_id);
+	imgsensor_i2c_write(
+		get_i2c_cfg(),
+		pusendcmd,
+		3,
+		3,
+		imgsensor.i2c_write_id,
+		IMGSENSOR_I2C_SPEED);
 }
 
 static void imx586_get_pdaf_reg_setting(MUINT32 regNum, kal_uint16 *regDa)
@@ -607,7 +638,6 @@ static void write_shutter(kal_uint32 shutter)
 {
 	kal_uint16 realtime_fps = 0;
 	#ifdef LONG_EXP
-	/*Yijun.Tan@camera.driver,20180116,add for slow shutter */
 	int longexposure_times = 0;
 	static int long_exposure_status;
 	#endif
@@ -1061,10 +1091,12 @@ static kal_uint16 imx586_table_write_cmos_sensor(kal_uint16 *para,
 #if MULTI_WRITE
 		if ((I2C_BUFFER_LEN - tosend) < 3
 			|| IDX == len || addr != addr_last) {
-			iBurstWriteReg_multi(puSendCmd,
+			imgsensor_i2c_write(
+						get_i2c_cfg(),
+						puSendCmd,
 						tosend,
-						imgsensor.i2c_write_id,
 						3,
+						imgsensor.i2c_write_id,
 						imgsensor_info.i2c_speed);
 			tosend = 0;
 		}
@@ -1753,6 +1785,14 @@ static kal_uint16 imx586_preview_setting[] = {
 	0x3E3B, 0x01,
 	0x4434, 0x01,
 	0x4435, 0xF0,
+
+	/*cphy global timing*/
+	0x0808, 0x02,
+	0x084f, 0x12,
+	0x0851, 0x0f,
+	0x0853, 0x1e,
+	0x0855, 0x14,
+	0x0859, 0x1c
 #endif
 };
 
@@ -1862,6 +1902,14 @@ static kal_uint16 imx586_custom2_setting[] = {
 	0x3E3B, 0x01,
 	0x4434, 0x01,
 	0x4435, 0xE0,
+
+	/*cphy global timing*/
+	0x0808, 0x02,
+	0x084f, 0x08,
+	0x0851, 0x07,
+	0x0853, 0x0e,
+	0x0855, 0x14,
+	0x0859, 0x1c
 };
 
 static kal_uint16 imx586_normal_video_setting[] = {
@@ -1969,6 +2017,14 @@ static kal_uint16 imx586_normal_video_setting[] = {
 	0x3E3B, 0x01,
 	0x4434, 0x01,
 	0x4435, 0xF0,
+
+	/*cphy global timing*/
+	0x0808, 0x02,
+	0x084f, 0x08,
+	0x0851, 0x07,
+	0x0853, 0x0e,
+	0x0855, 0x14,
+	0x0859, 0x1c
 };
 
 static kal_uint16 imx586_hs_video_setting[] = {
@@ -2076,6 +2132,14 @@ static kal_uint16 imx586_hs_video_setting[] = {
 	0x3E3B, 0x00,
 	0x4434, 0x00,
 	0x4435, 0xF8,
+
+	/*cphy global timing*/
+	0x0808, 0x02,
+	0x084f, 0x08,
+	0x0851, 0x07,
+	0x0853, 0x0e,
+	0x0855, 0x14,
+	0x0859, 0x1c
 };
 
 static kal_uint16 imx586_slim_video_setting[] = {
@@ -2183,6 +2247,14 @@ static kal_uint16 imx586_slim_video_setting[] = {
 	0x3E3B, 0x01,
 	0x4434, 0x01,
 	0x4435, 0xF0,
+
+	/*cphy global timing*/
+	0x0808, 0x02,
+	0x084f, 0x08,
+	0x0851, 0x07,
+	0x0853, 0x0e,
+	0x0855, 0x14,
+	0x0859, 0x1c
 };
 
 static kal_uint16 imx586_custom1_setting[] = {
@@ -2288,6 +2360,14 @@ static kal_uint16 imx586_custom1_setting[] = {
 	/*PDAF TYPE1 Setting*/
 	0x3E20, 0x01,
 	0x3E37, 0x00,
+
+	/*cphy global timing*/
+	0x0808, 0x02,
+	0x084f, 0x17,
+	0x0851, 0x12,
+	0x0853, 0x25,
+	0x0855, 0x14,
+	0x0859, 0x1c
 };
 
 static kal_uint16 imx586_custom4_setting[] = {
@@ -2630,7 +2710,6 @@ static void sensor_init(void)
 static void preview_setting(void)
 {
 	pr_debug("%s +\n", __func__);
-
 	#if USE_BURST_MODE
 	imx586_table_write_cmos_sensor(imx586_preview_setting,
 		sizeof(imx586_preview_setting)/sizeof(kal_uint16));
@@ -3317,6 +3396,7 @@ static kal_uint32 open(void)
 		return ERROR_SENSOR_CONNECT_FAIL;
 
 	/* initail sequence write in  */
+
 	sensor_init();
 
 	spin_lock(&imgsensor_drv_lock);
@@ -4310,7 +4390,7 @@ static kal_uint32 get_sensor_temperature(void)
 
 	temperature = read_cmos_sensor_8(0x013a);
 
-	if (temperature >= 0x0 && temperature <= 0x4F)
+	if (temperature <= 0x4F)
 		temperature_convert = temperature;
 	else if (temperature >= 0x50 && temperature <= 0x7F)
 		temperature_convert = 80;
@@ -4504,11 +4584,9 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 	case SENSOR_FEATURE_SET_NIGHTMODE:
 		 /* night_mode((BOOL) *feature_data); */
 		break;
-	#ifdef VENDOR_EDIT
 	case SENSOR_FEATURE_CHECK_MODULE_ID:
 		*feature_return_para_32 = imgsensor_info.module_id;
 		break;
-	#endif
 	case SENSOR_FEATURE_SET_GAIN:
 		set_gain((UINT16) *feature_data);
 		break;
@@ -5091,7 +5169,10 @@ static struct SENSOR_FUNCTION_STRUCT sensor_func = {
 UINT32 IMX586_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc)
 {
 	/* To Do : Check Sensor status here */
+	sensor_func.arch = IMGSENSOR_ARCH_V2;
 	if (pfFunc != NULL)
 		*pfFunc = &sensor_func;
+	if (imgsensor.psensor_func == NULL)
+		imgsensor.psensor_func = &sensor_func;
 	return ERROR_NONE;
 } /* IMX586_MIPI_RAW_SensorInit */

@@ -38,7 +38,9 @@ endif
 ccflags-y += -I$(srctree)
 #workaround for include mmc/card/queue.h and mmc/core/core.h
 ccflags-y += -I$(srctree)/drivers
+ccflags-y += -I$(srctree)/drivers/mmc/host/mediatek/ComboA
 ccflags-y += -I$(srctree)/drivers/mmc/host/mediatek/$(MTK_PLATFORM)
+obj-$(CONFIG_MMC_MTK_PRO) += ComboA/
 
 
 ifeq ($(CONFIG_MTK_PLATFORM), "mt6765")
@@ -50,6 +52,12 @@ endif
 ifeq ($(CONFIG_MTK_PLATFORM), "mt6761")
 ccflags-y += -I$(srctree)/drivers/mmc/host/mediatek/ComboA
 ccflags-y += -I$(srctree)/drivers/mmc/host/mediatek/ComboA/mt6765
+obj-$(CONFIG_MMC_MTK_PRO) += ComboA/
+endif
+
+ifeq ($(CONFIG_MTK_PLATFORM), "mt6779")
+ccflags-y += -I$(srctree)/drivers/mmc/host/mediatek/ComboA
+ccflags-y += -I$(srctree)/drivers/mmc/host/mediatek/ComboA/mt6779
 obj-$(CONFIG_MMC_MTK_PRO) += ComboA/
 endif
 
